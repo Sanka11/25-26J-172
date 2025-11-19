@@ -44,7 +44,7 @@ firebase-debug.*.log
 # Python (ML service)
 # -------------------------------
 ml-service/venv/
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -52,6 +52,7 @@ __pycache__/
 # ML model files (optional)
 *.pkl
 *.joblib
+
 
 # -------------------------------
 # Environment Variables
