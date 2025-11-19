@@ -1,0 +1,63 @@
+# -------------------------------
+# Node Modules (frontend/backend)
+# -------------------------------
+node_modules/
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
+package-lock.json
+
+# -------------------------------
+# Vite Build Output
+# -------------------------------
+dist/
+frontend/dist/
+
+# -------------------------------
+# macOS Files
+# -------------------------------
+.DS_Store
+
+# -------------------------------
+# Windows Files
+# -------------------------------
+Thumbs.db
+
+# -------------------------------
+# IDE & Editor Folders
+# -------------------------------
+.vscode/
+.idea/
+*.iml
+
+# -------------------------------
+# Firebase
+# -------------------------------
+backend/functions/node_modules/
+backend/.firebase/
+
+# Emulator artifacts
+firebase-debug.log
+firebase-debug.*.log
+
+# -------------------------------
+# Python (ML service)
+# -------------------------------
+ml-service/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ML model files (optional)
+*.pkl
+*.joblib
+
+# -------------------------------
+# Environment Variables
+# -------------------------------
+.env
+.env.*
+frontend/.env
+backend/.env
+ml-service/.env
