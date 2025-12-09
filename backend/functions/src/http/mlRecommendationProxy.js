@@ -10,12 +10,19 @@ const predictRecommendation = functions.https.onRequest(async (req, res) => {
 
     const payload = req.body;
 
+    // Log for debugging
+    console.log("Sending to:", RECOMMENDATION_SERVICE_URL);
+    console.log("Payload:", payload);
+
     const response = await axios.post(RECOMMENDATION_SERVICE_URL, payload);
 
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error("Recommendation ML error:", error.message);
-    return res.status(500).json({ error: "Recommendation ML service error" });
+    console.error("Recommendation ML error:", error);
+    return res.status(500).json({
+      error: "Recommendation ML service error",
+      details: error.message,
+    });
   }
 });
 
