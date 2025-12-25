@@ -4,11 +4,7 @@ const functions = require("firebase-functions");
 // Are we running in the local emulator?
 const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
 
-/**
- * ML_SERVICE_URL:
- *  - When using emulator locally → points to your laptop's FastAPI (8000)
- *  - When deployed → uses Firebase Functions config (ml.service_url)
- */
+
 const ML_SERVICE_URL = isEmulator ?
   "http://127.0.0.1:8000/predict-risk" :
   (functions.config().ml && functions.config().ml.service_url) ||
@@ -19,7 +15,13 @@ const RECOMMENDATION_SERVICE_URL = isEmulator ?
   (functions.config().ml && functions.config().ml.recommendation_url) ||
     "https://your-ml-service-domain.com/recommendation";
 
+
+const ML_STRUGGLE_URL = isEmulator
+  ? "http://127.0.0.1:8000/predictStruggle"
+  : (functions.config().ml && functions.config().ml.struggle_url) ||
+    "https://your-ml-service-domain.com/predictStruggle";
 module.exports = {
   ML_SERVICE_URL,
   RECOMMENDATION_SERVICE_URL,
+  ML_STRUGGLE_URL,
 };
