@@ -30,6 +30,7 @@ import CreateQuiz from "./pages/CreateQuiz";
 import QuizList from "./pages/QuizList";
 import TakeQuiz from "./pages/TakeQuiz";
 import StruggleDashboard from "./pages/StruggleDashboard";
+import QuizLevels from "./pages/QuizLevels";
 
 function App() {
   return (
@@ -50,6 +51,7 @@ function App() {
         <Route path="/quizzes" element={<QuizList />} />
         <Route path="/quiz/:id" element={<TakeQuiz />} />
         <Route path="/struggles" element={<StruggleDashboard />} />
+        <Route path="/levels" element={<QuizLevels />} />
 
         <Route path="/" element={<RiskDemo />} />
       </Routes>

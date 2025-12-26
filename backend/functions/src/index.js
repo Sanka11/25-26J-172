@@ -29,6 +29,7 @@ const {
 const { predictStruggle } = require("./http/struggleController");
 const { predictRisk } = require("./http/mlProxy");
 const { predictRecommendation } = require("./http/mlRecommendationProxy");
+const { checkLevelUnlock, getUserLevel, } = require("./http/levelController");
 
 
 exports.createQuiz = createQuiz;
@@ -39,3 +40,5 @@ exports.getQuizById = getQuizById;
 exports.predictStruggle = predictStruggle;
 exports.predictRisk = predictRisk;
 exports.predictRecommendation = predictRecommendation;
+exports.checkLevelUnlock = checkLevelUnlock;
+exports.getUserLevel = getUserLevel;
