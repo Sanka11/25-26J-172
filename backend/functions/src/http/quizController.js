@@ -37,8 +37,47 @@ const createQuiz = functions.https.onRequest(async (req, res) => {
 /**
  * Submit Quiz
  */
+// /**
+//  * Submit Quiz
+//  */
+// const submitQuiz = functions.https.onRequest(async (req, res) => {
+//   try {
+//     if (req.method !== "POST") {
+//       return res.status(405).send("Method Not Allowed");
+//     }
+
+//     const { quiz_id, user_id, answers, score, total } = req.body;
+//     console.log("SubmitQuiz payload:", req.body);
+
+//     // ✅ Strict validation
+//     if (
+//       !quiz_id ||
+//       !user_id ||
+//       !Array.isArray(answers) ||
+//       typeof score !== "number" ||
+//       typeof total !== "number"
+//     ) {
+//       return res.status(400).json({ error: "Invalid attempt data" });
+//     }
+
+//     await db.collection("quiz_attempts").add({
+//       quiz_id,
+//       user_id,
+//       answers,
+//       score,
+//       total,
+//       created_at: new Date(), // safe
+//     });
+
+//     return res.status(200).json({ message: "Quiz submitted" });
+//   } catch (error) {
+//     // 🔥 THIS LOG WILL SHOW THE REAL ERROR
+//     console.error("Submit quiz error:", error.message, error.stack);
+//     return res.status(500).json({ error: "Failed to submit quiz" });
+//   }
+// });
 /**
- * Submit Quiz
+ * Submit Quiz Attempt
  */
 const submitQuiz = functions.https.onRequest(async (req, res) => {
   try {
@@ -46,36 +85,46 @@ const submitQuiz = functions.https.onRequest(async (req, res) => {
       return res.status(405).send("Method Not Allowed");
     }
 
-    const { quiz_id, user_id, answers, score, total } = req.body;
-    console.log("SubmitQuiz payload:", req.body);
-
-    // ✅ Strict validation
-    if (
-      !quiz_id ||
-      !user_id ||
-      !Array.isArray(answers) ||
-      typeof score !== "number" ||
-      typeof total !== "number"
-    ) {
-      return res.status(400).json({ error: "Invalid attempt data" });
-    }
-
-    await db.collection("quiz_attempts").add({
-      quiz_id,
+    const {
       user_id,
-      answers,
+      quiz_id,
+      skill_name,
       score,
       total,
-      created_at: new Date(), // safe
+      answers,
+      hint_count,
+      ms_first_response,
+      overlap_time,
+    } = req.body;
+
+    // 🔍 Validation
+    if (!user_id || !quiz_id || !skill_name || total === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ✅ Save quiz attempt (DO NOT overwrite)
+    await db.collection("quiz_attempts").add({
+      user_id,
+      quiz_id,
+      skill_name,
+      score,
+      total,
+      answers: answers || [],
+      hint_count: hint_count || 0,
+      ms_first_response: ms_first_response || 0,
+      overlap_time: overlap_time || 0,
+      created_at: new Date(),
     });
 
-    return res.status(200).json({ message: "Quiz submitted" });
+    return res.status(200).json({
+      message: "Quiz attempt saved successfully",
+    });
   } catch (error) {
-    // 🔥 THIS LOG WILL SHOW THE REAL ERROR
-    console.error("Submit quiz error:", error.message, error.stack);
+    console.error("SubmitQuiz error:", error);
     return res.status(500).json({ error: "Failed to submit quiz" });
   }
 });
+
 
 /**
  * Get Quizzes
