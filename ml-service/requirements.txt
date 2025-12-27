@@ -7,7 +7,7 @@ h11==0.16.0
 httptools==0.7.1
 idna==3.11
 joblib==1.5.2
-numpy==2.3.5
+numpy==1.26.4
 pandas==2.3.3
 pydantic==2.12.4
 pydantic_core==2.41.5
@@ -28,3 +28,12 @@ uvicorn==0.38.0
 
 watchfiles==1.1.1
 websockets==15.0.1
+
+# Extra dependencies used in the app code
+sentence-transformers
+chromadb
+PyPDF2
+python-multipart
+
+# uvloop is not supported on Windows; install only on non-Windows platforms
+uvloop==0.22.1; sys_platform != "win32"

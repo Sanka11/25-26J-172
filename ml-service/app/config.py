@@ -10,4 +10,6 @@ EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Ollama model name (replace with your pulled model)
 OLLAMA_MODEL = "llama3.1"
-OLLAMA_TIMEOUT = 60
+# Local models (especially large ones on CPU) can take a while
+# to generate, so give them a generous timeout.
+OLLAMA_TIMEOUT = 300
