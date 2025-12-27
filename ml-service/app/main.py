@@ -3,7 +3,8 @@ import uuid
 from fastapi import FastAPI, Form, UploadFile, File
 
 # RISK
-from app.schemas.risk import RiskRequest, RiskResponse
+from fastapi.middleware.cors import CORSMiddleware
+from app.schemas.risk import RiskRequest, RiskResponse, UploadPdfRequest, FeedbackRequest
 from app.services.risk_service import predict_risk_score
 
 # STRUGGLE
@@ -25,6 +26,18 @@ from app.embeddings import embed_texts
 from app.vector_store import add_documents
 
 app = FastAPI(title="AcademiGuard ML Service")
+
+# Allow frontend origins (adjust as needed)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # -----------------------------------------------------------
 # EXISTING ENDPOINTS
@@ -52,6 +65,7 @@ def struggle_endpoint(payload: StruggleRequest):
 # -----------------------------------------------------------
 
 @app.post("/upload_pdf")
+async def upload_pdf(payload: UploadPdfRequest):
 async def upload_pdf(file: UploadFile = File(...)):
     """
     1) Read PDF bytes
@@ -62,18 +76,18 @@ async def upload_pdf(file: UploadFile = File(...)):
     """
     pdf_bytes = await file.read()
     filename = file.filename or "uploaded.pdf"
-
-    text = extract_text_from_pdf_bytes(pdf_bytes)
+ from base64 payload
+    text = extract_text_from_pdf_bytes(payload.pdf_bytes)
     chunks = chunk_text(text, chunk_size=1000, overlap=200)
 
     metadatas = [
-        {"pdf_name": filename, "uploaded_at": time.time(), "chunk": i}
+        {"pdf_name": payload.filename, "uploaded_at": time.time(), "chunk": i}
         for i in range(len(chunks))
     ]
 
     embeddings = embed_texts(chunks)
 
-    doc_prefix = f"{filename}_{str(uuid.uuid4())[:8]}"
+    doc_prefix = f"{payload.filename}_{str(uuid.uuid4())[:8]}"
     add_documents(doc_prefix, chunks, metadatas, embeddings)
 
     return {"status": "ok", "chunks": len(chunks), "doc_prefix": doc_prefix}
@@ -85,3 +99,18 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.post("/chat")
 def chat(question: str = Form(...)):
     return answer_question(question)
+
+
+# -----------------------------------------------------------
+# NEW ENDPOINT: CHATBOT FEEDBACK
+# -----------------------------------------------------------
+
+@app.post("/feedback")
+async def submit_feedback(payload: FeedbackRequest):
+    """Receive chatbot feedback from the frontend.
+
+    For now we simply log it; this can later be extended to
+    persist to a database or analytics pipeline.
+    """
+    print("[FEEDBACK]", payload.model_dump())
+    return {"status": "received"}

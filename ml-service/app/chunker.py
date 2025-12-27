@@ -1,18 +1,26 @@
 # ml-service/app/chunker.py
 import math
 
+
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200):
-    # chunk_size = ~1000 characters (~200 tokens depending)
-    chunks = []
-    start = 0
+    """Split text into overlapping character chunks.
+
+    This implementation guarantees forward progress to avoid infinite
+    loops and associated MemoryError issues for very short texts.
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if overlap < 0:
+        raise ValueError("overlap must be non-negative")
+
+    # Cap overlap so it's always smaller than chunk_size
+    if overlap >= chunk_size:
+        overlap = max(0, chunk_size // 2)
+
+    step = chunk_size - overlap
     length = len(text)
-    while start < length:
+    chunks = []
+    for start in range(0, length, step):
         end = min(start + chunk_size, length)
-        chunk = text[start:end]
-        chunks.append(chunk)
-        start = end - overlap
-        if start < 0:
-            start = 0
-        if start >= length:
-            break
+        chunks.append(text[start:end])
     return chunks
