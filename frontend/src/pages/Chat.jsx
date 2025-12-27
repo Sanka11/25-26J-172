@@ -8,7 +8,7 @@ export default function Chat({ onClose }) {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi, I'm AcademiGuard. Ask me about plagiarism, assessments, or academic integrity based on the documents you've uploaded.",
+      text: "Hi!I'm Arlo, How can I help you today?",
       createdAt: new Date().toISOString(),
     },
   ]);
