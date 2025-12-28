@@ -35,6 +35,10 @@ import { useState } from "react";
 import PdfUpload from "./pages/PdfUpload";
 import RiskDemo from "./pages/RiskDemo";
 import Chat from "./pages/Chat";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Home from "./pages/Home";
+import SearchRisk from "./pages/SearchRisk";
+import AllRisks from "./pages/AllRisks";
 
 function App() {
   // Main content view

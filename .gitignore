@@ -62,3 +62,19 @@ ml-service/venv/
 frontend/.env
 backend/.env
 ml-service/.env
+
+
+# -------------------------------
+# ML Artifacts (DO NOT COMMIT)
+# -------------------------------
+*.pth
+*.npy
+*.save
+*.npz
+
+# ML data folders
+ml-service/app/data/
+
+# Temporary / test files
+ml-service/app/New Text Document.txt
+ml-service/app/test_*.py
