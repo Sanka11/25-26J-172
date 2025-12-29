@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from app.schemas.risk import RiskRequest, RiskResponse
 
 from app.schemas.struggle import StruggleRequest, StruggleResponse
-from app.services.struggle_service import predict_struggling_skills
+from app.services.struggle_service import predict_struggle
 
 
 # RECOMMENDATION SCHEMAS
@@ -39,6 +39,12 @@ def recommend(payload: RecommendationRequest):
     return generate_recommendations(payload)
 
 
-@app.post("/predictStruggle", response_model=StruggleResponse)
-def struggle_endpoint(payload: StruggleRequest):
-    return predict_struggling_skills(payload)
+# @app.post("/predictStruggle", response_model=StruggleResponse)
+# def struggle_endpoint(payload: StruggleRequest):
+#     return predict_struggling_skills(payload)
+@app.post("/struggle", response_model=StruggleResponse)
+def struggle(request: StruggleRequest):
+    return {
+        "user_id": request.user_id,
+        **predict_struggle(request)
+    }
