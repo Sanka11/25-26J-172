@@ -12,7 +12,7 @@ const PREDICT_RECOMMENDATION_URL =
 
 const PREDICT_STRUGGLE_URL =
   import.meta.env.VITE_PREDICT_STRUGGLE_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/predictStruggle";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/struggle";
 
 // Quiz APIs
 const CREATE_QUIZ_URL =
@@ -25,15 +25,15 @@ const SUBMIT_QUIZ_URL =
 
 const GET_QUIZZES_URL =
   import.meta.env.VITE_GET_QUIZZES_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizzes";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getAllQuizzes";
 
 const GET_QUIZ_BY_ID_URL =
   import.meta.env.VITE_GET_QUIZ_BY_ID_URL ||
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizById";
 
-const CHECK_LEVEL_URL =
-  import.meta.env.VITE_CHECK_LEVEL_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/checkLevelUnlock"; 
+const GET_QUIZ_BY_LEVEL_URL =
+  import.meta.env.GET_QUIZ_BY_LEVEL_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizByLevel"; 
   
   
 const GET_USER_LEVEL_URL =
@@ -68,6 +68,6 @@ export const appConfig = {
   SUBMIT_QUIZ_URL,
   GET_QUIZZES_URL,
   GET_QUIZ_BY_ID_URL,
-  CHECK_LEVEL_URL,
+  GET_QUIZ_BY_LEVEL_URL,
   GET_USER_LEVEL_URL,
 };
