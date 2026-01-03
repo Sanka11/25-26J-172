@@ -1,25 +1,9 @@
 import React, { useState } from "react";
+import { appConfig } from "../config/env";
 
 export default function PdfUpload() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState("");
-
-  // Convert a PDF file to Base64
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-
-      reader.onload = () => {
-        const base64String = reader.result.split(",")[1]; // remove prefix
-        resolve(base64String);
-      };
-
-      reader.onerror = (error) => {
-        reject(error);
-      };
-    });
-  };
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -27,24 +11,28 @@ export default function PdfUpload() {
       return;
     }
 
-    setUploadStatus("Converting PDF to Base64...");
+    setUploadStatus("Uploading to ML backend...");
 
     try {
-      const base64 = await convertToBase64(selectedFile);
-
       const formData = new FormData();
-      formData.append("file_b64", base64);
-      formData.append("filename", selectedFile.name);
+      formData.append("file", selectedFile); // FastAPI expects `file` for multipart uploads
 
-      setUploadStatus("Uploading to ML backend...");
-
-      const response = await fetch("http://127.0.0.1:8000/upload_pdf", {
+      const response = await fetch(appConfig.ML_UPLOAD_URL, {
         method: "POST",
         body: formData,
       });
 
-      const result = await response.json();
+      if (!response.ok) {
+        const text = await response.text();
+        setUploadStatus(
+          `Upload failed (status ${response.status}): ${
+            text || "No error body returned."
+          }`
+        );
+        return;
+      }
 
+      const result = await response.json();
       setUploadStatus(JSON.stringify(result, null, 2));
     } catch (error) {
       console.error("Upload error:", error);

@@ -45,8 +45,13 @@
 #     return results
 import joblib
 from collections import defaultdict
+from pathlib import Path
 
-model = joblib.load("app/models/db_struggle_model.pkl")
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_MODEL_PATH = _BASE_DIR / "models" / "gb_struggle_model.pkl"
+
+model = joblib.load(_MODEL_PATH)
 
 def predict_struggle(data):
     question_scores = []
@@ -87,4 +92,16 @@ def predict_struggle(data):
         "quiz_average_struggle_score": round(quiz_avg, 4),
         "question_struggles": question_scores,
         "lesson_struggles": lesson_averages
+    }
+
+
+def predict_struggling_skills(data):
+    """Compatibility wrapper used by older /predictStruggle endpoint.
+
+    Accepts the same StruggleRequest-style object as predict_struggle
+    and returns the full response payload including user_id.
+    """
+    return {
+        "user_id": data.user_id,
+        **predict_struggle(data),
     }
