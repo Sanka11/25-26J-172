@@ -1,0 +1,6 @@
+step,gru_risk,rl_action,days_since_last_login,alerts_sent,alerts_responded,engagement_score,academic_reasons
+1,HIGH,EMAIL_REMINDER,9,3,1,3.9366666666666665,
+2,HIGH,EMAIL_REMINDER,8,4,2,3.0,
+3,NORMAL,DO_NOTHING,7,5,3,3.0,
+4,NORMAL,DO_NOTHING,7,5,3,3.0,
+5,LOW,DO_NOTHING,7,5,3,3.0,
