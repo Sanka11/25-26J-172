@@ -6,19 +6,13 @@ export default function PdfUpload() {
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadPhase, setUploadPhase] = useState("idle"); // idle | converting | uploading | done | error
 
-  // Convert PDF → Base64
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-
-      reader.onload = () => {
-        const base64String = reader.result.split(",")[1];
-        resolve(base64String);
-      };
-
-      reader.onerror = (error) => reject(error);
-    });
+  // Validate file is PDF
+  const validatePDF = (file) => {
+    if (!file) return { valid: false, error: "No file selected" };
+    if (file.type !== "application/pdf") {
+      return { valid: false, error: "Only PDF files are allowed" };
+    }
+    return { valid: true, error: null };
   };
 
   const handleUpload = async () => {
@@ -28,26 +22,16 @@ export default function PdfUpload() {
       return;
     }
 
-    setUploadPhase("converting");
-    setUploadStatus("Converting PDF…");
+    setUploadPhase("uploading");
+    setUploadStatus("Uploading to backend…");
 
     try {
-      const base64 = await convertToBase64(selectedFile);
-
-      const payload = {
-        file_b64: base64,
-        filename: selectedFile.name,
-      };
-
-      setUploadPhase("uploading");
-      setUploadStatus("Uploading to backend…");
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
       const response = await fetch(appConfig.ML_UPLOAD_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -75,8 +59,9 @@ export default function PdfUpload() {
       setUploadStatus(JSON.stringify(json, null, 2));
       setUploadPhase("done");
     } catch (err) {
-      setUploadStatus("Error uploading PDF.");
-      console.error(err);
+      const errorMsg = err?.message || "Unknown error occurred";
+      setUploadStatus(`Error: ${errorMsg}`);
+      console.error("Upload error:", err);
       setUploadPhase("error");
     }
   };
@@ -84,8 +69,16 @@ export default function PdfUpload() {
   const handleDrop = (event) => {
     event.preventDefault();
     if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-      setSelectedFile(event.dataTransfer.files[0]);
+      const file = event.dataTransfer.files[0];
+      const validation = validatePDF(file);
+      if (!validation.valid) {
+        setUploadStatus(validation.error);
+        setUploadPhase("error");
+        return;
+      }
+      setSelectedFile(file);
       setUploadStatus("");
+      setUploadPhase("idle");
     }
   };
 
@@ -126,8 +119,18 @@ export default function PdfUpload() {
                 accept="application/pdf"
                 className="hidden"
                 onChange={(e) => {
-                  setSelectedFile(e.target.files[0] || null);
+                  const file = e.target.files[0] || null;
+                  if (file) {
+                    const validation = validatePDF(file);
+                    if (!validation.valid) {
+                      setUploadStatus(validation.error);
+                      setUploadPhase("error");
+                      return;
+                    }
+                  }
+                  setSelectedFile(file);
                   setUploadStatus("");
+                  setUploadPhase("idle");
                 }}
               />
               <span>Choose PDF</span>

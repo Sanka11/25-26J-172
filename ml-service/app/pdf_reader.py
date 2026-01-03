@@ -1,9 +1,15 @@
 # ml-service/app/pdf_reader.py
 from PyPDF2 import PdfReader
-import io, base64
+import io
 
-def extract_text_from_pdf_bytes(b64pdf: str):
-    pdf_bytes = base64.b64decode(b64pdf)
+def extract_text_from_pdf_bytes(pdf_bytes: bytes):
+    """
+    Extract text from PDF bytes.
+    Args:
+        pdf_bytes: Raw PDF file bytes
+    Returns:
+        Extracted text from all pages
+    """
     reader = PdfReader(io.BytesIO(pdf_bytes))
     pages = []
     for p in reader.pages:
