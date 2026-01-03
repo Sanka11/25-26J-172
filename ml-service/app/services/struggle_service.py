@@ -1,107 +1,74 @@
-
-# import joblib
-# import numpy as np
-# from collections import defaultdict
-
-# MODEL_PATH = "app/models/db_struggle_model.pkl"
-
-# model = joblib.load(MODEL_PATH)
-
-# def calculate_level(avg_score: float) -> str:
-#     if avg_score < 0.3:
-#         return "Beginner"
-#     elif avg_score < 0.6:
-#         return "Intermediate"
-#     else:
-#         return "Advanced"
-
-# def predict_struggle(data):
-#     lesson_scores = defaultdict(list)
-
-#     for attempt in data.attempts:
-#         X = [[
-#             attempt.correct,
-#             attempt.hint_count,
-#             attempt.ms_first_response,
-#             attempt.overlap_time
-#         ]]
-
-#         score = float(model.predict(X)[0])
-#         score = max(0.0, min(score, 1.0))
-
-#         lesson_scores[attempt.skill].append(score)
-
-#     results = []
-
-#     for lesson, scores in lesson_scores.items():
-#         avg_score = sum(scores) / len(scores)
-
-#         results.append({
-#             "lesson": lesson,
-#             "average_struggle_score": round(avg_score, 3),
-#             "level": calculate_level(avg_score)
-#         })
-
-#     return results
 import joblib
-from collections import defaultdict
-from pathlib import Path
+import numpy as np
+
+from app.schemas.struggle import (
+    StruggleRequest,
+    StruggleResponse,
+    SkillStruggleResult
+)
+
+# =========================
+# Load trained GB model
+# =========================
+
+MODEL_PATH = "app/models/gb_struggle_model.pkl"
+model = joblib.load(MODEL_PATH)
+
+# Training feature order (VERY IMPORTANT)
+# [
+#   "correct",
+#   "hint_count",
+#   "ms_first_response",
+#   "overlap_time",
+#   "opportunity"
+# ]
 
 
-_BASE_DIR = Path(__file__).resolve().parent.parent
-_MODEL_PATH = _BASE_DIR / "models" / "gb_struggle_model.pkl"
-
-model = joblib.load(_MODEL_PATH)
-
-def predict_struggle(data):
-    question_scores = []
-    lesson_map = defaultdict(list)
-    total = 0.0
-
-    for a in data.attempts:
-        X = [[
-            a.correct,
-            a.hint_count,
-            a.ms_first_response,
-            a.overlap_time
-        ]]
-
-        score = float(model.predict(X)[0])
-        score = max(0.0, min(score, 1.0))
-
-        question_scores.append({
-            "question_id": a.question_id,
-            "lesson": a.skill,
-            "struggle_score": round(score, 4)
-        })
-
-        lesson_map[a.skill].append(score)
-        total += score
-
-    quiz_avg = total / len(question_scores)
-
-    lesson_averages = [
-        {
-            "lesson": lesson,
-            "average_struggle_score": round(sum(scores) / len(scores), 4)
-        }
-        for lesson, scores in lesson_map.items()
-    ]
-
-    return {
-        "quiz_average_struggle_score": round(quiz_avg, 4),
-        "question_struggles": question_scores,
-        "lesson_struggles": lesson_averages
-    }
-
-
-def predict_struggling_skills(data):
-    """Compatibility wrapper used by older /predictStruggle endpoint.
-
-    Accepts the same StruggleRequest-style object as predict_struggle
-    and returns the full response payload including user_id.
+def predict_struggling_skills(payload: StruggleRequest) -> StruggleResponse:
     """
-    return {
-        "user_id": data.user_id,
-        **predict_struggle(data),
-    }
+    Predict struggling skills for a user using Gradient Boosting.
+    Feature order strictly matches training.
+    """
+
+    results = []
+
+    for skill in payload.skills:
+        # -------------------------
+        # Build feature vector
+        # ORDER MUST MATCH TRAINING
+        # -------------------------
+        X = np.array([[
+            skill.correct,
+            skill.hint_count,
+            skill.ms_first_response,
+            skill.overlap_time,
+            skill.opportunity
+        ]])
+
+        # -------------------------
+        # Predict struggle probability
+        # -------------------------
+        score = model.predict_proba(X)[0][1]
+
+        # -------------------------
+        # Convert probability → level
+        # -------------------------
+        if score >= 0.60:
+            level = "High"
+        elif score >= 0.35:
+            level = "Medium"
+        else:
+            level = "Low"
+
+        results.append(
+            SkillStruggleResult(
+                skill_name=skill.skill_name,
+                struggle_score=round(float(score), 3),
+                level=level
+            )
+        )
+
+    return StruggleResponse(
+        user_id=payload.user_id,
+        struggling_skills=results
+    )

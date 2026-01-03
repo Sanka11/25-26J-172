@@ -1,410 +1,291 @@
 
-// import { useState } from "react";
-// import { createQuiz } from "../services/api/quizApi";
-
-// export default function CreateQuiz() {
-//   const [level, setLevel] = useState("");
-//   const [questions, setQuestions] = useState([]);
-
-//   const [q, setQ] = useState({
-//     question: "",
-//     lesson: "",
-//     options: ["", "", "", ""],
-//     correct_index: 0,
-//     hint: "",
-//   });
-
-//   const addQuestion = () => {
-//     setQuestions([...questions, q]);
-//     setQ({
-//       question: "",
-//       lesson: "",
-//       options: ["", "", "", ""],
-//       correct_index: 0,
-//       hint: "",
-//     });
-//   };
-
-//   const saveQuiz = async () => {
-//     await createQuiz({
-//       level: Number(level),
-//       created_by: "lecturer_001",
-//       questions,
-//     });
-//     alert("Quiz Created");
-//   };
-
-//   return (
-//     <div style={{ padding: 20 }}>
-//       <h2>Create Quiz (Level)</h2>
-
-//       <input
-//         placeholder="Level Number"
-//         value={level}
-//         onChange={(e) => setLevel(e.target.value)}
-//       />
-
-//       <h3>Add Question</h3>
-
-//       <input
-//         placeholder="Question"
-//         value={q.question}
-//         onChange={(e) => setQ({ ...q, question: e.target.value })}
-//       />
-
-//       <input
-//         placeholder="Lesson"
-//         value={q.lesson}
-//         onChange={(e) => setQ({ ...q, lesson: e.target.value })}
-//       />
-
-//       {q.options.map((o, i) => (
-//         <input
-//           key={i}
-//           placeholder={`Option ${i + 1}`}
-//           value={o}
-//           onChange={(e) => {
-//             const opts = [...q.options];
-//             opts[i] = e.target.value;
-//             setQ({ ...q, options: opts });
-//           }}
-//         />
-//       ))}
-
-//       <select
-//         value={q.correct_index}
-//         onChange={(e) => setQ({ ...q, correct_index: Number(e.target.value) })}
-//       >
-//         <option value={0}>Option 1</option>
-//         <option value={1}>Option 2</option>
-//         <option value={2}>Option 3</option>
-//         <option value={3}>Option 4</option>
-//       </select>
-
-//       <input
-//         placeholder="Hint"
-//         value={q.hint}
-//         onChange={(e) => setQ({ ...q, hint: e.target.value })}
-//       />
-
-//       <button onClick={addQuestion}>Add Question</button>
-//       <button onClick={saveQuiz}>Save Quiz</button>
-//     </div>
-//   );
-// }
-
 import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { createQuiz } from "../services/api/quizApi";
-import {
-  Plus,
-  Save,
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  Edit3,
-  BookOpen,
-} from "lucide-react";
+import QuestionCard from "../componets/QuestionCard";
 
 export default function CreateQuiz() {
-  const [level, setLevel] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
 
-  const [q, setQ] = useState({
-    question: "",
-    lesson: "",
-    options: ["", "", "", ""],
-    correct_index: 0,
-    hint: "",
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm({
+    defaultValues: {
+      title: "",
+      skill_name: "",
+    },
   });
 
-  const isQuestionValid = () => {
-    return (
-      q.question.trim() &&
-      q.lesson.trim() &&
-      q.options.every((o) => o.trim()) &&
-      q.correct_index >= 0
+  const addQuestion = () => {
+    const newQuestion = {
+      id: Date.now(),
+      question: "",
+      options: ["", "", "", ""],
+      correct: 0,
+    };
+    setQuestions([...questions, newQuestion]);
+  };
+
+  const updateQuestion = (questionId, field, value) => {
+    setQuestions(
+      questions.map((q) => (q.id === questionId ? { ...q, [field]: value } : q))
     );
   };
 
-  const addQuestion = () => {
-    if (!isQuestionValid()) {
-      alert("Please fill in all fields before adding a question");
-      return;
-    }
-
-    setQuestions([...questions, { ...q }]);
-    setQ({
-      question: "",
-      lesson: "",
-      options: ["", "", "", ""],
-      correct_index: 0,
-      hint: "",
-    });
+  const updateOption = (questionId, optionIndex, value) => {
+    setQuestions(
+      questions.map((q) => {
+        if (q.id === questionId) {
+          const newOptions = [...q.options];
+          newOptions[optionIndex] = value;
+          return { ...q, options: newOptions };
+        }
+        return q;
+      })
+    );
   };
 
-  const removeQuestion = (index) => {
-    setQuestions(questions.filter((_, i) => i !== index));
+  const removeQuestion = (questionId) => {
+    setQuestions(questions.filter((q) => q.id !== questionId));
   };
 
-  const saveQuiz = async () => {
-    if (!level.trim()) {
-      alert("Please enter a level number");
-      return;
-    }
-
+  const onSubmit = async (data) => {
     if (questions.length === 0) {
       alert("Please add at least one question");
       return;
     }
 
-    setLoading(true);
+    const hasInvalidQuestions = questions.some(
+      (q) => !q.question.trim() || q.options.some((opt) => !opt.trim())
+    );
+
+    if (hasInvalidQuestions) {
+      alert("Please fill in all question and option fields");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await createQuiz({
-        level: Number(level),
-        created_by: "lecturer_001",
+        ...data,
         questions,
       });
 
-      setSuccessMessage("Quiz created successfully!");
-      setTimeout(() => {
-        setLevel("");
-        setQuestions([]);
-        setQ({
-          question: "",
-          lesson: "",
-          options: ["", "", "", ""],
-          correct_index: 0,
-          hint: "",
-        });
-        setSuccessMessage("");
-      }, 2000);
-    } catch (error) {
-      alert("Error creating quiz. Please try again.");
-      console.error(error);
+      alert("Quiz saved successfully!");
+      reset();
+      setQuestions([]);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save quiz");
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleOptionChange = (index, value) => {
-    const opts = [...q.options];
-    opts[index] = value;
-    setQ({ ...q, options: opts });
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 py-8 px-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 bg-white px-6 py-3 rounded-full shadow-lg mb-4">
-            <BookOpen className="w-6 h-6 text-purple-600" />
-            <span className="font-bold text-lg text-gray-800">
-              Quiz Builder
-            </span>
-          </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Create New Quiz
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header with 3D effect */}
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            Create Your Quiz
           </h1>
           <p className="text-gray-600">
-            Design engaging questions to challenge your students
+            Design engaging quizzes with interactive questions
           </p>
         </div>
 
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-400 rounded-lg flex items-center gap-3 animate-pulse">
-            <CheckCircle className="w-6 h-6 text-green-600" />
-            <span className="font-semibold text-green-800">
-              {successMessage}
-            </span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-              <div className="mb-8">
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  Quiz Level
-                </label>
-                <input
-                  type="number"
-                  placeholder="Enter level number (1, 2, 3...)"
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition text-lg font-semibold"
-                />
-              </div>
-
-              <div className="border-t border-gray-200 pt-8">
-                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-purple-600" />
-                  Add Question
-                </h3>
-
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Question
-                    </label>
-                    <textarea
-                      placeholder="Enter the question text"
-                      value={q.question}
-                      onChange={(e) => setQ({ ...q, question: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition resize-none"
-                      rows="3"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Lesson / Topic
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Related lesson or topic"
-                      value={q.lesson}
-                      onChange={(e) => setQ({ ...q, lesson: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">
-                      Answer Options
-                    </label>
-                    <div className="space-y-3">
-                      {q.options.map((option, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <label
-                            className={`flex items-center w-10 h-10 rounded-full cursor-pointer transition ${
-                              q.correct_index === i
-                                ? "bg-green-500 text-white"
-                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="correct"
-                              checked={q.correct_index === i}
-                              onChange={() => setQ({ ...q, correct_index: i })}
-                              className="hidden"
-                            />
-                            <CheckCircle className="w-5 h-5 mx-auto" />
-                          </label>
-                          <input
-                            type="text"
-                            placeholder={`Option ${i + 1}`}
-                            value={option}
-                            onChange={(e) =>
-                              handleOptionChange(i, e.target.value)
-                            }
-                            className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Hint (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Add a helpful hint for students"
-                      value={q.hint}
-                      onChange={(e) => setQ({ ...q, hint: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition"
-                    />
-                  </div>
-
-                  <button
-                    onClick={addQuestion}
-                    disabled={!isQuestionValid()}
-                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all duration-200 ${
-                      isQuestionValid()
-                        ? "bg-purple-600 text-white hover:bg-purple-700 shadow-lg hover:shadow-xl"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    }`}
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add Question
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-8">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-purple-600" />
-                Questions Added
-              </h3>
-
-              <div className="mb-6 p-4 bg-purple-50 rounded-lg text-center">
-                <span className="text-3xl font-bold text-purple-600">
-                  {questions.length}
-                </span>
-                <p className="text-sm text-gray-600 mt-1">Questions</p>
-              </div>
-
-              <div className="space-y-3 max-h-96 overflow-y-auto mb-6">
-                {questions.length === 0 ? (
-                  <p className="text-center text-gray-500 text-sm py-8">
-                    No questions added yet
-                  </p>
-                ) : (
-                  questions.map((question, index) => (
-                    <div
-                      key={index}
-                      className="p-4 bg-gray-50 rounded-lg border-l-4 border-purple-500 hover:bg-gray-100 transition"
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-sm font-bold text-gray-700">
-                          Q{index + 1}
-                        </span>
-                        <button
-                          onClick={() => removeQuestion(index)}
-                          className="text-red-500 hover:text-red-700 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-700 line-clamp-2">
-                        {question.question}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        {question.lesson}
-                      </p>
-                    </div>
-                  ))
+        {/* Main Form Container */}
+        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-8 transform transition-all duration-300 hover:shadow-3xl">
+          <form onSubmit={handleSubmit(onSubmit)}>
+            {/* Quiz Title */}
+            <div className="mb-8">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Quiz Title *
+              </label>
+              <Controller
+                name="title"
+                control={control}
+                rules={{ required: "Quiz title is required" }}
+                render={({ field }) => (
+                  <input
+                    {...field}
+                    className={`w-full p-4 rounded-xl border-2 ${
+                      errors.title ? "border-red-300" : "border-gray-200"
+                    } focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 shadow-sm`}
+                    placeholder="Enter an engaging quiz title"
+                  />
                 )}
+              />
+              {errors.title && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.title.message}
+                </p>
+              )}
+            </div>
+
+            {/* Skill Name */}
+            <div className="mb-8">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Skill Name *
+              </label>
+              <Controller
+                name="skill_name"
+                control={control}
+                rules={{ required: "Skill name is required" }}
+                render={({ field }) => (
+                  <input
+                    {...field}
+                    className={`w-full p-4 rounded-xl border-2 ${
+                      errors.skill_name ? "border-red-300" : "border-gray-200"
+                    } focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 shadow-sm`}
+                    placeholder="e.g., JavaScript Fundamentals, React Patterns"
+                  />
+                )}
+              />
+              {errors.skill_name && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.skill_name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Questions Section */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">
+                  Questions ({questions.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  Add Question
+                </button>
               </div>
 
+              {questions.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50">
+                  <svg
+                    className="w-16 h-16 text-gray-400 mx-auto mb-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <p className="text-gray-500">
+                    No questions added yet. Click "Add Question" to start
+                    building your quiz!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {questions.map((q, index) => (
+                    <QuestionCard
+                      key={q.id}
+                      question={q}
+                      index={index}
+                      updateQuestion={updateQuestion}
+                      updateOption={updateOption}
+                      removeQuestion={removeQuestion}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
               <button
-                onClick={saveQuiz}
-                disabled={loading || questions.length === 0 || !level.trim()}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold transition-all duration-200 ${
-                  loading || questions.length === 0 || !level.trim()
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-gradient-to-r from-green-500 to-green-600 text-white hover:shadow-lg hover:scale-105"
-                }`}
+                type="submit"
+                disabled={isSubmitting || questions.length === 0}
+                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-200 ${
+                  isSubmitting || questions.length === 0
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-xl hover:scale-105 active:scale-95"
+                } text-white shadow-lg`}
               >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Saving...
-                  </>
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="animate-spin h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Saving Quiz...
+                  </span>
                 ) : (
-                  <>
-                    <Save className="w-5 h-5" />
-                    Save Quiz
-                  </>
+                  "Save Quiz"
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setQuestions([]);
+                }}
+                className="py-4 px-6 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+              >
+                Clear All
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Status Bar */}
+        <div className="bg-white rounded-xl shadow-lg p-4">
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  questions.length > 0 ? "bg-green-500" : "bg-gray-300"
+                }`}
+              />
+              <span className="text-gray-600">
+                {questions.length} questions added
+              </span>
+            </div>
+            <div className="text-gray-500">
+              All fields marked with * are required
             </div>
           </div>
         </div>
