@@ -1,19 +1,37 @@
 /**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ * Firebase Functions backend (common entry)
  */
 
-const {onRequest} = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
+const { onRequest } = require("firebase-functions/v2/https");
+const express = require("express");
+const cors = require("cors");
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+// Express app
+const app = express();
+app.use(express.json());
+app.use(cors({ origin: true }));
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+// Health check (common)
+app.get("/", (req, res) => {
+  res.json({ message: "Backend Connected" });
+});
+
+// ----------------------------------------------------
+// EXISTING FEATURE ROUTES (DO NOT CHANGE)
+// ----------------------------------------------------
+const disengagementRoutes = require("./features/disengagement/routes");
+app.use("/api", disengagementRoutes);
+
+// ----------------------------------------------------
+// 🔹 RL FEATURE ROUTES (ADDED BY <your name / RL module>)
+// ----------------------------------------------------
+// This connects Firebase backend → RL FastAPI service
+// Endpoint: /api/rl/decide/:studentId
+// Calls: http://127.0.0.1:8000/rl/decide/{studentId}
+const rlRoutes = require("./features/rl/routes");
+app.use("/api/rl", rlRoutes);
+
+// ----------------------------------------------------
+// Export Firebase HTTPS function
+// ----------------------------------------------------
+exports.api = onRequest(app);
