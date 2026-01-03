@@ -34,6 +34,9 @@ import QuizLevels from "./pages/QuizLevels";
 import { useState } from "react";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
+import GlobalReminders from "./componets/GlobalReminders";
+import AdminAnnouncements from "./pages/AdminAnnouncements";
+import UserAnnouncements from "./pages/UserAnnouncements";
 
 function App() {
   // Main content view
@@ -76,6 +79,16 @@ function App() {
             >
               <span>Risk Demo</span>
             </button>
+            <button
+              onClick={() => setView("announcements_user")}
+              className={`mt-1 w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                view === "announcements_user"
+                  ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700/60"
+                  : "text-slate-200 hover:bg-slate-800/70"
+              }`}
+            >
+              <span>Announcements</span>
+            </button>
           </div>
 
           <div>
@@ -91,6 +104,16 @@ function App() {
               }`}
             >
               <span>Upload PDFs</span>
+            </button>
+            <button
+              onClick={() => setView("announcements_admin")}
+              className={`mt-1 w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                view === "announcements_admin"
+                  ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700/60"
+                  : "text-slate-200 hover:bg-slate-800/70"
+              }`}
+            >
+              <span>Manage announcements</span>
             </button>
           </div>
         </nav>
@@ -115,12 +138,18 @@ function App() {
               <h2 className="text-sm font-semibold text-slate-900">
                 {view === "risk" && "Student risk analytics"}
                 {view === "upload" && "Knowledge base / PDF ingestion"}
+                {view === "announcements_admin" && "Manage announcements"}
+                {view === "announcements_user" && "Announcements & reminders"}
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {view === "risk" &&
                   "Demo how AcademiGuard scores academic risk per student."}
                 {view === "upload" &&
                   "Manage the documents used by the chatbot for answers."}
+                {view === "announcements_admin" &&
+                  "Create and review announcements that will be shown to students."}
+                {view === "announcements_user" &&
+                  "Read the latest announcements and any active reminders from your instructors."}
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-[11px]">
@@ -133,8 +162,15 @@ function App() {
         </header>
 
         <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6">
+          {view !== "upload" && view !== "announcements_admin" && (
+            <GlobalReminders
+              onReminderClick={() => setView("announcements_user")}
+            />
+          )}
           {view === "upload" && <PdfUpload />}
           {view === "risk" && <RiskDemo />}
+          {view === "announcements_admin" && <AdminAnnouncements />}
+          {view === "announcements_user" && <UserAnnouncements />}
         </main>
 
         {/* Floating chatbot button & panel */}
