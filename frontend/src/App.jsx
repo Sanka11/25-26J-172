@@ -9,6 +9,9 @@ import Levels from "./pages/Levels";
 import { useState } from "react";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
+import GlobalReminders from "./componets/GlobalReminders";
+import AdminAnnouncements from "./pages/AdminAnnouncements";
+import UserAnnouncements from "./pages/UserAnnouncements";
 
 function App() {
   // Main content view
