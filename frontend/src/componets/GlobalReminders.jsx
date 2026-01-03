@@ -76,7 +76,7 @@ export default function GlobalReminders({ onReminderClick }) {
   };
 
   return (
-    <div className="mb-4 space-y-2">
+    <div className="fixed top-20 right-5 z-30 max-w-sm w-[90vw] sm:w-80 space-y-2 max-h-64 overflow-y-auto">
       {reminders.map((a) => (
         <div
           key={a.id}

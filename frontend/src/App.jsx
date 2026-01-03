@@ -110,8 +110,8 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex text-slate-900">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-950/95 text-slate-100 flex flex-col border-r border-slate-800/80">
+      {/* Sidebar - stays visible while scrolling */}
+      <aside className="w-64 bg-slate-950/95 text-slate-100 flex flex-col border-r border-slate-800/80 sticky top-0 h-screen">
         <div className="px-5 py-4 border-b border-slate-800/80 bg-gradient-to-r from-slate-950 to-slate-900">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-xl bg-blue-500 flex items-center justify-center text-xs font-bold shadow-sm">
@@ -190,11 +190,21 @@ function Layout() {
                 {headerSubtitle}
               </p>
             </div>
-            <div className="hidden sm:flex items-center gap-2 text-[11px]">
-              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 border border-emerald-200">
-                ● Online
-              </span>
-              <span className="text-slate-400">ML service</span>
+            <div className="flex items-center gap-3 text-[11px]">
+              <button
+                type="button"
+                onClick={() => navigate("/announcements")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-sm"
+                aria-label="Open announcements"
+              >
+                <span className="text-base">🔔</span>
+              </button>
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 border border-emerald-200">
+                  ● Online
+                </span>
+                <span className="text-slate-400">ML service</span>
+              </div>
             </div>
           </div>
         </header>
