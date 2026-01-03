@@ -16,9 +16,22 @@ app.get("/", (req, res) => {
   res.json({ message: "Backend Connected" });
 });
 
-// Register feature routes
+// ----------------------------------------------------
+// EXISTING FEATURE ROUTES (DO NOT CHANGE)
+// ----------------------------------------------------
 const disengagementRoutes = require("./features/disengagement/routes");
 app.use("/api", disengagementRoutes);
 
-// Export function
+// ----------------------------------------------------
+// 🔹 RL FEATURE ROUTES (ADDED BY <your name / RL module>)
+// ----------------------------------------------------
+// This connects Firebase backend → RL FastAPI service
+// Endpoint: /api/rl/decide/:studentId
+// Calls: http://127.0.0.1:8000/rl/decide/{studentId}
+const rlRoutes = require("./features/rl/routes");
+app.use("/api/rl", rlRoutes);
+
+// ----------------------------------------------------
+// Export Firebase HTTPS function
+// ----------------------------------------------------
 exports.api = onRequest(app);
