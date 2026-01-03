@@ -17,9 +17,9 @@ const RECOMMENDATION_SERVICE_URL = isEmulator ?
 
 
 const ML_STRUGGLE_URL = isEmulator
-  ? "http://127.0.0.1:8000/predictStruggle"
+  ? "http://127.0.0.1:8000/struggle"
   : (functions.config().ml && functions.config().ml.struggle_url) ||
-    "https://your-ml-service-domain.com/predictStruggle";
+    "https://your-ml-service-domain.com/struggle";
 module.exports = {
   ML_SERVICE_URL,
   RECOMMENDATION_SERVICE_URL,

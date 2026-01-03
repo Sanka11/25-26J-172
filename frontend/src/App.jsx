@@ -1,37 +1,10 @@
-// import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-// import RiskDemo from "./pages/RiskDemo";
-// import RecommendationDemo from "./pages/RecommendationDemo";
-
-// function App() {
-//   return (
-//     <BrowserRouter>
-//       <nav className="p-4 bg-gray-200 flex gap-4">
-//         <Link to="/risk">Risk Demo</Link>
-//         <Link to="/recommendation">Recommendation Demo</Link>
-//       </nav>
-
-//       <Routes>
-//         <Route path="/risk" element={<RiskDemo />} />
-//         <Route path="/recommendation" element={<RecommendationDemo />} />
-
-//         {/* Default: go to risk page */}
-//         <Route path="/" element={<RiskDemo />} />
-//       </Routes>
-//     </BrowserRouter>
-//   );
-// }
-
-// export default App;
-
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState } from "react";
-
-/* ===== Existing pages (DO NOT TOUCH) ===== */
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import RiskDemo from "./pages/RiskDemo";
 import RecommendationDemo from "./pages/RecommendationDemo";
 import CreateQuiz from "./pages/CreateQuiz";
 import QuizList from "./pages/QuizList";
 import TakeQuiz from "./pages/TakeQuiz";
+import Levels from "./pages/Levels";
 import StruggleDashboard from "./pages/StruggleDashboard";
 import QuizLevels from "./pages/QuizLevels";
 import PdfUpload from "./pages/PdfUpload";
@@ -49,31 +22,47 @@ function App() {
 
   return (
     <BrowserRouter>
+      <nav className="p-4 bg-gray-200 flex gap-4">
+        <Link to="/risk">Risk Demo</Link>
+        <Link to="/recommendation">Recommendation Demo</Link>
+        <Link to="/create-quiz">Create Quiz</Link>
+        <Link to="/quizzes">Quizzes</Link>
+        
+      </nav>
+
       <Routes>
-        {/* =====================================================
-            EXISTING APPLICATION (DEFAULT ROUTES)
-            ===================================================== */}
-        <Route
-          path="/*"
-          element={
-            <div className="min-h-screen bg-slate-900 flex text-slate-900">
-              {/* Sidebar */}
-              <aside className="w-64 bg-slate-950/95 text-slate-100 flex flex-col border-r border-slate-800/80">
-                <div className="px-5 py-4 border-b border-slate-800/80 bg-gradient-to-r from-slate-950 to-slate-900">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-blue-500 flex items-center justify-center text-xs font-bold shadow-sm">
-                      AG
-                    </div>
-                    <div>
-                      <h1 className="text-sm font-semibold tracking-tight">
-                        AcademiGuard
-                      </h1>
-                      <p className="mt-0.5 text-[11px] text-slate-400">
-                        Academic integrity & risk assistant
-                      </p>
-                    </div>
-                  </div>
-                </div>
+        <Route path="/risk" element={<RiskDemo />} />
+        <Route path="/recommendation" element={<RecommendationDemo />} />
+
+        <Route path="/" element={<Levels currentLevel={1} />} />
+        <Route path="/levels" element={<Levels currentLevel={1} />} />
+        <Route path="/create-quiz" element={<CreateQuiz />} />
+        <Route path="/quizzes" element={<QuizList />} />
+        <Route path="/quiz/:level" element={<TakeQuiz />} />
+        
+        
+
+        
+      </Routes>
+    </BrowserRouter>
+    <div className="min-h-screen bg-slate-900 flex text-slate-900">
+      {/* Sidebar */}
+      <aside className="w-64 bg-slate-950/95 text-slate-100 flex flex-col border-r border-slate-800/80">
+        <div className="px-5 py-4 border-b border-slate-800/80 bg-gradient-to-r from-slate-950 to-slate-900">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl bg-blue-500 flex items-center justify-center text-xs font-bold shadow-sm">
+              AG
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold tracking-tight">
+                AcademiGuard
+              </h1>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                Academic integrity & risk assistant
+              </p>
+            </div>
+          </div>
+        </div>
 
                 <nav className="flex-1 px-3 py-4 space-y-6 text-sm">
                   <div>
