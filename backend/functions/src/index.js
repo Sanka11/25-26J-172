@@ -18,11 +18,11 @@
 const {
   createQuiz,
   submitQuiz,
-  getQuizzes,
-  getQuizById,
+  getAllQuizzes,
+  getQuizByLevel,
 } = require("./http/quizController");
 
-const { predictStruggle } = require("./http/struggleController");
+
 const { predictRisk } = require("./http/mlProxy");
 const { predictRecommendation } = require("./http/mlRecommendationProxy");
 const { checkLevelUnlock, getUserLevel } = require("./http/levelController");
@@ -37,12 +37,14 @@ const {
   deleteAnnouncement,
 } = require("./http/announcementController");
 
+
+
 exports.createQuiz = createQuiz;
 exports.submitQuiz = submitQuiz;
-exports.getQuizzes = getQuizzes;
-exports.getQuizById = getQuizById;
+exports.getAllQuizzes = getAllQuizzes;
+exports.getQuizByLevel = getQuizByLevel;
 
-exports.predictStruggle = predictStruggle;
+
 exports.predictRisk = predictRisk;
 exports.predictRecommendation = predictRecommendation;
 exports.checkLevelUnlock = checkLevelUnlock;
