@@ -83,12 +83,10 @@ const getChatFeedbackStats = functions.https.onRequest(async (req, res) => {
     }
 
     const average = sum / count;
-    return res
-      .status(200)
-      .json({
-        average_rating: Number(average.toFixed(2)),
-        total_ratings: count,
-      });
+    return res.status(200).json({
+      average_rating: Number(average.toFixed(2)),
+      total_ratings: count,
+    });
   } catch (error) {
     console.error("getChatFeedbackStats error:", error);
     return res
@@ -97,7 +95,59 @@ const getChatFeedbackStats = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * List chatbot feedback documents
+ * Method: GET
+ */
+const listChatFeedback = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const snapshot = await db
+      .collection("chatFeedback")
+      .orderBy("created_at", "desc")
+      .limit(200)
+      .get();
+
+    const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return res.status(200).json(items);
+  } catch (error) {
+    console.error("listChatFeedback error:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to load chatbot feedback list" });
+  }
+});
+
+/**
+ * Delete a single chatbot feedback document
+ * Method: POST
+ * Body: { id: string }
+ */
+const deleteChatFeedback = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const { id } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: "Missing feedback id" });
+    }
+
+    await db.collection("chatFeedback").doc(id).delete();
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("deleteChatFeedback error:", error);
+    return res.status(500).json({ error: "Failed to delete chatbot feedback" });
+  }
+});
+
 module.exports = {
   submitChatFeedback,
   getChatFeedbackStats,
+  listChatFeedback,
+  deleteChatFeedback,
 };

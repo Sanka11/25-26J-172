@@ -37,6 +37,7 @@ import Chat from "./pages/Chat";
 import GlobalReminders from "./componets/GlobalReminders";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
 import UserAnnouncements from "./pages/UserAnnouncements";
+import AdminFeedback from "./pages/AdminFeedback";
 
 function App() {
   // Main content view
@@ -115,6 +116,16 @@ function App() {
             >
               <span>Manage announcements</span>
             </button>
+            <button
+              onClick={() => setView("feedback_admin")}
+              className={`mt-1 w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-medium transition-colors ${
+                view === "feedback_admin"
+                  ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700/60"
+                  : "text-slate-200 hover:bg-slate-800/70"
+              }`}
+            >
+              <span>Chatbot feedback</span>
+            </button>
           </div>
         </nav>
 
@@ -140,6 +151,7 @@ function App() {
                 {view === "upload" && "Knowledge base / PDF ingestion"}
                 {view === "announcements_admin" && "Manage announcements"}
                 {view === "announcements_user" && "Announcements & reminders"}
+                {view === "feedback_admin" && "Chatbot feedback & reviews"}
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {view === "risk" &&
@@ -150,6 +162,8 @@ function App() {
                   "Create and review announcements that will be shown to students."}
                 {view === "announcements_user" &&
                   "Read the latest announcements and any active reminders from your instructors."}
+                {view === "feedback_admin" &&
+                  "Monitor chatbot ratings, read feedback, and clean up inappropriate reviews."}
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-[11px]">
@@ -162,15 +176,18 @@ function App() {
         </header>
 
         <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6">
-          {view !== "upload" && view !== "announcements_admin" && (
-            <GlobalReminders
-              onReminderClick={() => setView("announcements_user")}
-            />
-          )}
+          {view !== "upload" &&
+            view !== "announcements_admin" &&
+            view !== "feedback_admin" && (
+              <GlobalReminders
+                onReminderClick={() => setView("announcements_user")}
+              />
+            )}
           {view === "upload" && <PdfUpload />}
           {view === "risk" && <RiskDemo />}
           {view === "announcements_admin" && <AdminAnnouncements />}
           {view === "announcements_user" && <UserAnnouncements />}
+          {view === "feedback_admin" && <AdminFeedback />}
         </main>
 
         {/* Floating chatbot button & panel */}

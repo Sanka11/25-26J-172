@@ -29,6 +29,8 @@ const { checkLevelUnlock, getUserLevel } = require("./http/levelController");
 const {
   submitChatFeedback,
   getChatFeedbackStats,
+  listChatFeedback,
+  deleteChatFeedback,
 } = require("./http/chatFeedbackController");
 const {
   createAnnouncement,
@@ -53,3 +55,5 @@ exports.updateAnnouncement = updateAnnouncement;
 exports.deleteAnnouncement = deleteAnnouncement;
 exports.submitChatFeedback = submitChatFeedback;
 exports.getChatFeedbackStats = getChatFeedbackStats;
+exports.listChatFeedback = listChatFeedback;
+exports.deleteChatFeedback = deleteChatFeedback;
