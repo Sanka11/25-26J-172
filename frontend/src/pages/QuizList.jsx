@@ -8,37 +8,33 @@ export default function QuizList() {
 
   useEffect(() => {
     async function loadQuizzes() {
-      const data = await getQuizzes();
-      setQuizzes(data);
+      try {
+        const data = await getQuizzes();
+        setQuizzes(data);
+      } catch (err) {
+        alert("Failed to load quizzes");
+      }
     }
+
     loadQuizzes();
   }, []);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>📘 Available Quizzes</h2>
+    <div className="p-6">
+      <h2 className="text-xl font-bold">Available Quizzes</h2>
 
       {quizzes.length === 0 && <p>No quizzes available</p>}
 
       {quizzes.map((q) => (
-        <div
-          key={q.quiz_id}
-          style={{
-            border: "1px solid #ccc",
-            padding: 12,
-            marginTop: 10,
-          }}
-        >
-          <p>
-            <strong>Level {q.level}</strong>
-          </p>
-          <p>Total Questions: {q.question_count}</p>
+        <div key={q.id} className="border p-3 mt-2">
+          <p className="font-semibold">{q.title}</p>
+          <p className="text-sm text-gray-600">Skill: {q.skill_name}</p>
 
           <button
-            onClick={() => navigate(`/quiz/${q.level}`)}
-            style={{ marginTop: 6 }}
+            onClick={() => navigate(`/quiz/${q.id}`)}
+            className="mt-2 bg-blue-600 text-white px-3 py-1"
           >
-            Attempt Quiz
+            Attempt
           </button>
         </div>
       ))}
