@@ -10,7 +10,6 @@ import StruggleDashboard from "./pages/StruggleDashboard";
 import QuizLevels from "./pages/QuizLevels";
 import { useState } from "react";
 import PdfUpload from "./pages/PdfUpload";
-import RiskDemo from "./pages/RiskDemo";
 import Chat from "./pages/Chat";
 
 function App() {
