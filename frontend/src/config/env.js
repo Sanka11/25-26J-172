@@ -56,6 +56,15 @@ const DELETE_ANNOUNCEMENT_URL =
   import.meta.env.VITE_DELETE_ANNOUNCEMENT_URL ||
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/deleteAnnouncement";
 
+// Chatbot feedback
+const SUBMIT_CHAT_FEEDBACK_URL =
+  import.meta.env.VITE_SUBMIT_CHAT_FEEDBACK_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/submitChatFeedback";
+
+const GET_CHAT_FEEDBACK_STATS_URL =
+  import.meta.env.VITE_GET_CHAT_FEEDBACK_STATS_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getChatFeedbackStats";
+
 // Direct ML service endpoints (local FastAPI)
 const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
 
@@ -92,4 +101,8 @@ export const appConfig = {
   GET_ANNOUNCEMENTS_URL,
   UPDATE_ANNOUNCEMENT_URL,
   DELETE_ANNOUNCEMENT_URL,
+
+  // Chatbot feedback
+  SUBMIT_CHAT_FEEDBACK_URL,
+  GET_CHAT_FEEDBACK_STATS_URL,
 };

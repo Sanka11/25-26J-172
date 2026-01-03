@@ -27,6 +27,10 @@ const { predictRisk } = require("./http/mlProxy");
 const { predictRecommendation } = require("./http/mlRecommendationProxy");
 const { checkLevelUnlock, getUserLevel } = require("./http/levelController");
 const {
+  submitChatFeedback,
+  getChatFeedbackStats,
+} = require("./http/chatFeedbackController");
+const {
   createAnnouncement,
   getAnnouncements,
   updateAnnouncement,
@@ -47,3 +51,5 @@ exports.createAnnouncement = createAnnouncement;
 exports.getAnnouncements = getAnnouncements;
 exports.updateAnnouncement = updateAnnouncement;
 exports.deleteAnnouncement = deleteAnnouncement;
+exports.submitChatFeedback = submitChatFeedback;
+exports.getChatFeedbackStats = getChatFeedbackStats;
