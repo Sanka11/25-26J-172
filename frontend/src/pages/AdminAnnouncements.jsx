@@ -189,320 +189,326 @@ export default function AdminAnnouncements() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 mb-1">
-            Announcements management
-          </h3>
-          <p className="text-xs text-slate-500">
-            Create, edit and highlight important announcements for your
-            students.
-          </p>
+    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-gray-50 to-blue-50 px-2 sm:px-4 md:px-6 py-4 md:py-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1">
+              Manage announcements
+            </h1>
+            <p className="text-sm md:text-base text-gray-600 max-w-2xl">
+              Create, edit, and highlight important announcements so students
+              never miss critical deadlines, exam dates, or policy changes.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              resetForm();
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs md:text-sm font-semibold text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            <span className="text-base leading-none">＋</span>
+            <span>New announcement</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setIsModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
-        >
-          + New announcement
-        </button>
-      </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-200 p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {editingId ? "Edit announcement" : "Create announcement"}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Fill in the announcement details, optional attachments and an
-                  optional reminder deadline.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setIsModalOpen(false);
-                }}
-                className="text-slate-400 hover:text-slate-600 text-sm"
-              >
-                ×
-              </button>
-            </div>
-
-            {error && (
-              <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 border border-red-200">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500/70 bg-slate-50"
-                  placeholder="e.g. Midterm exam schedule"
-                />
-                {fieldErrors.title && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    {fieldErrors.title}
+        {isModalOpen && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40">
+            <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-200 p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {editingId ? "Edit announcement" : "Create announcement"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Fill in the announcement details, optional attachments and
+                    an optional reminder deadline.
                   </p>
-                )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetForm();
+                    setIsModalOpen(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-sm"
+                >
+                  ×
+                </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Message
-                </label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500/70 bg-slate-50 resize-none"
-                  placeholder="Write the full announcement text here..."
-                />
-                {fieldErrors.message && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    {fieldErrors.message}
-                  </p>
-                )}
-              </div>
+              {error && (
+                <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 border border-red-200">
+                  {error}
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-slate-700">
-                  Attachments
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Optional links to documents or resources (e.g. PDF, Google
-                  Drive, external pages).
-                </p>
-                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Title
+                  </label>
                   <input
                     type="text"
-                    value={attachmentLabel}
-                    onChange={(e) => setAttachmentLabel(e.target.value)}
-                    className="flex-1 min-w-[120px] rounded-md border border-slate-200 px-2 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
-                    placeholder="Link label (e.g. 'Exam guide')"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500/70 bg-slate-50"
+                    placeholder="e.g. Midterm exam schedule"
                   />
-                  <input
-                    type="url"
-                    value={attachmentUrl}
-                    onChange={(e) => setAttachmentUrl(e.target.value)}
-                    className="flex-[2] min-w-[160px] rounded-md border border-slate-200 px-2 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
-                    placeholder="https://..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = attachmentUrl.trim();
-                      const label = attachmentLabel.trim();
-                      if (!url) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          attachments: "URL is required to add a link.",
-                        }));
-                        return;
-                      }
-                      try {
-                        // Basic URL validation
-                        // eslint-disable-next-line no-new
-                        new URL(url);
-                      } catch {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          attachments:
-                            "Please enter a valid URL (starting with http or https).",
-                        }));
-                        return;
-                      }
-                      setAttachments((prev) => [
-                        ...prev,
-                        { label: label || null, url },
-                      ]);
-                      setAttachmentLabel("");
-                      setAttachmentUrl("");
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        attachments: undefined,
-                      }));
-                    }}
-                    className="inline-flex items-center rounded-md bg-slate-800 px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-slate-900"
-                  >
-                    Add link
-                  </button>
+                  {fieldErrors.title && (
+                    <p className="mt-1 text-[11px] text-red-600">
+                      {fieldErrors.title}
+                    </p>
+                  )}
                 </div>
-                {fieldErrors.attachments && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    {fieldErrors.attachments}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Message
+                  </label>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500/70 bg-slate-50 resize-none"
+                    placeholder="Write the full announcement text here..."
+                  />
+                  {fieldErrors.message && (
+                    <p className="mt-1 text-[11px] text-red-600">
+                      {fieldErrors.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-slate-700">
+                    Attachments
                   </p>
-                )}
-                {attachments.length > 0 && (
-                  <ul className="mt-1 space-y-1 text-[11px] text-slate-700">
-                    {attachments.map((att, idx) => (
-                      <li
-                        key={`${att.url}-${idx}`}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <div className="min-w-0 truncate flex items-center gap-1">
-                          <span
-                            className="inline-block w-2 h-2 rounded-full bg-slate-400"
-                            aria-hidden="true"
-                          />
-                          <span className="font-medium">
-                            {att.label || "Link"}
-                          </span>
-                          <span className="mx-1 text-slate-400">·</span>
-                          <span className="text-slate-500 truncate">
-                            {att.url}
-                          </span>
-                        </div>
+                  <p className="text-[11px] text-slate-500">
+                    Optional links to documents or resources (e.g. PDF, Google
+                    Drive, external pages).
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <input
+                      type="text"
+                      value={attachmentLabel}
+                      onChange={(e) => setAttachmentLabel(e.target.value)}
+                      className="flex-1 min-w-[120px] rounded-md border border-slate-200 px-2 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
+                      placeholder="Link label (e.g. 'Exam guide')"
+                    />
+                    <input
+                      type="url"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      className="flex-[2] min-w-[160px] rounded-md border border-slate-200 px-2 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
+                      placeholder="https://..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = attachmentUrl.trim();
+                        const label = attachmentLabel.trim();
+                        if (!url) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            attachments: "URL is required to add a link.",
+                          }));
+                          return;
+                        }
+                        try {
+                          // Basic URL validation
+                          // eslint-disable-next-line no-new
+                          new URL(url);
+                        } catch {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            attachments:
+                              "Please enter a valid URL (starting with http or https).",
+                          }));
+                          return;
+                        }
+                        setAttachments((prev) => [
+                          ...prev,
+                          { label: label || null, url },
+                        ]);
+                        setAttachmentLabel("");
+                        setAttachmentUrl("");
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          attachments: undefined,
+                        }));
+                      }}
+                      className="inline-flex items-center rounded-md bg-slate-800 px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-slate-900"
+                    >
+                      Add link
+                    </button>
+                  </div>
+                  {fieldErrors.attachments && (
+                    <p className="mt-1 text-[11px] text-red-600">
+                      {fieldErrors.attachments}
+                    </p>
+                  )}
+                  {attachments.length > 0 && (
+                    <ul className="mt-1 space-y-1 text-[11px] text-slate-700">
+                      {attachments.map((att, idx) => (
+                        <li
+                          key={`${att.url}-${idx}`}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0 truncate flex items-center gap-1">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full bg-slate-400"
+                              aria-hidden="true"
+                            />
+                            <span className="font-medium">
+                              {att.label || "Link"}
+                            </span>
+                            <span className="mx-1 text-slate-400">·</span>
+                            <span className="text-slate-500 truncate">
+                              {att.url}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAttachments((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="text-[10px] text-red-600 hover:text-red-800"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <label className="inline-flex items-center gap-2 text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={remind}
+                      onChange={(e) => setRemind(e.target.checked)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Highlight this as a reminder for students</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-600">
+                        Reminder deadline (date & time):
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={remindUntil}
+                        onChange={(e) => setRemindUntil(e.target.value)}
+                        className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
+                      />
+                      {fieldErrors.remindUntil && (
+                        <p className="mt-1 text-[11px] text-red-600">
+                          {fieldErrors.remindUntil}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingId && (
                         <button
                           type="button"
-                          onClick={() =>
-                            setAttachments((prev) =>
-                              prev.filter((_, i) => i !== idx)
-                            )
-                          }
-                          className="text-[10px] text-red-600 hover:text-red-800"
+                          onClick={() => {
+                            resetForm();
+                            setIsModalOpen(false);
+                          }}
+                          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50"
                         >
-                          Remove
+                          Cancel
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <label className="inline-flex items-center gap-2 text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={remind}
-                    onChange={(e) => setRemind(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Highlight this as a reminder for students</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-slate-600">
-                      Reminder deadline (date & time):
-                    </span>
-                    <input
-                      type="datetime-local"
-                      value={remindUntil}
-                      onChange={(e) => setRemindUntil(e.target.value)}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500/70 focus:border-blue-500/70"
-                    />
-                    {fieldErrors.remindUntil && (
-                      <p className="mt-1 text-[11px] text-red-600">
-                        {fieldErrors.remindUntil}
-                      </p>
-                    )}
+                      )}
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {submitting
+                          ? "Saving..."
+                          : editingId
+                          ? "Update announcement"
+                          : "Save announcement"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {editingId && (
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-5 md:p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-900">
+              All announcements
+            </h3>
+            {loading && (
+              <span className="text-[11px] text-slate-400">Loading...</span>
+            )}
+          </div>
+
+          {announcements.length === 0 && !loading ? (
+            <p className="text-xs text-slate-500">
+              No announcements yet. Create your first announcement to keep
+              students informed.
+            </p>
+          ) : (
+            <ul className="space-y-2 max-h-64 overflow-y-auto text-xs">
+              {announcements.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-lg border border-slate-200 px-3 py-2 bg-slate-50/80 flex flex-col gap-1 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">
+                        {a.title}
+                      </p>
+                      {a.remind_until && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Deadline: {formatTimestamp(a.remind_until)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {a.remind && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200">
+                          Reminder on
+                        </span>
+                      )}
                       <button
                         type="button"
-                        onClick={() => {
-                          resetForm();
-                          setIsModalOpen(false);
-                        }}
-                        className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50"
+                        onClick={() => handleEdit(a)}
+                        className="text-[10px] text-blue-600 hover:text-blue-800"
                       >
-                        Cancel
+                        Edit
                       </button>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {submitting
-                        ? "Saving..."
-                        : editingId
-                        ? "Update announcement"
-                        : "Save announcement"}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(a.id)}
+                        className="text-[10px] text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200/70 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-900">
-            All announcements
-          </h3>
-          {loading && (
-            <span className="text-[11px] text-slate-400">Loading...</span>
+                  <p className="text-slate-600 leading-snug line-clamp-2">
+                    {a.message}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-
-        {announcements.length === 0 && !loading ? (
-          <p className="text-xs text-slate-500">No announcements yet.</p>
-        ) : (
-          <ul className="space-y-2 max-h-64 overflow-y-auto text-xs">
-            {announcements.map((a) => (
-              <li
-                key={a.id}
-                className="rounded-lg border border-slate-200 px-3 py-2 bg-slate-50/80 flex flex-col gap-1"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">
-                      {a.title}
-                    </p>
-                    {a.remind_until && (
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        Deadline: {formatTimestamp(a.remind_until)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {a.remind && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200">
-                        Reminder on
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(a)}
-                      className="text-[10px] text-blue-600 hover:text-blue-800"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(a.id)}
-                      className="text-[10px] text-red-600 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <p className="text-slate-600 leading-snug line-clamp-2">
-                  {a.message}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </div>
   );
