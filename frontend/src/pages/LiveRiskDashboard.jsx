@@ -1,0 +1,126 @@
+import { useState } from "react";
+import { fetchStudentRisk } from "../services/api/riskApi";
+
+export default function LiveRiskDashboard() {
+  const [studentId, setStudentId] = useState("S3755");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFetch = async () => {
+    setLoading(true);
+    setError("");
+    setData(null);
+
+    try {
+      const res = await fetchStudentRisk(studentId);
+      setData(res);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch real-time risk data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800">
+          Live Student Risk & Explainability
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+          This view fetches real-time explainable risk predictions from the
+          deployed Firebase Cloud Function.
+        </p>
+      </div>
+
+      {/* Input */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4 max-w-xl">
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 mb-1">
+            Student ID
+          </label>
+          <input
+            type="text"
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </div>
+
+        <button
+          onClick={handleFetch}
+          disabled={loading}
+          className="inline-flex items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+        >
+          {loading ? "Fetching…" : "Fetch risk (real-time)"}
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="max-w-xl text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {/* Result */}
+      {data && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4 max-w-2xl">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-800">
+              Prediction Result
+            </p>
+            <span
+              className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                data.risk_level === "High"
+                  ? "bg-red-100 text-red-700"
+                  : data.risk_level === "Medium"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
+              {data.risk_level} Risk
+            </span>
+          </div>
+
+          <p className="text-sm text-slate-700">
+            Risk score:{" "}
+            <span className="font-semibold text-blue-700">
+              {data.risk_score}
+            </span>
+          </p>
+
+          <div>
+            <p className="text-xs font-semibold text-slate-800 mb-1">
+              Explanation
+            </p>
+            <p className="text-sm text-slate-700">{data.explanation.summary}</p>
+
+            <ul className="mt-2 list-disc list-inside text-sm text-slate-600">
+              {data.explanation.key_factors.map((factor, idx) => (
+                <li key={idx}>{factor}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+            <p className="text-xs font-semibold text-slate-800">
+              Recommended Action
+            </p>
+            <p className="text-sm text-slate-700">
+              {data.explanation.recommended_action}
+            </p>
+          </div>
+
+          <div className="text-[11px] text-slate-500">
+            Model: {data.model_info.model_name} | Accuracy:{" "}
+            {data.model_info.accuracy} | Generated at: {data.timestamp}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

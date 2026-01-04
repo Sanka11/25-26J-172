@@ -15,6 +15,7 @@ import Levels from "./pages/Levels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import NavigationBar from "./componets/Navigationbar";
+import LiveRiskDashboard from "./pages/LiveRiskDashboard";
 
 /* ================= GRU + RL MODULE PAGES ================= */
 import GRUMain from "./pages/GRUMain";
@@ -64,6 +65,13 @@ function AppLayout() {
           >
             Risk Demo
           </button>
+          <button
+            onClick={() => (window.location.href = "/live-risk")}
+            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+          >
+            Live Risk (Real-time)
+          </button>
+
           <button
             onClick={() => setView("upload")}
             className="w-full px-3 py-2 rounded bg-slate-800 text-white"
@@ -137,6 +145,20 @@ function App() {
                           Risk Analysis Demo
                         </h1>
                         <RiskDemo />
+                      </div>
+                    </div>
+                  }
+                />
+
+                <Route
+                  path="/live-risk"
+                  element={
+                    <div className="min-h-screen bg-slate-100 p-6">
+                      <div className="max-w-7xl mx-auto">
+                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                          Live Student Risk & Explainable AI
+                        </h1>
+                        <LiveRiskDashboard />
                       </div>
                     </div>
                   }
