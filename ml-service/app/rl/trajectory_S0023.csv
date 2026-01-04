@@ -1,2 +1,0 @@
-step,gru_risk,rl_action,days_since_last_login,alerts_sent,alerts_responded,engagement_score,academic_reasons
-1,LOW,DO_NOTHING,5,4,2,0.21,

@@ -1,37 +1,30 @@
-/**
- * Firebase Functions backend (common entry)
- */
+// ================================
+// Firebase main entry (REQUIRED)
+// ================================
 
-const { onRequest } = require("firebase-functions/v2/https");
-const express = require("express");
-const cors = require("cors");
+// Quiz controllers
+const {
+  createQuiz,
+  submitQuiz,
+  getAllQuizzes,
+  getQuizByLevel,
+  fetchQuizByUser,
+} = require("./src/http/quizController");
 
-// Express app
-const app = express();
-app.use(express.json());
-app.use(cors({ origin: true }));
+// ML controllers
+const { predictRisk } = require("./src/http/mlProxy");
+const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
 
-// Health check (common)
-app.get("/", (req, res) => {
-  res.json({ message: "Backend Connected" });
-});
+// Express API (RL, disengagement, etc.)
+exports.api = require("./api").api;
 
-// ----------------------------------------------------
-// EXISTING FEATURE ROUTES (DO NOT CHANGE)
-// ----------------------------------------------------
-const disengagementRoutes = require("./features/disengagement/routes");
-app.use("/api", disengagementRoutes);
+// Export quiz functions
+exports.createQuiz = createQuiz;
+exports.submitQuiz = submitQuiz;
+exports.getAllQuizzes = getAllQuizzes;
+exports.getQuizByLevel = getQuizByLevel;
+exports.fetchQuizByUser = fetchQuizByUser;
 
-// ----------------------------------------------------
-// 🔹 RL FEATURE ROUTES (ADDED BY <your name / RL module>)
-// ----------------------------------------------------
-// This connects Firebase backend → RL FastAPI service
-// Endpoint: /api/rl/decide/:studentId
-// Calls: http://127.0.0.1:8000/rl/decide/{studentId}
-const rlRoutes = require("./features/rl/routes");
-app.use("/api/rl", rlRoutes);
-
-// ----------------------------------------------------
-// Export Firebase HTTPS function
-// ----------------------------------------------------
-exports.api = onRequest(app);
+// Export ML functions
+exports.predictRisk = predictRisk;
+exports.predictRecommendation = predictRecommendation;
