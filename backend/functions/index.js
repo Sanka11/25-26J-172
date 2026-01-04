@@ -18,6 +18,11 @@ const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
 // Express API (RL, disengagement, etc.)
 exports.api = require("./api").api;
 
+// Student risk explainability controller
+const {
+  getStudentRiskExplanation,
+} = require("./src/http/studentRiskExplanation");
+
 // Export quiz functions
 exports.createQuiz = createQuiz;
 exports.submitQuiz = submitQuiz;
@@ -28,3 +33,6 @@ exports.fetchQuizByUser = fetchQuizByUser;
 // Export ML functions
 exports.predictRisk = predictRisk;
 exports.predictRecommendation = predictRecommendation;
+
+// Export student risk explanation API
+exports.getStudentRiskExplanation = getStudentRiskExplanation;
