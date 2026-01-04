@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("../firebase");
 const axios = require("axios");
 const { ML_STRUGGLE_URL } = require("../config");
@@ -132,23 +132,30 @@ const submitQuiz = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: "Failed to submit quiz" });
   }
 });
-/* =====================================================
-   5️⃣ GET ALL QUIZZES (STUDENT LIST)
-===================================================== */
+
 const getAllQuizzes = functions.https.onRequest(async (req, res) => {
   try {
     const snap = await db.collection("quizzes").orderBy("level", "asc").get();
 
-    const quizzes = snap.docs.map((doc) => ({
-      quiz_id: doc.id,
-      level: doc.data().level,
-      question_count: doc.data().questions.length,
-    }));
+    const quizzes = snap.docs.map((doc) => {
+      const data = doc.data();
+
+      return {
+        quiz_id: doc.id,
+        level: data.level ?? 0,
+        question_count: Array.isArray(data.questions)
+          ? data.questions.length
+          : 0,
+      };
+    });
 
     return res.status(200).json(quizzes);
   } catch (error) {
     console.error("Get quizzes error:", error);
-    return res.status(500).json({ error: "Failed to fetch quizzes" });
+    return res.status(500).json({
+      error: true,
+      message: error.message,
+    });
   }
 });
 
@@ -227,9 +234,24 @@ async function evaluateQuizProgress(user_id, quiz_id, quiz_level) {
     })),
   };
 
-  const mlRes = await axios.post(ML_STRUGGLE_URL, mlPayload, {
-    timeout: 10000,
-  });
+  let mlRes;
+
+  try {
+    mlRes = await axios.post(ML_STRUGGLE_URL, mlPayload, {
+      timeout: 5000,
+    });
+  } catch (err) {
+    console.error("ML service unreachable, falling back", err.message);
+
+    // 🔁 SAFE FALLBACK (never crash Functions)
+    return {
+      quiz_avg_score: 0,
+      passed: true,
+      next_level: quiz_level + 1,
+      struggling_lessons: [],
+      ml_fallback: true,
+    };
+  }
 
   if (!mlRes.data || !mlRes.data.lesson_struggles) {
     throw new Error("Invalid ML response");

@@ -12,16 +12,16 @@ const {
 } = require("./src/http/quizController");
 
 // ML controllers
-const { predictRisk } = require("./src/http/mlProxy");
-const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
+//const { predictRisk } = require("./src/http/mlProxy");
+//const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
 
 // Student risk explainability controller
-const {
-  getStudentRiskExplanation,
-} = require("./src/http/studentRiskExplanation");
+//const {
+//getStudentRiskExplanation,
+//} = require("./src/http/studentRiskExplanation");
 
 // Express API (RL, disengagement, etc.)
-exports.api = require("./api").api;
+//exports.api = require("./api").api;
 
 // Export quiz functions
 exports.createQuiz = createQuiz;
@@ -31,8 +31,8 @@ exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
 
 // Export ML functions
-exports.predictRisk = predictRisk;
-exports.predictRecommendation = predictRecommendation;
+//exports.predictRisk = predictRisk;
+//exports.predictRecommendation = predictRecommendation;
 
 // Export student risk explanation API
-exports.getStudentRiskExplanation = getStudentRiskExplanation;
+//exports.getStudentRiskExplanation = getStudentRiskExplanation;
