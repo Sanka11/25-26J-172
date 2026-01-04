@@ -22,6 +22,7 @@ import {
   BarChart as AnalyticsIcon,
   Person as ProfileIcon,
   ExitToApp as LogoutIcon,
+  Notifications as NotificationsIcon,
 } from "@mui/icons-material";
 
 const NavigationBar = () => {
@@ -205,6 +206,23 @@ const NavigationBar = () => {
 
           {/* Right side - User info and additional actions */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {/* Announcements bell icon */}
+            <Tooltip title="Announcements">
+              <IconButton
+                component={Link}
+                to="/announcements"
+                sx={{
+                  color: "white",
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  "&:hover": {
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                  },
+                }}
+              >
+                <NotificationsIcon />
+              </IconButton>
+            </Tooltip>
+
             {/* User info */}
             <Chip
               icon={<ProfileIcon />}

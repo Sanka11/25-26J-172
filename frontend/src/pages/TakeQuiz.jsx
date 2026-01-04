@@ -1,209 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-// import { useEffect, useState } from "react";
-// import { useParams, useNavigate } from "react-router-dom";
-// import { getQuizById, submitQuiz } from "../services/api/quizApi";
-// import { predictStruggle } from "../services/api/struggleApi";
-// import { checkLevelUnlock } from "../services/api/levelApi";
-
-// export default function TakeQuiz() {
-//   const { id } = useParams();
-//   const navigate = useNavigate();
-
-//   const USER_ID = 70063; // later replace with auth user
-
-//   const [quiz, setQuiz] = useState(null);
-//   const [answers, setAnswers] = useState([]);
-
-//   // ⏱ Time tracking
-//   const [quizStartTime] = useState(Date.now());
-//   const [firstAnswerTime, setFirstAnswerTime] = useState(null);
-//   const [elapsedTime, setElapsedTime] = useState(0);
-
-//   // 💡 Hint tracking
-//   const [hintCount, setHintCount] = useState(0);
-//   const [activeHint, setActiveHint] = useState(null);
-
-//   /* ======================
-//      Load Quiz
-//   ====================== */
-//   useEffect(() => {
-//     getQuizById(id).then((data) => {
-//       setQuiz(data);
-//       setAnswers(new Array(data.questions.length).fill(null));
-//     });
-//   }, [id]);
-
-//   /* ======================
-//      Timer
-//   ====================== */
-//   useEffect(() => {
-//     const timer = setInterval(() => {
-//       setElapsedTime(Math.floor((Date.now() - quizStartTime) / 1000));
-//     }, 1000);
-
-//     return () => clearInterval(timer);
-//   }, [quizStartTime]);
-
-//   /* ======================
-//      Answer selection
-//   ====================== */
-//   const selectAnswer = (qIndex, optionIndex) => {
-//     if (!firstAnswerTime) {
-//       setFirstAnswerTime(Date.now());
-//     }
-
-//     const updated = [...answers];
-//     updated[qIndex] = optionIndex;
-//     setAnswers(updated);
-//   };
-
-//   /* ======================
-//      Hint handler
-//   ====================== */
-//   const showHint = (qIndex) => {
-//     setHintCount((prev) => prev + 1);
-//     setActiveHint(qIndex);
-//   };
-
-//   /* ======================
-//      Submit Quiz
-//   ====================== */
-//   const handleSubmit = async () => {
-//     if (answers.includes(null)) {
-//       alert("Please answer all questions");
-//       return;
-//     }
-
-//     let correctCount = 0;
-//     quiz.questions.forEach((q, i) => {
-//       if (answers[i] === q.correct) correctCount++;
-//     });
-
-//     const total = quiz.questions.length;
-
-//     const ms_first_response = firstAnswerTime
-//       ? firstAnswerTime - quizStartTime
-//       : 0;
-
-//     const overlap_time = Date.now() - quizStartTime;
-
-//     try {
-//       /* 1️⃣ Save quiz attempt */
-//       await submitQuiz({
-//         user_id: USER_ID,
-//         quiz_id: quiz.id,
-//         skill_name: quiz.skill_name,
-//         answers,
-//         score: correctCount,
-//         total,
-//         hint_count: hintCount,
-//         ms_first_response,
-//         overlap_time,
-//       });
-
-//       /* 2️⃣ Call ML struggle prediction (MODEL FEATURES ONLY) */
-//       const struggleResult = await predictStruggle({
-//         user_id: USER_ID,
-//         skills: [
-//           {
-//             skill_name: quiz.skill_name,
-//             correct: correctCount / total,
-//             hint_count: hintCount,
-//             ms_first_response,
-//             overlap_time,
-//             opportunity: total,
-//           },
-//         ],
-//       });
-
-//       if (!struggleResult || !Array.isArray(struggleResult.struggling_skills)) {
-//         alert("Struggle analysis failed. Please retry.");
-//         return;
-//       }
-
-//       /* 3️⃣ Level unlock logic */
-//       const hasHighStruggle = struggleResult.struggling_skills.some(
-//         (s) => s.level === "High"
-//       );
-
-//       if (hasHighStruggle) {
-//         alert("⚠️ You are still struggling. Try this level again.");
-//         return;
-//       }
-
-//       await checkLevelUnlock({
-//         user_id: USER_ID,
-//         skill_name: quiz.skill_name,
-//       });
-
-//       alert("🎉 Level completed! Next level unlocked.");
-//       navigate("/levels");
-//     } catch (error) {
-//       console.error("Quiz submit error:", error);
-//       alert("Something went wrong. Please try again.");
-//     }
-//   };
-
-//   if (!quiz) return <p>Loading quiz...</p>;
-
-//   /* ======================
-//      UI
-//   ====================== */
-//   return (
-//     <div className="p-6 max-w-3xl">
-//       <div className="flex justify-between mb-4">
-//         <h2 className="text-2xl font-bold">{quiz.title}</h2>
-//         <div className="text-sm font-semibold">⏱ {elapsedTime}s</div>
-//       </div>
-
-//       {quiz.questions.map((q, qIndex) => (
-//         <div key={qIndex} className="border p-4 mb-4 rounded">
-//           <p className="font-semibold mb-2">{q.question}</p>
-
-//           {q.options.map((opt, oIndex) => (
-//             <label key={oIndex} className="block mt-2">
-//               <input
-//                 type="radio"
-//                 name={`q-${qIndex}`}
-//                 checked={answers[qIndex] === oIndex}
-//                 onChange={() => selectAnswer(qIndex, oIndex)}
-//               />
-//               <span className="ml-2">{opt}</span>
-//             </label>
-//           ))}
-
-//           {/* 💡 Hint */}
-//           {q.hint && (
-//             <div className="mt-3">
-//               <button
-//                 onClick={() => showHint(qIndex)}
-//                 className="text-sm text-blue-600 underline"
-//               >
-//                 Show Hint
-//               </button>
-
-//               {activeHint === qIndex && (
-//                 <p className="mt-2 text-sm text-gray-600">💡 Hint: {q.hint}</p>
-//               )}
-//             </div>
-//           )}
-//         </div>
-//       ))}
-
-//       <button
-//         onClick={handleSubmit}
-//         className="bg-green-600 text-white px-4 py-2 rounded"
-//       >
-//         Submit Quiz
-//       </button>
-//     </div>
-//   );
-// }
-import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getQuizById, submitQuiz } from "../services/api/quizApi";
-import { predictStruggle } from "../services/api/struggleApi";
-import { checkLevelUnlock } from "../services/api/levelApi";
+import { fetchQuiz, submitQuiz } from "../services/api/quizApi";
 import {
   Box,
   Button,
@@ -253,14 +50,15 @@ import {
 } from "@mui/icons-material";
 
 export default function TakeQuiz() {
-  const { id } = useParams();
+  const { level } = useParams();
   const navigate = useNavigate();
 
-  const USER_ID = 70063;
-
   const [quiz, setQuiz] = useState(null);
-  const [answers, setAnswers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [answers, setAnswers] = useState({});
+  const [startTimes, setStartTimes] = useState({});
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   // Timer states
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -420,17 +218,14 @@ export default function TakeQuiz() {
     loadQuiz();
   }, [level]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - quizStartTime) / 1000));
-    }, 1000);
+  const selectAnswer = (q, idx) => {
+    const now = Date.now();
+    const timeSpent = individualTimers[q.question_id] || 0;
 
-    return () => clearInterval(timer);
-  }, [quizStartTime]);
-
-  const selectAnswer = (qIndex, optionIndex) => {
-    if (!firstAnswerTime) {
-      setFirstAnswerTime(Date.now());
+    // Check if answering too quickly (less than 5 seconds)
+    if (timeSpent < 5 && !answers[q.question_id]?.used_hint) {
+      setShowSpeedWarning(true);
+      setTimeout(() => setShowSpeedWarning(false), 3000);
     }
 
     setAnswers((prev) => ({
@@ -447,16 +242,19 @@ export default function TakeQuiz() {
     }));
   };
 
-  const showHint = (qIndex) => {
-    setHintCount((prev) => prev + 1);
-    setActiveHint(activeHint === qIndex ? null : qIndex);
+  const useHint = (qid) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [qid]: {
+        ...prev[qid],
+        used_hint: true,
+      },
+    }));
   };
 
-  const handleSubmit = async () => {
-    if (answers.includes(null)) {
-      alert("Please answer all questions");
-      return;
-    }
+  const toggleTimer = () => {
+    setIsTimerRunning(!isTimerRunning);
+  };
 
   const resetTimer = () => {
     // Stop timer first
@@ -475,48 +273,7 @@ export default function TakeQuiz() {
       quiz.questions.forEach((q) => {
         timers[q.question_id] = 0;
       });
-
-      const struggleResult = await predictStruggle({
-        user_id: USER_ID,
-        skills: [
-          {
-            skill_name: quiz.skill_name,
-            correct: correctCount / total,
-            hint_count: hintCount,
-            ms_first_response,
-            overlap_time,
-            opportunity: total,
-          },
-        ],
-      });
-
-      if (!struggleResult || !Array.isArray(struggleResult.struggling_skills)) {
-        alert("Struggle analysis failed. Please retry.");
-        setLoading(false);
-        return;
-      }
-
-      const hasHighStruggle = struggleResult.struggling_skills.some(
-        (s) => s.level === "High"
-      );
-
-      if (hasHighStruggle) {
-        alert("You are still struggling. Try this level again.");
-        setLoading(false);
-        return;
-      }
-
-      await checkLevelUnlock({
-        user_id: USER_ID,
-        skill_name: quiz.skill_name,
-      });
-
-      alert("Level completed! Next level unlocked.");
-      navigate("/levels");
-    } catch (error) {
-      console.error("Quiz submit error:", error);
-      alert("Something went wrong. Please try again.");
-      setLoading(false);
+      setIndividualTimers(timers);
     }
 
     // Restart timer
@@ -540,23 +297,6 @@ export default function TakeQuiz() {
       setCurrentQuestionIndex(index);
     }
   };
-
-  if (!quiz) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block">
-            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-          </div>
-          <p className="text-gray-600 font-semibold">Loading quiz...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const totalQuestions = quiz.questions.length;
-  const answeredCount = answers.filter((a) => a !== null).length;
-  const progressPercent = (answeredCount / totalQuestions) * 100;
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -894,9 +634,8 @@ export default function TakeQuiz() {
                   boxShadow: "0 3px 10px rgba(48, 63, 159, 0.3)",
                 }}
               />
-            </div>
-          </div>
-        </div>
+            </Box>
+          </Box>
 
           {/* Progress and Time Stats Bar */}
           <Box
