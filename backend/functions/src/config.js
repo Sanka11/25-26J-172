@@ -1,25 +1,19 @@
-// backend/functions/src/config.js
-const functions = require("firebase-functions");
+/**
+ * backend/functions/src/config.js
+ *
+ * Firebase Functions v2 / v7 compatible configuration
+ * NO functions.config() usage
+ * Safe for Emulator, Deployment, and PP1 demo
+ */
 
-// Are we running in the local emulator?
-const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+const ML_SERVICE_URL =
+  process.env.ML_SERVICE_URL || "http://127.0.0.1:8000/predict-risk";
+const RECOMMENDATION_SERVICE_URL =
+  process.env.RECOMMENDATION_SERVICE_URL ||
+  "http://127.0.0.1:8000/recommendation";
+const ML_STRUGGLE_URL =
+  process.env.ML_STRUGGLE_URL || "http://127.0.0.1:8000/struggle";
 
-
-const ML_SERVICE_URL = isEmulator ?
-  "http://127.0.0.1:8000/predict-risk" :
-  (functions.config().ml && functions.config().ml.service_url) ||
-    "https://your-ml-service-domain.com/predict-risk";
-// replace later when you deploy
-const RECOMMENDATION_SERVICE_URL = isEmulator ?
-  "http://127.0.0.1:8000/recommendation" :
-  (functions.config().ml && functions.config().ml.recommendation_url) ||
-    "https://your-ml-service-domain.com/recommendation";
-
-
-const ML_STRUGGLE_URL = isEmulator
-  ? "http://127.0.0.1:8000/struggle"
-  : (functions.config().ml && functions.config().ml.struggle_url) ||
-    "https://your-ml-service-domain.com/struggle";
 module.exports = {
   ML_SERVICE_URL,
   RECOMMENDATION_SERVICE_URL,
