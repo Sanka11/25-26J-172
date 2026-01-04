@@ -1,152 +1,4 @@
-
-// import { useEffect, useState } from "react";
-// import { useParams, useNavigate } from "react-router-dom";
-// import { fetchQuiz, submitQuiz } from "../services/api/quizApi";
-
-// export default function TakeQuiz() {
-//   const { level } = useParams();
-//   const navigate = useNavigate();
-
-//   const [quiz, setQuiz] = useState(null);
-//   const [answers, setAnswers] = useState({});
-//   const [startTimes, setStartTimes] = useState({});
-//   const [result, setResult] = useState(null); // 🔹 NEW
-
-//   useEffect(() => {
-//     fetchQuiz(level).then((data) => {
-//       setQuiz(data);
-
-//       const times = {};
-//       data.questions.forEach((q) => {
-//         times[q.question_id] = Date.now();
-//       });
-//       setStartTimes(times);
-//     });
-//   }, [level]);
-
-//   const selectAnswer = (q, idx) => {
-//     const now = Date.now();
-
-//     setAnswers((prev) => ({
-//       ...prev,
-//       [q.question_id]: {
-//         selected_index: idx,
-//         ms_first_response:
-//           prev[q.question_id]?.ms_first_response ??
-//           now - startTimes[q.question_id],
-//         overlap_time: now - startTimes[q.question_id],
-//         used_hint: prev[q.question_id]?.used_hint || false,
-//       },
-//     }));
-//   };
-
-//   const useHint = (qid) => {
-//     setAnswers((prev) => ({
-//       ...prev,
-//       [qid]: {
-//         ...prev[qid],
-//         used_hint: true,
-//       },
-//     }));
-//   };
-
-//   const submit = async () => {
-//     const payload = {
-//       user_id: "student_001",
-//       quiz_id: quiz.quiz_id,
-//       quiz_level: quiz.level,
-//       answers: quiz.questions.map((q) => ({
-//         question_id: q.question_id,
-//         lesson: q.lesson,
-//         selected_index: answers[q.question_id]?.selected_index ?? -1,
-//         correct:
-//           answers[q.question_id]?.selected_index === q.correct_index ? 1 : 0,
-//         used_hint: answers[q.question_id]?.used_hint ?? false,
-//         ms_first_response: answers[q.question_id]?.ms_first_response ?? 0,
-//         overlap_time: answers[q.question_id]?.overlap_time ?? 0,
-//       })),
-//     };
-
-//     const res = await submitQuiz(payload);
-//     setResult(res); // 🔹 store backend response
-//   };
-
-//   if (!quiz) return <p>Loading...</p>;
-
-//   return (
-//     <div style={{ padding: 20 }}>
-//       <h2>Level {quiz.level}</h2>
-
-//       {/* QUIZ QUESTIONS */}
-//       {!result &&
-//         quiz.questions.map((q) => (
-//           <div key={q.question_id} style={{ marginBottom: 20 }}>
-//             <p>{q.question}</p>
-
-//             {q.options.map((o, i) => (
-//               <button
-//                 key={i}
-//                 onClick={() => selectAnswer(q, i)}
-//                 style={{ display: "block", margin: "4px 0" }}
-//               >
-//                 {o}
-//               </button>
-//             ))}
-
-//             <details>
-//               <summary onClick={() => useHint(q.question_id)}>Hint</summary>
-//               <p>{q.hint}</p>
-//             </details>
-//           </div>
-//         ))}
-
-//       {!result && <button onClick={submit}>Submit Quiz</button>}
-
-//       {/* RESULT SECTION */}
-//       {result && (
-//         <div style={{ marginTop: 30 }}>
-//           <h3>{result.passed ? "🎉 Level Passed!" : "❌ Level Not Passed"}</h3>
-
-//           <p>
-//             <strong>Quiz Average Struggle:</strong>{" "}
-//             {(result.quiz_avg_score * 100).toFixed(0)}%
-//           </p>
-
-//           {/* STRUGGLING LESSONS */}
-//           {result.struggling_lessons.length > 0 ? (
-//             <>
-//               <h4>⚠️ Struggling Lessons</h4>
-//               <ul>
-//                 {result.struggling_lessons.map((l, i) => (
-//                   <li key={i}>
-//                     {l.lesson} – {(l.average_struggle_score * 100).toFixed(0)}%
-//                   </li>
-//                 ))}
-//               </ul>
-//             </>
-//           ) : (
-//             <p>✅ No struggling lessons detected</p>
-//           )}
-
-//           <button
-//             onClick={() =>
-//               navigate(
-//                 result.passed
-//                   ? `/quiz/${result.next_level}`
-//                   : `/quiz/${quiz.level}`
-//               )
-//             }
-//           >
-//             {result.passed ? "Go to Next Level" : "Retry Level"}
-//           </button>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchQuiz, submitQuiz } from "../services/api/quizApi";
 import {
@@ -174,7 +26,6 @@ import {
   Divider,
   Paper,
   Badge,
-  Avatar,
 } from "@mui/material";
 import {
   Lightbulb as HintIcon,
@@ -184,12 +35,18 @@ import {
   Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
   Timer as TimerIcon,
-  School as SchoolIcon,
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Replay as ReplayIcon,
   Speed as SpeedIcon,
   HourglassEmpty as HourglassIcon,
+  School as SchoolIcon,
+  MenuBook as BookIcon,
+  EmojiEvents as TrophyIcon,
+  Grade as GradeIcon,
+  NavigateNext as NextIcon,
+  NavigateBefore as PrevIcon,
+  List as ListIcon,
 } from "@mui/icons-material";
 
 export default function TakeQuiz() {
@@ -208,73 +65,157 @@ export default function TakeQuiz() {
   const [isTimerRunning, setIsTimerRunning] = useState(true);
   const [individualTimers, setIndividualTimers] = useState({});
   const [showSpeedWarning, setShowSpeedWarning] = useState(false);
-  const [questionTimeStats, setQuestionTimeStats] = useState([]);
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  // Light purple theme colors
+  // Current question index for sequential navigation
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  // Use ref to track timer interval
+  const timerRef = useRef(null);
+  const individualTimerRef = useRef(null);
+
+  // University blue theme colors
   const theme = {
-    primary: "#9C27B0",
-    lightPrimary: "#E1BEE7",
-    secondary: "#7B1FA2",
-    background: "#F5F0FA",
+    primary: "#1A237E", // Dark blue
+    primaryLight: "#E8EAF6",
+    primaryDark: "#0D47A1",
+    secondary: "#283593",
+    accent: "#303F9F",
+    background: "#F5F7FF",
     cardBg: "#FFFFFF",
-    success: "#4CAF50",
-    warning: "#FF9800",
-    error: "#F44336",
-    text: "#333333",
-    lightText: "#666666",
+    success: "#2E7D32", // University green
+    warning: "#F57C00",
+    error: "#C62828",
+    text: "#1A237E",
+    lightText: "#546E7A",
+    highlight: "#5C6BC0",
+    lightBlue: "#E3F2FD",
   };
 
-  // Timer effect
+  // Main timer effect - using ref for proper cleanup
   useEffect(() => {
-    let interval;
+    // Clear any existing interval
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     if (isTimerRunning && !result) {
-      interval = setInterval(() => {
+      timerRef.current = setInterval(() => {
         setTimeElapsed((prev) => prev + 1);
       }, 1000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
   }, [isTimerRunning, result]);
 
   // Initialize individual timers for each question
   useEffect(() => {
     if (quiz) {
       const timers = {};
+      const times = {};
       quiz.questions.forEach((q) => {
         timers[q.question_id] = 0;
+        times[q.question_id] = Date.now();
       });
       setIndividualTimers(timers);
+      setStartTimes(times);
     }
   }, [quiz]);
 
-  // Update individual question timers
+  // Update individual question timer - ONLY for current question
   useEffect(() => {
-    if (quiz && isTimerRunning && !result) {
-      const interval = setInterval(() => {
-        setIndividualTimers((prev) => {
-          const newTimers = { ...prev };
-          quiz.questions.forEach((q) => {
-            if (!answers[q.question_id]?.selected_index) {
-              newTimers[q.question_id] = (newTimers[q.question_id] || 0) + 1;
-            }
-          });
-          return newTimers;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
+    // Clear any existing individual timer interval
+    if (individualTimerRef.current) {
+      clearInterval(individualTimerRef.current);
+      individualTimerRef.current = null;
     }
-  }, [quiz, isTimerRunning, answers, result]);
+
+    if (
+      quiz &&
+      isTimerRunning &&
+      !result &&
+      currentQuestionIndex < quiz.questions.length
+    ) {
+      const currentQuestion = quiz.questions[currentQuestionIndex];
+
+      // Only start timer if current question hasn't been answered
+      if (!answers[currentQuestion.question_id]?.selected_index) {
+        individualTimerRef.current = setInterval(() => {
+          setIndividualTimers((prev) => ({
+            ...prev,
+            [currentQuestion.question_id]:
+              (prev[currentQuestion.question_id] || 0) + 1,
+          }));
+        }, 1000);
+      }
+    }
+
+    return () => {
+      if (individualTimerRef.current) {
+        clearInterval(individualTimerRef.current);
+        individualTimerRef.current = null;
+      }
+    };
+  }, [quiz, isTimerRunning, answers, result, currentQuestionIndex]);
+
+  // Cleanup all timers on component unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (individualTimerRef.current) {
+        clearInterval(individualTimerRef.current);
+        individualTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Load quiz function
+  const loadQuiz = () => {
+    // Stop all timers first
+    setIsTimerRunning(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (individualTimerRef.current) {
+      clearInterval(individualTimerRef.current);
+      individualTimerRef.current = null;
+    }
+
+    setLoading(true);
+    setResult(null);
+    setAnswers({});
+    setStartTimes({});
+    setTimeElapsed(0);
+    setIndividualTimers({});
+    setCurrentQuestionIndex(0);
+
+    fetchQuiz(level)
+      .then((data) => {
+        setQuiz(data);
+        setLoading(false);
+        setIsRetrying(false);
+
+        // Start timer after quiz is loaded
+        setIsTimerRunning(true);
+      })
+      .catch((error) => {
+        console.error("Error loading quiz:", error);
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
-    setLoading(true);
-    fetchQuiz(level).then((data) => {
-      setQuiz(data);
-      const times = {};
-      data.questions.forEach((q) => {
-        times[q.question_id] = Date.now();
-      });
-      setStartTimes(times);
-      setLoading(false);
-    });
+    loadQuiz();
   }, [level]);
 
   const selectAnswer = (q, idx) => {
@@ -293,8 +234,8 @@ export default function TakeQuiz() {
         selected_index: idx,
         ms_first_response:
           prev[q.question_id]?.ms_first_response ??
-          now - startTimes[q.question_id],
-        overlap_time: now - startTimes[q.question_id],
+          now - (startTimes[q.question_id] || now),
+        overlap_time: now - (startTimes[q.question_id] || now),
         used_hint: prev[q.question_id]?.used_hint || false,
         time_spent_seconds: timeSpent,
       },
@@ -316,6 +257,16 @@ export default function TakeQuiz() {
   };
 
   const resetTimer = () => {
+    // Stop timer first
+    setIsTimerRunning(false);
+
+    // Clear intervals
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Reset state
     setTimeElapsed(0);
     if (quiz) {
       const timers = {};
@@ -323,6 +274,27 @@ export default function TakeQuiz() {
         timers[q.question_id] = 0;
       });
       setIndividualTimers(timers);
+    }
+
+    // Restart timer
+    setIsTimerRunning(true);
+  };
+
+  const goToNextQuestion = () => {
+    if (quiz && currentQuestionIndex < quiz.questions.length - 1) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+    }
+  };
+
+  const goToPreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex((prev) => prev - 1);
+    }
+  };
+
+  const goToQuestion = (index) => {
+    if (quiz && index >= 0 && index < quiz.questions.length) {
+      setCurrentQuestionIndex(index);
     }
   };
 
@@ -342,6 +314,18 @@ export default function TakeQuiz() {
 
   const submit = async () => {
     setSubmitting(true);
+
+    // Stop timer immediately when submitting
+    setIsTimerRunning(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (individualTimerRef.current) {
+      clearInterval(individualTimerRef.current);
+      individualTimerRef.current = null;
+    }
+
     const payload = {
       user_id: "student_002",
       quiz_id: quiz.quiz_id,
@@ -363,7 +347,24 @@ export default function TakeQuiz() {
     try {
       const res = await submitQuiz(payload);
       setResult(res);
-      setIsTimerRunning(false);
+
+      // Save progress to localStorage
+      if (res.passed) {
+        const currentLevel = parseInt(level);
+        const nextLevel = currentLevel + 1;
+        const savedProgress = JSON.parse(
+          localStorage.getItem("quizProgress") || "{}"
+        );
+        savedProgress.highestLevel = Math.max(
+          savedProgress.highestLevel || 1,
+          nextLevel
+        );
+        savedProgress.completedLevels = savedProgress.completedLevels || [];
+        if (!savedProgress.completedLevels.includes(currentLevel)) {
+          savedProgress.completedLevels.push(currentLevel);
+        }
+        localStorage.setItem("quizProgress", JSON.stringify(savedProgress));
+      }
     } catch (error) {
       console.error("Submission error:", error);
     } finally {
@@ -384,18 +385,64 @@ export default function TakeQuiz() {
     return Math.round(totalTime / getAnsweredCount());
   };
 
-  const getFastestQuestionTime = () => {
-    const times = Object.values(answers)
-      .map((ans) => ans.time_spent_seconds || 0)
-      .filter((time) => time > 0);
-    return times.length > 0 ? Math.min(...times) : 0;
+  const handleRetryLevel = () => {
+    // Stop all timers before resetting
+    setIsTimerRunning(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (individualTimerRef.current) {
+      clearInterval(individualTimerRef.current);
+      individualTimerRef.current = null;
+    }
+
+    setIsRetrying(true);
+    loadQuiz();
   };
 
-  const getSlowestQuestionTime = () => {
-    const times = Object.values(answers)
-      .map((ans) => ans.time_spent_seconds || 0)
-      .filter((time) => time > 0);
-    return times.length > 0 ? Math.max(...times) : 0;
+  const handleNextLevel = () => {
+    // Stop all timers before navigation
+    setIsTimerRunning(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (individualTimerRef.current) {
+      clearInterval(individualTimerRef.current);
+      individualTimerRef.current = null;
+    }
+
+    const nextLevel = result.next_level || parseInt(level) + 1;
+
+    // Save that next level is unlocked
+    const savedProgress = JSON.parse(
+      localStorage.getItem("quizProgress") || "{}"
+    );
+    savedProgress.unlockedLevels = savedProgress.unlockedLevels || [];
+    if (!savedProgress.unlockedLevels.includes(nextLevel)) {
+      savedProgress.unlockedLevels.push(nextLevel);
+      localStorage.setItem("quizProgress", JSON.stringify(savedProgress));
+    }
+
+    // Navigate after ensuring timers are stopped
+    navigate(`/quiz/${nextLevel}`);
+  };
+
+  const getLevelTitle = (level) => {
+    const titles = {
+      1: "Introductory Quiz",
+      2: "Fundamentals Challenge",
+      3: "Intermediate Assessment",
+      4: "Advanced Concepts",
+      5: "Expert Level",
+      6: "Mastery Test",
+      7: "Scholarly Examination",
+      8: "Academic Challenge",
+      9: "Final Review",
+      10: "Comprehensive Final",
+    };
+    return titles[level] || `Level ${level}`;
   };
 
   if (loading) {
@@ -403,22 +450,56 @@ export default function TakeQuiz() {
       <Box
         sx={{
           display: "flex",
+          flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
           minHeight: "100vh",
-          backgroundColor: theme.background,
+          background: "linear-gradient(135deg, #F5F7FF 0%, #E8EAF6 100%)",
         }}
       >
-        <CircularProgress sx={{ color: theme.primary }} />
+        <Box sx={{ position: "relative" }}>
+          <CircularProgress
+            size={80}
+            sx={{
+              color: theme.primary,
+              animationDuration: "1.5s",
+            }}
+          />
+          <SchoolIcon
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              fontSize: 30,
+              color: theme.primary,
+            }}
+          />
+        </Box>
+        <Typography
+          variant="h6"
+          sx={{
+            mt: 3,
+            color: theme.text,
+            fontWeight: 600,
+          }}
+        >
+          Loading Quiz {level}...
+        </Typography>
       </Box>
     );
   }
+
+  const currentQuestion = quiz.questions[currentQuestionIndex];
+  const timeSpent = individualTimers[currentQuestion?.question_id] || 0;
+  const isAnswered =
+    answers[currentQuestion?.question_id]?.selected_index !== undefined;
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        backgroundColor: theme.background,
+        background: "linear-gradient(135deg, #F5F7FF 0%, #E8EAF6 100%)",
         p: { xs: 2, md: 4 },
       }}
     >
@@ -438,6 +519,7 @@ export default function TakeQuiz() {
             sx={{
               borderRadius: 2,
               boxShadow: 3,
+              borderLeft: `4px solid ${theme.warning}`,
             }}
           >
             ⚡ You're answering very quickly! Make sure to read carefully.
@@ -453,7 +535,8 @@ export default function TakeQuiz() {
           p: { xs: 3, md: 4 },
           borderRadius: 4,
           backgroundColor: theme.cardBg,
-          boxShadow: "0 4px 20px rgba(156, 39, 176, 0.1)",
+          boxShadow: "0 8px 32px rgba(26, 35, 126, 0.15)",
+          border: `1px solid ${theme.primaryLight}`,
         }}
       >
         {/* Header with Timer */}
@@ -469,13 +552,21 @@ export default function TakeQuiz() {
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <SchoolIcon sx={{ color: theme.primary, mr: 1, fontSize: 32 }} />
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 600, color: theme.primary }}
-              >
-                Level {quiz.level}
-              </Typography>
+              <SchoolIcon sx={{ color: theme.primary, mr: 2, fontSize: 40 }} />
+              <Box>
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 700, color: theme.primary }}
+                >
+                  {getLevelTitle(quiz.level)}
+                </Typography>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ color: theme.lightText, fontWeight: 500 }}
+                >
+                  Level {quiz.level} • {quiz.questions.length} Questions
+                </Typography>
+              </Box>
             </Box>
 
             {/* Timer Section */}
@@ -484,20 +575,21 @@ export default function TakeQuiz() {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  backgroundColor: theme.lightPrimary,
+                  background: `linear-gradient(135deg, ${theme.primaryLight}, ${theme.lightBlue})`,
                   p: 1.5,
                   borderRadius: 3,
                   minWidth: 140,
                   justifyContent: "space-between",
+                  border: `1px solid ${theme.primary}`,
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <TimerIcon sx={{ color: theme.primary }} />
+                  <TimerIcon sx={{ color: theme.primaryDark }} />
                   <Typography
                     variant="h6"
                     sx={{
                       fontWeight: 700,
-                      color: theme.primary,
+                      color: theme.primaryDark,
                       fontFamily: "monospace",
                     }}
                   >
@@ -509,8 +601,8 @@ export default function TakeQuiz() {
                     size="small"
                     onClick={toggleTimer}
                     sx={{
-                      color: theme.primary,
-                      backgroundColor: "rgba(255,255,255,0.8)",
+                      color: theme.primaryDark,
+                      backgroundColor: "rgba(255,255,255,0.9)",
                       "&:hover": { backgroundColor: "white" },
                     }}
                   >
@@ -520,8 +612,8 @@ export default function TakeQuiz() {
                     size="small"
                     onClick={resetTimer}
                     sx={{
-                      color: theme.primary,
-                      backgroundColor: "rgba(255,255,255,0.8)",
+                      color: theme.primaryDark,
+                      backgroundColor: "rgba(255,255,255,0.9)",
                       "&:hover": { backgroundColor: "white" },
                     }}
                   >
@@ -531,14 +623,15 @@ export default function TakeQuiz() {
               </Box>
 
               <Chip
-                label={`${getAnsweredCount()}/${
+                label={`Question ${currentQuestionIndex + 1} of ${
                   quiz.questions.length
-                } answered`}
+                }`}
                 sx={{
-                  backgroundColor: theme.lightPrimary,
-                  color: theme.secondary,
-                  fontWeight: 500,
+                  background: `linear-gradient(135deg, ${theme.accent}, ${theme.secondary})`,
+                  color: "white",
+                  fontWeight: 600,
                   fontSize: "0.9rem",
+                  boxShadow: "0 3px 10px rgba(48, 63, 159, 0.3)",
                 }}
               />
             </Box>
@@ -551,286 +644,389 @@ export default function TakeQuiz() {
               alignItems: "center",
               gap: 3,
               flexWrap: "wrap",
+              mb: 3,
             }}
           >
             <Box sx={{ flex: 1, minWidth: 200 }}>
               <LinearProgress
                 variant="determinate"
-                value={(getAnsweredCount() / quiz.questions.length) * 100}
+                value={
+                  ((currentQuestionIndex + 1) / quiz.questions.length) * 100
+                }
                 sx={{
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: theme.lightPrimary,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: theme.primaryLight,
                   "& .MuiLinearProgress-bar": {
-                    backgroundColor: theme.primary,
-                    borderRadius: 4,
+                    background: `linear-gradient(90deg, ${theme.primary}, ${theme.secondary})`,
+                    borderRadius: 5,
                   },
                 }}
               />
             </Box>
 
-            {/* Time Statistics */}
-            {getAnsweredCount() > 0 && (
-              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                <Tooltip title="Average time per question">
-                  <Chip
-                    icon={<SpeedIcon />}
-                    label={`Avg: ${getAverageTimePerQuestion()}s`}
-                    size="small"
+            {/* Question Navigation Dots */}
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              {quiz.questions.map((q, idx) => (
+                <Tooltip key={q.question_id} title={`Question ${idx + 1}`}>
+                  <Box
+                    onClick={() => goToQuestion(idx)}
                     sx={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
                       backgroundColor:
-                        getAverageTimePerQuestion() < 10
-                          ? `${theme.error}20`
-                          : getAverageTimePerQuestion() < 30
-                          ? `${theme.warning}20`
-                          : `${theme.success}20`,
-                      color: getTimeColor(getAverageTimePerQuestion()),
+                        idx === currentQuestionIndex
+                          ? theme.primary
+                          : answers[q.question_id]?.selected_index !== undefined
+                          ? theme.success
+                          : theme.primaryLight,
+                      cursor: "pointer",
+                      border: `1px solid ${theme.primary}`,
+                      "&:hover": {
+                        transform: "scale(1.2)",
+                      },
+                      transition: "all 0.2s ease",
                     }}
                   />
                 </Tooltip>
-              </Box>
-            )}
+              ))}
+            </Box>
+          </Box>
+
+          {/* Question Timer Display */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 2,
+              mb: 3,
+            }}
+          >
+            <Chip
+              icon={<HourglassIcon />}
+              label={`Current Question: ${timeSpent}s`}
+              sx={{
+                backgroundColor: getTimeColor(timeSpent),
+                color: "white",
+                fontWeight: 700,
+                fontSize: "1rem",
+                px: 2,
+                py: 2,
+              }}
+            />
+            <Typography variant="body2" sx={{ color: theme.lightText }}>
+              {isAnswered
+                ? "✓ Answered"
+                : isTimerRunning
+                ? "⏳ Timer running..."
+                : "⏸ Timer paused"}
+            </Typography>
           </Box>
         </Box>
 
-        {/* Quiz Questions */}
-        {!result && (
+        {/* Quiz Questions - Only show current question */}
+        {!result && currentQuestion && (
           <>
-            {quiz.questions.map((q, index) => {
-              const timeSpent = individualTimers[q.question_id] || 0;
-              const isAnswered =
-                answers[q.question_id]?.selected_index !== undefined;
-
-              return (
-                <Card
-                  key={q.question_id}
-                  sx={{
-                    mb: 3,
-                    border: `2px solid ${
-                      isAnswered ? theme.lightPrimary : "transparent"
-                    }`,
-                    borderRadius: 3,
-                    transition: "all 0.3s ease",
-                    "&:hover": {
-                      boxShadow: "0 6px 20px rgba(156, 39, 176, 0.15)",
-                    },
-                    position: "relative",
-                  }}
-                >
-                  {/* Question Timer Indicator */}
-                  <Box
+            <Card
+              sx={{
+                mb: 3,
+                border: `2px solid ${
+                  isAnswered ? theme.secondary : theme.primary
+                }`,
+                borderRadius: 3,
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  boxShadow: "0 8px 25px rgba(26, 35, 126, 0.2)",
+                },
+                position: "relative",
+                background: isAnswered
+                  ? `linear-gradient(135deg, ${theme.cardBg}, ${theme.primaryLight}20)`
+                  : theme.cardBg,
+              }}
+            >
+              {/* Question Timer Indicator */}
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 16,
+                  right: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                {!isAnswered && (
+                  <Badge
+                    badgeContent={timeSpent}
+                    color="primary"
                     sx={{
-                      position: "absolute",
-                      top: 16,
-                      right: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
+                      "& .MuiBadge-badge": {
+                        backgroundColor: getTimeColor(timeSpent),
+                        color: "white",
+                        fontWeight: "bold",
+                        fontSize: "0.75rem",
+                      },
                     }}
                   >
-                    {!isAnswered && (
-                      <Badge
-                        badgeContent={timeSpent}
-                        color="primary"
-                        sx={{
-                          "& .MuiBadge-badge": {
-                            backgroundColor: getTimeColor(timeSpent),
-                            color: "white",
-                            fontWeight: "bold",
-                          },
-                        }}
-                      >
-                        <HourglassIcon sx={{ color: theme.lightText }} />
-                      </Badge>
-                    )}
-                    {isAnswered && (
-                      <Chip
-                        size="small"
-                        label={`${
-                          answers[q.question_id]?.time_spent_seconds || 0
-                        }s`}
-                        sx={{
-                          backgroundColor: getTimeColor(
-                            answers[q.question_id]?.time_spent_seconds || 0
-                          ),
-                          color: "white",
-                          fontWeight: "bold",
-                        }}
-                      />
-                    )}
+                    <HourglassIcon sx={{ color: theme.primary }} />
+                  </Badge>
+                )}
+                {isAnswered && (
+                  <Chip
+                    size="small"
+                    label={`${
+                      answers[currentQuestion.question_id]
+                        ?.time_spent_seconds || 0
+                    }s`}
+                    sx={{
+                      backgroundColor: getTimeColor(
+                        answers[currentQuestion.question_id]
+                          ?.time_spent_seconds || 0
+                      ),
+                      color: "white",
+                      fontWeight: "bold",
+                    }}
+                  />
+                )}
+              </Box>
+
+              <CardContent>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    mb: 2,
+                    color: theme.text,
+                    display: "flex",
+                    alignItems: "center",
+                    pr: 6,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      mr: 2,
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      boxShadow: "0 3px 10px rgba(26, 35, 126, 0.3)",
+                    }}
+                  >
+                    {currentQuestionIndex + 1}
                   </Box>
+                  {currentQuestion.question}
+                </Typography>
 
-                  <CardContent>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        mb: 2,
-                        color: theme.text,
-                        display: "flex",
-                        alignItems: "center",
-                        pr: 6, // Make room for timer
-                      }}
-                    >
-                      <Box
+                <FormControl component="fieldset" sx={{ width: "100%" }}>
+                  <RadioGroup>
+                    {currentQuestion.options.map((option, idx) => (
+                      <Paper
+                        key={idx}
+                        elevation={0}
+                        onClick={() => selectAnswer(currentQuestion, idx)}
                         sx={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "50%",
-                          backgroundColor: theme.lightPrimary,
-                          color: theme.primary,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          mr: 2,
-                          fontSize: "0.875rem",
-                          fontWeight: 600,
+                          mb: 1,
+                          p: 2,
+                          borderRadius: 2,
+                          cursor: "pointer",
+                          backgroundColor:
+                            answers[currentQuestion.question_id]
+                              ?.selected_index === idx
+                              ? theme.primaryLight
+                              : theme.background,
+                          border: `2px solid ${
+                            answers[currentQuestion.question_id]
+                              ?.selected_index === idx
+                              ? theme.primary
+                              : theme.primaryLight
+                          }`,
+                          transition: "all 0.2s ease",
+                          "&:hover": {
+                            backgroundColor: theme.primaryLight,
+                            transform: "translateX(4px)",
+                          },
+                          position: "relative",
                         }}
                       >
-                        {index + 1}
-                      </Box>
-                      {q.question}
-                    </Typography>
-
-                    <FormControl component="fieldset" sx={{ width: "100%" }}>
-                      <RadioGroup>
-                        {q.options.map((option, idx) => (
-                          <Paper
-                            key={idx}
-                            elevation={0}
-                            onClick={() => selectAnswer(q, idx)}
+                        {answers[currentQuestion.question_id]
+                          ?.selected_index === idx && (
+                          <Box
                             sx={{
-                              mb: 1,
-                              p: 2,
-                              borderRadius: 2,
-                              cursor: "pointer",
-                              backgroundColor:
-                                answers[q.question_id]?.selected_index === idx
-                                  ? theme.lightPrimary
-                                  : theme.background,
-                              border: `1px solid ${
-                                answers[q.question_id]?.selected_index === idx
-                                  ? theme.primary
-                                  : "transparent"
-                              }`,
-                              transition: "all 0.2s ease",
-                              "&:hover": {
-                                backgroundColor: theme.lightPrimary,
-                                transform: "translateX(4px)",
-                              },
-                              position: "relative",
+                              position: "absolute",
+                              top: -8,
+                              right: -8,
+                              width: 28,
+                              height: 28,
+                              borderRadius: "50%",
+                              background: `linear-gradient(135deg, ${theme.success}, #2E7D32)`,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "white",
+                              fontSize: "0.75rem",
+                              boxShadow: "0 2px 8px rgba(46, 125, 50, 0.3)",
                             }}
                           >
-                            {answers[q.question_id]?.selected_index === idx && (
-                              <Box
-                                sx={{
-                                  position: "absolute",
-                                  top: -8,
-                                  right: -8,
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: "50%",
-                                  backgroundColor: theme.success,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: "white",
-                                  fontSize: "0.75rem",
-                                }}
-                              >
-                                ✓
-                              </Box>
-                            )}
-                            <FormControlLabel
-                              value={idx.toString()}
-                              control={
-                                <Radio
-                                  checked={
-                                    answers[q.question_id]?.selected_index ===
-                                    idx
-                                  }
-                                  sx={{
-                                    color: theme.primary,
-                                    "&.Mui-checked": {
-                                      color: theme.primary,
-                                    },
-                                  }}
-                                />
+                            ✓
+                          </Box>
+                        )}
+                        <FormControlLabel
+                          value={idx.toString()}
+                          control={
+                            <Radio
+                              checked={
+                                answers[currentQuestion.question_id]
+                                  ?.selected_index === idx
                               }
-                              label={
-                                <Typography sx={{ color: theme.text }}>
-                                  {option}
-                                </Typography>
-                              }
-                              sx={{ m: 0, width: "100%" }}
+                              sx={{
+                                color: theme.primary,
+                                "&.Mui-checked": {
+                                  color: theme.primary,
+                                },
+                              }}
                             />
-                          </Paper>
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
+                          }
+                          label={
+                            <Typography
+                              sx={{
+                                color: theme.text,
+                                fontWeight: 500,
+                              }}
+                            >
+                              {option}
+                            </Typography>
+                          }
+                          sx={{ m: 0, width: "100%" }}
+                        />
+                      </Paper>
+                    ))}
+                  </RadioGroup>
+                </FormControl>
 
-                    <Accordion
-                      elevation={0}
-                      sx={{
-                        mt: 2,
-                        backgroundColor: "transparent",
-                        "&:before": { display: "none" },
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={
-                          <ExpandMoreIcon sx={{ color: theme.primary }} />
-                        }
-                        onClick={() => useHint(q.question_id)}
-                        sx={{
-                          backgroundColor: theme.lightPrimary,
-                          borderRadius: 2,
-                          "&.Mui-expanded": {
-                            borderBottomLeftRadius: 0,
-                            borderBottomRightRadius: 0,
-                          },
-                        }}
+                <Accordion
+                  elevation={0}
+                  sx={{
+                    mt: 2,
+                    backgroundColor: "transparent",
+                    "&:before": { display: "none" },
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={
+                      <ExpandMoreIcon sx={{ color: theme.primary }} />
+                    }
+                    onClick={() => useHint(currentQuestion.question_id)}
+                    sx={{
+                      background: `linear-gradient(135deg, ${theme.primaryLight}, ${theme.lightBlue})`,
+                      borderRadius: 2,
+                      "&.Mui-expanded": {
+                        borderBottomLeftRadius: 0,
+                        borderBottomRightRadius: 0,
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <HintIcon sx={{ mr: 1, color: theme.primaryDark }} />
+                      <Typography
+                        sx={{ color: theme.primaryDark, fontWeight: 600 }}
                       >
-                        <Box sx={{ display: "flex", alignItems: "center" }}>
-                          <HintIcon sx={{ mr: 1, color: theme.secondary }} />
-                          <Typography
-                            sx={{ color: theme.secondary, fontWeight: 500 }}
-                          >
-                            Need a hint?{" "}
-                            {answers[q.question_id]?.used_hint && (
-                              <Chip
-                                label="Used"
-                                size="small"
-                                sx={{
-                                  ml: 1,
-                                  height: 20,
-                                  fontSize: "0.7rem",
-                                  backgroundColor: theme.primary,
-                                  color: "white",
-                                }}
-                              />
-                            )}
-                          </Typography>
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails
-                        sx={{
-                          backgroundColor: theme.background,
-                          borderRadius: "0 0 8px 8px",
-                          border: `1px solid ${theme.lightPrimary}`,
-                          borderTop: "none",
-                        }}
-                      >
-                        <Typography
-                          sx={{ color: theme.text, fontStyle: "italic" }}
-                        >
-                          {q.hint}
-                        </Typography>
-                      </AccordionDetails>
-                    </Accordion>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                        Need a hint?{" "}
+                        {answers[currentQuestion.question_id]?.used_hint && (
+                          <Chip
+                            label="Used"
+                            size="small"
+                            sx={{
+                              ml: 1,
+                              height: 20,
+                              fontSize: "0.7rem",
+                              backgroundColor: theme.primaryDark,
+                              color: "white",
+                              fontWeight: 600,
+                            }}
+                          />
+                        )}
+                      </Typography>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails
+                    sx={{
+                      backgroundColor: theme.primaryLight,
+                      borderRadius: "0 0 8px 8px",
+                      border: `1px solid ${theme.primary}`,
+                      borderTop: "none",
+                    }}
+                  >
+                    <Typography sx={{ color: theme.text, fontStyle: "italic" }}>
+                      💡 {currentQuestion.hint}
+                    </Typography>
+                  </AccordionDetails>
+                </Accordion>
+              </CardContent>
+            </Card>
+
+            {/* Navigation Buttons */}
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mt: 4,
+                mb: 4,
+              }}
+            >
+              <Button
+                variant="outlined"
+                onClick={goToPreviousQuestion}
+                disabled={currentQuestionIndex === 0}
+                startIcon={<PrevIcon />}
+                sx={{
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 3,
+                  borderColor: theme.primary,
+                  color: theme.primary,
+                  fontWeight: 600,
+                  "&:hover": {
+                    borderColor: theme.primaryDark,
+                    backgroundColor: `${theme.primary}10`,
+                    transform: "translateY(-2px)",
+                  },
+                  transition: "all 0.3s ease",
+                }}
+              >
+                Previous
+              </Button>
+
+              <Button
+                variant="outlined"
+                onClick={goToNextQuestion}
+                disabled={currentQuestionIndex === quiz.questions.length - 1}
+                endIcon={<NextIcon />}
+                sx={{
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 3,
+                  borderColor: theme.primary,
+                  color: theme.primary,
+                  fontWeight: 600,
+                  "&:hover": {
+                    borderColor: theme.primaryDark,
+                    backgroundColor: `${theme.primary}10`,
+                    transform: "translateY(-2px)",
+                  },
+                  transition: "all 0.3s ease",
+                }}
+              >
+                Next
+              </Button>
+            </Box>
 
             {/* Submit Button with Time Summary */}
             <Box
@@ -847,18 +1043,28 @@ export default function TakeQuiz() {
                 <Paper
                   elevation={0}
                   sx={{
-                    p: 2,
+                    p: 3,
                     borderRadius: 3,
-                    backgroundColor: theme.lightPrimary,
+                    background: `linear-gradient(135deg, ${theme.primaryLight}, ${theme.lightBlue})`,
                     width: "100%",
                     maxWidth: 500,
+                    border: `1px solid ${theme.primary}`,
                   }}
                 >
                   <Typography
                     variant="h6"
-                    sx={{ textAlign: "center", color: theme.primary, mb: 1 }}
+                    sx={{
+                      textAlign: "center",
+                      color: theme.primaryDark,
+                      mb: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 1,
+                    }}
                   >
-                    ⏱️ Time Summary
+                    <TimerIcon />
+                    Time Summary
                   </Typography>
                   <Box
                     sx={{
@@ -877,7 +1083,7 @@ export default function TakeQuiz() {
                       </Typography>
                       <Typography
                         variant="h6"
-                        sx={{ color: theme.primary, fontWeight: 700 }}
+                        sx={{ color: theme.primaryDark, fontWeight: 700 }}
                       >
                         {formatTime(timeElapsed)}
                       </Typography>
@@ -904,13 +1110,13 @@ export default function TakeQuiz() {
                         variant="caption"
                         sx={{ color: theme.lightText }}
                       >
-                        Questions Left
+                        Answered
                       </Typography>
                       <Typography
                         variant="h6"
                         sx={{ color: theme.secondary, fontWeight: 700 }}
                       >
-                        {quiz.questions.length - getAnsweredCount()}
+                        {getAnsweredCount()}/{quiz.questions.length}
                       </Typography>
                     </Box>
                   </Box>
@@ -925,31 +1131,33 @@ export default function TakeQuiz() {
                 }
                 sx={{
                   px: 6,
-                  py: 1.5,
+                  py: 2,
                   borderRadius: 3,
                   fontSize: "1.1rem",
-                  backgroundColor: theme.primary,
+                  background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
                   "&:hover": {
-                    backgroundColor: theme.secondary,
-                    transform: "translateY(-2px)",
-                    boxShadow: `0 6px 20px ${theme.lightPrimary}`,
+                    background: `linear-gradient(135deg, ${theme.primaryDark}, ${theme.primary})`,
+                    transform: "translateY(-3px)",
+                    boxShadow: "0 10px 25px rgba(26, 35, 126, 0.4)",
                   },
                   "&:disabled": {
-                    backgroundColor: theme.lightPrimary,
+                    background: theme.primaryLight,
                   },
                   transition: "all 0.3s ease",
+                  fontWeight: 600,
+                  boxShadow: "0 6px 20px rgba(26, 35, 126, 0.3)",
                 }}
                 startIcon={
                   submitting ? (
                     <CircularProgress size={20} color="inherit" />
                   ) : (
-                    <TimerIcon />
+                    <GradeIcon />
                   )
                 }
               >
                 {submitting
                   ? "Submitting..."
-                  : `Submit (${formatTime(timeElapsed)})`}
+                  : `Submit Quiz (${formatTime(timeElapsed)})`}
               </Button>
             </Box>
           </>
@@ -973,38 +1181,44 @@ export default function TakeQuiz() {
                 mb: 4,
                 p: 4,
                 borderRadius: 4,
-                backgroundColor: result.passed
-                  ? `${theme.success}15`
-                  : `${theme.error}15`,
-                border: `1px solid ${
+                background: result.passed
+                  ? `linear-gradient(135deg, ${theme.success}20, ${theme.success}40)`
+                  : `linear-gradient(135deg, ${theme.error}20, ${theme.error}40)`,
+                border: `2px solid ${
                   result.passed ? theme.success : theme.error
                 }`,
+                boxShadow: result.passed
+                  ? "0 10px 30px rgba(46, 125, 50, 0.2)"
+                  : "0 10px 30px rgba(198, 40, 40, 0.2)",
               }}
             >
               {result.passed ? (
-                <CheckCircleIcon
-                  sx={{ fontSize: 80, color: theme.success, mb: 2 }}
-                />
+                <Box sx={{ position: "relative", display: "inline-block" }}>
+                  <TrophyIcon
+                    sx={{ fontSize: 80, color: theme.success, mb: 2 }}
+                  />
+                </Box>
               ) : (
                 <ErrorIcon sx={{ fontSize: 80, color: theme.error, mb: 2 }} />
               )}
               <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                {result.passed ? "🎉 Level Passed!" : "❌ Level Not Passed"}
+                {result.passed ? "🎓 Level Passed!" : "📚 Level Not Cleared"}
               </Typography>
               <Typography variant="h6" sx={{ color: theme.lightText, mb: 2 }}>
-                Quiz Average: {(result.quiz_avg_score * 100).toFixed(0)}%
+                Score: {(result.quiz_avg_score * 100).toFixed(0)}%
               </Typography>
 
               {/* Time Performance */}
               <Paper
                 elevation={0}
                 sx={{
-                  p: 2,
+                  p: 3,
                   borderRadius: 3,
-                  backgroundColor: "rgba(255,255,255,0.5)",
+                  backgroundColor: "rgba(255,255,255,0.8)",
                   maxWidth: 400,
                   mx: "auto",
                   mt: 2,
+                  border: `1px solid ${theme.primaryLight}`,
                 }}
               >
                 <Box
@@ -1054,7 +1268,13 @@ export default function TakeQuiz() {
 
             {/* Struggling Lessons */}
             {result.struggling_lessons.length > 0 ? (
-              <Card sx={{ mb: 4, borderRadius: 3 }}>
+              <Card
+                sx={{
+                  mb: 4,
+                  borderRadius: 3,
+                  border: `1px solid ${theme.warning}`,
+                }}
+              >
                 <CardContent>
                   <Typography
                     variant="h5"
@@ -1066,7 +1286,7 @@ export default function TakeQuiz() {
                     }}
                   >
                     <ErrorIcon sx={{ mr: 1 }} />
-                    Struggling Lessons
+                    Areas to Improve
                   </Typography>
                   <List>
                     {result.struggling_lessons.map((lesson, index) => (
@@ -1076,7 +1296,7 @@ export default function TakeQuiz() {
                             primary={
                               <Typography
                                 variant="h6"
-                                sx={{ color: theme.text }}
+                                sx={{ color: theme.text, fontWeight: 600 }}
                               >
                                 {lesson.lesson}
                               </Typography>
@@ -1085,7 +1305,7 @@ export default function TakeQuiz() {
                               <Typography
                                 sx={{ color: theme.lightText, mt: 0.5 }}
                               >
-                                Average struggle score:{" "}
+                                Difficulty score:{" "}
                                 <Box
                                   component="span"
                                   sx={{ color: theme.warning, fontWeight: 600 }}
@@ -1125,25 +1345,33 @@ export default function TakeQuiz() {
                 sx={{
                   mb: 4,
                   borderRadius: 3,
-                  backgroundColor: `${theme.success}15`,
+                  background: `linear-gradient(135deg, ${theme.success}20, ${theme.success}40)`,
                   color: theme.text,
+                  border: `1px solid ${theme.success}`,
                 }}
                 icon={<CheckCircleIcon sx={{ color: theme.success }} />}
               >
-                <Typography variant="h6">
-                  ✅ No struggling lessons detected!
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  ✅ Perfect Performance!
                 </Typography>
                 <Typography>
-                  Great job! You're mastering all concepts.
+                  You're mastering all concepts in this level. Excellent work!
                 </Typography>
               </Alert>
             )}
 
             {/* Action Buttons */}
-            <Box sx={{ display: "flex", justifyContent: "center", gap: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 3,
+                flexWrap: "wrap",
+              }}
+            >
               <Button
                 variant="outlined"
-                onClick={() => navigate(`/quiz/${quiz.level}`)}
+                onClick={handleRetryLevel}
                 startIcon={<RefreshIcon />}
                 sx={{
                   px: 4,
@@ -1151,10 +1379,13 @@ export default function TakeQuiz() {
                   borderRadius: 3,
                   borderColor: theme.primary,
                   color: theme.primary,
+                  fontWeight: 600,
                   "&:hover": {
-                    borderColor: theme.secondary,
+                    borderColor: theme.primaryDark,
                     backgroundColor: `${theme.primary}10`,
+                    transform: "translateY(-2px)",
                   },
+                  transition: "all 0.3s ease",
                 }}
               >
                 Retry Level
@@ -1162,24 +1393,63 @@ export default function TakeQuiz() {
               {result.passed && (
                 <Button
                   variant="contained"
-                  onClick={() => navigate(`/quiz/${result.next_level}`)}
+                  onClick={handleNextLevel}
                   endIcon={<ArrowForwardIcon />}
                   sx={{
-                    px: 4,
+                    px: 5,
                     py: 1.5,
                     borderRadius: 3,
-                    backgroundColor: theme.primary,
+                    background: `linear-gradient(135deg, ${theme.success}, #2E7D32)`,
+                    fontWeight: 600,
                     "&:hover": {
-                      backgroundColor: theme.secondary,
+                      background: `linear-gradient(135deg, #2E7D32, ${theme.success})`,
                       transform: "translateY(-2px)",
-                      boxShadow: `0 6px 20px ${theme.lightPrimary}`,
+                      boxShadow: "0 8px 25px rgba(46, 125, 50, 0.4)",
                     },
+                    transition: "all 0.3s ease",
                   }}
                 >
                   Next Level
                 </Button>
               )}
             </Box>
+
+            {/* Next Level Preview */}
+            {result.passed && (
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 4,
+                  p: 3,
+                  borderRadius: 3,
+                  background: `linear-gradient(135deg, ${theme.primaryLight}, ${theme.lightBlue}20)`,
+                  border: `1px dashed ${theme.primary}`,
+                  textAlign: "center",
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{ color: theme.primaryDark, mb: 1 }}
+                >
+                  🎉 Level {level} Completed!
+                </Typography>
+                <Typography sx={{ color: theme.lightText, mb: 2 }}>
+                  You can now access Level{" "}
+                  {result.next_level || parseInt(level) + 1}
+                </Typography>
+                <Button
+                  variant="text"
+                  onClick={() => navigate("/levels")}
+                  sx={{
+                    color: theme.primaryDark,
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                  }}
+                >
+                  View All Levels
+                </Button>
+              </Paper>
+            )}
           </Box>
         )}
       </Paper>
