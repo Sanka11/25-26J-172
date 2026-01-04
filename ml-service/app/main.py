@@ -3,6 +3,7 @@
 import base64
 import time
 import uuid
+import os
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -152,6 +153,27 @@ async def upload_pdf(
         print("ERROR: PDF bytes is empty")
         raise HTTPException(status_code=400, detail="Empty PDF data received")
 
+    # ----------- Persist PDF file for listing/viewing -----------
+    try:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        upload_dir = os.path.join(base_dir, "uploaded_pdfs")
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Use a filesystem-safe version of the original filename
+        original_name = used_filename.split("/")[-1].split("\\")[-1]
+        if not original_name.lower().endswith(".pdf"):
+            original_name = f"{original_name}.pdf"
+
+        stored_filename = original_name
+        stored_path = os.path.join(upload_dir, stored_filename)
+        with open(stored_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        print(f"Saved uploaded PDF to {stored_path}")
+    except Exception as e:
+        # If saving the file fails, continue with vector DB pipeline
+        print(f"Warning: failed to persist uploaded PDF file: {e}")
+
     # ----------- Extract text -----------
     print(f"Extracting text from PDF...")
     text = extract_text_from_pdf_bytes(pdf_bytes)
@@ -227,3 +249,68 @@ async def feedback(request: Request):
         return {"status": "ok", "message": "Feedback received successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid feedback data: {str(e)}")
+
+
+# -----------------------------------------------------------
+# NEW ENDPOINTS: MANAGE UPLOADED DOCUMENTS
+# -----------------------------------------------------------
+
+@app.get("/documents")
+def list_documents():
+    """Return a simple list of uploaded document prefixes.
+
+    NOTE: This is a placeholder implementation that reads from the
+    `uploaded_pdfs` folder and returns file names as `doc_id`.
+    It can be replaced with a more robust metadata store later.
+    """
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    upload_dir = os.path.join(base_dir, "uploaded_pdfs")
+
+    if not os.path.isdir(upload_dir):
+      return {"documents": []}
+
+    docs = []
+    for name in os.listdir(upload_dir):
+        full = os.path.join(upload_dir, name)
+        if os.path.isfile(full) and name.lower().endswith(".pdf"):
+            docs.append(
+                {
+                    "doc_id": name,
+                    "pdf_name": name,
+                    # no timestamp available yet; frontend treats missing timestamp as empty
+                }
+            )
+
+    return {"documents": docs}
+
+
+@app.get("/documents/{doc_id}")
+def get_document(doc_id: str):
+    """Serve a raw PDF from the uploaded_pdfs folder by filename."""
+    import os
+    from fastapi.responses import FileResponse
+
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    upload_dir = os.path.join(base_dir, "uploaded_pdfs")
+    path = os.path.join(upload_dir, doc_id)
+
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return FileResponse(path, media_type="application/pdf", filename=doc_id)
+
+
+@app.delete("/documents/{doc_id}")
+def delete_document(doc_id: str):
+    """Delete a PDF from the uploaded_pdfs folder by filename."""
+    import os
+
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    upload_dir = os.path.join(base_dir, "uploaded_pdfs")
+    path = os.path.join(upload_dir, doc_id)
+
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    os.remove(path)
+    return {"status": "ok"}
