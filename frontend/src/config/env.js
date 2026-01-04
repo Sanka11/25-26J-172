@@ -84,6 +84,9 @@ const ML_CHAT_URL = import.meta.env.VITE_ML_CHAT_URL || `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL =
   import.meta.env.VITE_ML_FEEDBACK_URL || `${ML_BASE_URL}/feedback`;
 
+const ML_LIST_DOCS_URL =
+  import.meta.env.VITE_ML_LIST_DOCS_URL || `${ML_BASE_URL}/documents`;
+
 export const appConfig = {
   ENV,
 
@@ -93,6 +96,7 @@ export const appConfig = {
   ML_UPLOAD_URL,
   ML_CHAT_URL,
   ML_FEEDBACK_URL,
+  ML_LIST_DOCS_URL,
   PREDICT_RECOMMENDATION_URL,
   PREDICT_STRUGGLE_URL,
 

@@ -2,8 +2,11 @@
 ML_HOST = "0.0.0.0"
 ML_PORT = 8000
 
-# Chroma directory
+# Chroma directory (vector DB)
 CHROMA_PERSIST_DIR = "./chroma_db"
+
+# Directory to store uploaded PDF files locally
+UPLOAD_DIR = "./uploaded_pdfs"
 
 # Sentence Transformer model
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"

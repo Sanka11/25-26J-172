@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { appConfig } from "../config/env";
 
 export default function PdfUpload() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadPhase, setUploadPhase] = useState("idle"); // idle | converting | uploading | done | error
+  const [documents, setDocuments] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState("");
 
   // Validate file is PDF
   const validatePDF = (file) => {
@@ -58,11 +61,82 @@ export default function PdfUpload() {
       }
       setUploadStatus(JSON.stringify(json, null, 2));
       setUploadPhase("done");
+
+      // Refresh document list after successful upload
+      await loadDocuments();
     } catch (err) {
       const errorMsg = err?.message || "Unknown error occurred";
       setUploadStatus(`Error: ${errorMsg}`);
       console.error("Upload error:", err);
       setUploadPhase("error");
+    }
+  };
+
+  const loadDocuments = async () => {
+    try {
+      setDocsLoading(true);
+      setDocsError("");
+      const res = await fetch(appConfig.ML_LIST_DOCS_URL);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(
+          `Failed to load documents (${res.status}): ${text || ""}`
+        );
+      }
+      const data = await res.json();
+      setDocuments(Array.isArray(data.documents) ? data.documents : []);
+    } catch (err) {
+      console.error("Load documents error:", err);
+      setDocsError(
+        err?.message || "Failed to load uploaded document list from ML service."
+      );
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleViewDocument = (doc) => {
+    if (!doc?.doc_id) return;
+    const url = `${appConfig.ML_BASE_URL}/documents/${encodeURIComponent(
+      doc.doc_id
+    )}`;
+    window.open(url, "_blank");
+  };
+
+  const handleDeleteDocument = async (doc) => {
+    if (!doc?.doc_id) return;
+    const label = doc.pdf_name || doc.doc_id;
+    const confirmed = window.confirm(
+      `Delete document "${label}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${appConfig.ML_BASE_URL}/documents/${encodeURIComponent(doc.doc_id)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(
+          `Failed to delete document (${res.status}): ${text || ""}`
+        );
+      }
+
+      // Refresh list after deletion
+      await loadDocuments();
+    } catch (err) {
+      console.error("Delete document error:", err);
+      setDocsError(err?.message || "Failed to delete document on ML service.");
     }
   };
 
@@ -191,6 +265,86 @@ export default function PdfUpload() {
               </pre>
             </div>
           </div>
+        </div>
+
+        {/* Uploaded documents list */}
+        <div className="bg-white rounded-2xl shadow-2xl p-5 md:p-6 border border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm md:text-base font-semibold text-slate-900">
+                Uploaded documents
+              </h2>
+              <p className="text-[11px] md:text-xs text-slate-500">
+                These PDFs are stored locally on the ML service and indexed in
+                the vector database for chatbot retrieval.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadDocuments}
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {docsError && (
+            <div className="mb-3 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
+              {docsError}
+            </div>
+          )}
+
+          {docsLoading ? (
+            <p className="text-[11px] text-slate-500">Loading documents…</p>
+          ) : documents.length === 0 ? (
+            <p className="text-[11px] text-slate-500">
+              No documents uploaded yet. Once you upload PDFs, they will appear
+              here.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100 text-[11px] md:text-xs">
+              {documents.map((doc) => {
+                const ts = doc.uploaded_at;
+                let formatted = "";
+                if (typeof ts === "number") {
+                  formatted = new Date(ts * 1000).toLocaleString();
+                }
+                return (
+                  <li
+                    key={doc.doc_id}
+                    className="py-2 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 truncate">
+                        {doc.pdf_name || doc.doc_id}
+                      </p>
+                      {formatted && (
+                        <p className="text-[10px] text-slate-500">
+                          Uploaded at {formatted}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDocument(doc)}
+                        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50 shadow-sm"
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDocument(doc)}
+                        className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 shadow-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
     </div>
