@@ -39,6 +39,18 @@ const GET_USER_LEVEL_URL =
   import.meta.env.VITE_GET_USER_LEVEL_URL ||
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getUserLevel";
 
+// ML service PDF upload
+const ML_UPLOAD_URL =
+  import.meta.env.VITE_ML_UPLOAD_URL || "http://127.0.0.1:8000/upload_pdf";
+
+// ML service chatbot (RAG)
+const ML_CHAT_URL =
+  import.meta.env.VITE_ML_CHAT_URL || "http://127.0.0.1:8000/chat";
+
+// ML service feedback endpoint
+const ML_FEEDBACK_URL =
+  import.meta.env.VITE_ML_FEEDBACK_URL || "http://127.0.0.1:8000/feedback";
+
 export const appConfig = {
   ENV,
 
@@ -46,6 +58,13 @@ export const appConfig = {
   PREDICT_RISK_URL,
   PREDICT_RECOMMENDATION_URL,
   PREDICT_STRUGGLE_URL,
+
+  // ML PDF upload
+  ML_UPLOAD_URL,
+
+  // Chatbot + feedback
+  ML_CHAT_URL,
+  ML_FEEDBACK_URL,
 
   // Quiz
   CREATE_QUIZ_URL,

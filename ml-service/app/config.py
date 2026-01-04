@@ -3,7 +3,8 @@ ML_HOST = "0.0.0.0"
 ML_PORT = 8000
 
 # Chroma directory
-CHROMA_PERSIST_DIR = "./chroma_db"
+# Use a fresh directory to avoid schema conflicts with older ChromaDB versions
+CHROMA_PERSIST_DIR = "./chroma_db_v2"
 
 # Sentence Transformer model
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
