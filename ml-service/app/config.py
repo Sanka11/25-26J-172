@@ -6,6 +6,9 @@ ML_PORT = 8000
 # Use a fresh directory to avoid schema conflicts with older ChromaDB versions
 CHROMA_PERSIST_DIR = "./chroma_db_v2"
 
+# Directory to store uploaded PDF files locally
+UPLOAD_DIR = "./uploaded_pdfs"
+
 # Sentence Transformer model
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 

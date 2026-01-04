@@ -3,7 +3,9 @@
 import base64
 import time
 import uuid
+import os
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # ----------------------------
@@ -11,10 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 # ----------------------------
 from app.schemas.risk import RiskRequest, RiskResponse
 from app.schemas.struggle import StruggleRequest, StruggleResponse
-from app.services.struggle_service import predict_struggle
-
-
-# RECOMMENDATION SCHEMAS
 from app.schemas.recommendation_schemas import (
     RecommendationRequest,
     RecommendationResponse,
@@ -34,7 +32,8 @@ from app.rag import answer_question
 from app.pdf_reader import extract_text_from_pdf_bytes
 from app.chunker import chunk_text
 from app.embeddings import embed_texts
-from app.vector_store import add_documents
+from app.vector_store import add_documents, list_documents, delete_documents
+from app.config import UPLOAD_DIR
 
 app = FastAPI(title="AcademiGuard ML Service")
 
@@ -152,6 +151,23 @@ async def upload_pdf(
         print("ERROR: PDF bytes is empty")
         raise HTTPException(status_code=400, detail="Empty PDF data received")
 
+    # ----------- Persist PDF file locally -----------
+    # Define a stable document id we will also use in metadata
+    base_name = used_filename or "uploaded.pdf"
+    base_name = os.path.basename(base_name)  # strip any path components
+    name_root, _ = os.path.splitext(base_name)
+    doc_id = f"{name_root}_{str(uuid.uuid4())[:8]}"
+
+    try:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        file_path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
+        with open(file_path, "wb") as f:
+            f.write(pdf_bytes)
+        print(f"Saved uploaded PDF to {file_path}")
+    except Exception as e:
+        print(f"ERROR saving PDF locally: {e}")
+        # We don't fail the whole request if local save fails; continue.
+
     # ----------- Extract text -----------
     print(f"Extracting text from PDF...")
     text = extract_text_from_pdf_bytes(pdf_bytes)
@@ -173,7 +189,12 @@ async def upload_pdf(
     # ----------- Metadata -----------
     uploaded_at = time.time()
     metadatas = [
-        {"pdf_name": used_filename, "uploaded_at": uploaded_at, "chunk": i}
+        {
+            "doc_id": doc_id,
+            "pdf_name": used_filename,
+            "uploaded_at": uploaded_at,
+            "chunk": i,
+        }
         for i in range(len(chunks))
     ]
 
@@ -184,11 +205,16 @@ async def upload_pdf(
 
     # ----------- Store in Vector DB -----------
     print(f"Storing in vector database...")
-    doc_prefix = f"{used_filename}_{str(uuid.uuid4())[:8]}"
-    add_documents(doc_prefix, chunks, metadatas, embeddings)
-    print(f"Successfully stored with doc_prefix: {doc_prefix}")
+    add_documents(doc_id, chunks, metadatas, embeddings)
+    print(f"Successfully stored with doc_id: {doc_id}")
 
-    return {"status": "ok", "chunks": len(chunks), "doc_prefix": doc_prefix}
+    return {
+        "status": "ok",
+        "chunks": len(chunks),
+        "doc_id": doc_id,
+        "pdf_name": used_filename,
+        "uploaded_at": uploaded_at,
+    }
 
 # -----------------------------------------------------------
 # NEW ENDPOINT: CHAT (RAG PIPELINE)
@@ -202,6 +228,61 @@ def chat(question: str = Form(...)):
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question is empty")
     return answer_question(question)
+
+
+@app.get("/documents")
+def list_uploaded_documents():
+    """Return a list of uploaded documents based on vector store metadata.
+
+    Each document has: doc_id, pdf_name, uploaded_at.
+    """
+    docs = list_documents()
+    # Optionally sort by uploaded_at (newest first)
+    docs_sorted = sorted(
+        docs,
+        key=lambda d: d.get("uploaded_at") or 0,
+        reverse=True,
+    )
+    return {"documents": docs_sorted}
+
+
+@app.get("/documents/{doc_id}")
+def download_document(doc_id: str):
+    """Download a stored PDF by its document id."""
+    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    # Use doc_id as the filename; original name is stored in metadata if needed
+    return FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=f"{doc_id}.pdf",
+    )
+
+
+@app.delete("/documents/{doc_id}")
+def delete_document(doc_id: str):
+    """Delete a document from both the vector store and local filesystem."""
+    # First, delete from vector store
+    try:
+        delete_documents(doc_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting document from vector store: {e}",
+        )
+
+    # Then, attempt to delete the local PDF file (if it exists)
+    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}.pdf")
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            # Log but don't fail the whole request
+            print(f"Error deleting local PDF file for {doc_id}: {e}")
+
+    return {"status": "ok", "doc_id": doc_id}
 
 # -----------------------------------------------------------
 # NEW ENDPOINT: FEEDBACK
