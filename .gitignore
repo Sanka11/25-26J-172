@@ -81,3 +81,23 @@ ml-service/app/data/
 # Temporary / test files
 ml-service/app/New Text Document.txt
 ml-service/app/test_*.py
+
+# -------------------------------
+# Firebase / Google Cloud Security
+# -------------------------------
+*serviceAccount*.json
+firebase-adminsdk-*.json
+.firebase/
+.gcloud/
+
+# -------------------------------
+# Frontend caches
+# -------------------------------
+frontend/node_modules/.vite/
+frontend/.cache/
+
+# -------------------------------
+# Test / Coverage
+# -------------------------------
+coverage/
+*.lcov
