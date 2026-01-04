@@ -11,7 +11,7 @@ import RiskDemo from "./pages/RiskDemo";
 import RecommendationDemo from "./pages/RecommendationDemo";
 import CreateQuiz from "./pages/CreateQuiz";
 import TakeQuiz from "./pages/TakeQuiz";
-import Levels from "./pages/Levels";
+import Levels from "./pages/QuizLevels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import NavigationBar from "./componets/Navigationbar";

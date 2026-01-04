@@ -32,8 +32,12 @@ const GET_QUIZ_BY_ID_URL =
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/fetchQuizByUser";
 
 const GET_QUIZ_BY_LEVEL_URL =
-  import.meta.env.GET_QUIZ_BY_LEVEL_URL ||
+  import.meta.env.VITE_GET_QUIZ_BY_LEVEL_URL ||
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizByLevel";
+
+const CHECK_LEVEL_URL =
+  import.meta.env.VITE_CHECK_LEVEL_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/checkLevelUnlock";
 
 const GET_USER_LEVEL_URL =
   import.meta.env.VITE_GET_USER_LEVEL_URL ||
@@ -116,6 +120,7 @@ export const appConfig = {
   SUBMIT_QUIZ_URL,
   GET_QUIZZES_URL,
   GET_QUIZ_BY_ID_URL,
+  GET_QUIZ_BY_LEVEL_URL,
   CHECK_LEVEL_URL,
   GET_USER_LEVEL_URL,
 
