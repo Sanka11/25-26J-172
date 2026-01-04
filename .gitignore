@@ -52,7 +52,10 @@ ml-service/venv/
 # ML model files (optional)
 *.pkl
 *.joblib
-
+# Chroma / Vector DB files
+ml-service/chroma_db/
+# RL generated data
+ml-service/app/rl/*.csv
 
 # -------------------------------
 # Environment Variables
