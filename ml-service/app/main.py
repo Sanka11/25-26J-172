@@ -11,10 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 # ----------------------------
 from app.schemas.risk import RiskRequest, RiskResponse
 from app.schemas.struggle import StruggleRequest, StruggleResponse
-from app.services.struggle_service import predict_struggle
-
-
-# RECOMMENDATION SCHEMAS
 from app.schemas.recommendation_schemas import (
     RecommendationRequest,
     RecommendationResponse,
@@ -79,6 +75,9 @@ def struggle(request: StruggleRequest):
         **predict_struggle(request)
     }
 
+@app.post("/predictStruggle", response_model=StruggleResponse)
+def struggle_endpoint(payload: StruggleRequest):
+    return predict_struggling_skills(payload)
 
 # -----------------------------------------------------------
 # NEW ENDPOINT: UPLOAD PDF → AUTO EMBED → VECTOR DB

@@ -76,7 +76,7 @@ export async function submitQuiz(payload) {
       throw new Error("Failed to submit quiz");
     }
 
-    return await res.json();
+    return JSON.parse(responseText);
   } catch (error) {
     console.error("Submit quiz API error:", error);
     return { error: true, message: error.message };

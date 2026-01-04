@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { createQuiz } from "../services/api/quizApi";
 import {
   Plus,
@@ -59,7 +60,7 @@ const TIME_ESTIMATES = [
 ];
 
 export default function CreateQuiz() {
-  const [level, setLevel] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -122,11 +123,19 @@ export default function CreateQuiz() {
       return;
     }
 
-    setLoading(true);
+    const hasInvalidQuestions = questions.some(
+      (q) => !q.question.trim() || q.options.some((opt) => !opt.trim())
+    );
+
+    if (hasInvalidQuestions) {
+      alert("Please fill in all question and option fields");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await createQuiz({
-        level: Number(level),
-        created_by: "lecturer_001",
+        ...data,
         questions,
       });
 
@@ -150,7 +159,7 @@ export default function CreateQuiz() {
       alert("Error creating quiz. Please try again.");
       console.error(error);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 

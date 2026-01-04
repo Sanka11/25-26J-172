@@ -1,56 +1,74 @@
 import joblib
-from collections import defaultdict
+import numpy as np
 
-# Load the trained struggle model from the models folder
-model = joblib.load("app/models/gb_struggle_model.pkl")
+from app.schemas.struggle import (
+    StruggleRequest,
+    StruggleResponse,
+    SkillStruggleResult
+)
 
-def predict_struggle(data):
-    lesson_map = defaultdict(list)
+# =========================
+# Load trained GB model
+# =========================
 
-    # 1️⃣ Build batch input
-    X = []
-    meta = []  # keep question_id & lesson
+MODEL_PATH = "app/models/gb_struggle_model.pkl"
+model = joblib.load(MODEL_PATH)
 
-    for a in data.attempts:
-        X.append([
-            a.correct,
-            a.hint_count,
-            a.ms_first_response,
-            a.overlap_time
-        ])
-        meta.append((a.question_id, a.skill))
+# Training feature order (VERY IMPORTANT)
+# [
+#   "correct",
+#   "hint_count",
+#   "ms_first_response",
+#   "overlap_time",
+#   "opportunity"
+# ]
 
-    # 2️⃣ ONE model call instead of many
-    predictions = model.predict(X)
 
-    question_scores = []
-    total = 0.0
+def predict_struggling_skills(payload: StruggleRequest) -> StruggleResponse:
+    """
+    Predict struggling skills for a user using Gradient Boosting.
+    Feature order strictly matches training.
+    """
 
-    # 3️⃣ Process predictions
-    for (question_id, lesson), score in zip(meta, predictions):
-        score = float(max(0.0, min(score, 1.0)))
+    results = []
 
-        question_scores.append({
-            "question_id": question_id,
-            "lesson": lesson,
-            "struggle_score": round(score, 4)
-        })
+    for skill in payload.skills:
+        # -------------------------
+        # Build feature vector
+        # ORDER MUST MATCH TRAINING
+        # -------------------------
+        X = np.array([[
+            skill.correct,
+            skill.hint_count,
+            skill.ms_first_response,
+            skill.overlap_time,
+            skill.opportunity
+        ]])
 
-        lesson_map[lesson].append(score)
-        total += score
+        # -------------------------
+        # Predict struggle probability
+        # -------------------------
+        score = model.predict_proba(X)[0][1]
 
-    quiz_avg = total / len(predictions)
+        # -------------------------
+        # Convert probability → level
+        # -------------------------
+        if score >= 0.60:
+            level = "High"
+        elif score >= 0.35:
+            level = "Medium"
+        else:
+            level = "Low"
 
-    lesson_averages = [
-        {
-            "lesson": lesson,
-            "average_struggle_score": round(sum(scores) / len(scores), 4)
-        }
-        for lesson, scores in lesson_map.items()
-    ]
+        results.append(
+            SkillStruggleResult(
+                skill_name=skill.skill_name,
+                struggle_score=round(float(score), 3),
+                level=level
+            )
+        )
 
-    return {
-        "quiz_average_struggle_score": round(quiz_avg, 4),
-        "question_struggles": question_scores,
-        "lesson_struggles": lesson_averages
-    }
+    return StruggleResponse(
+        user_id=payload.user_id,
+        struggling_skills=results
+    )
