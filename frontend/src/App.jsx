@@ -24,6 +24,7 @@ import GRUMain from "./pages/GRUMain";
 import SearchRisk from "./pages/SearchRisk";
 import AllRisks from "./pages/AllRisks";
 import RLDecision from "./pages/RLDecision";
+import RLDemo from "./pages/RLDemo";
 
 /* =========================================================
    Route-aware layout
@@ -43,6 +44,7 @@ function AppLayout() {
     "/gru/search",
     "/gru/all",
     "/rl",
+    "/rl/demo", // ✅ added correctly
   ];
 
   if (standaloneRoutes.includes(location.pathname)) {
@@ -52,6 +54,7 @@ function AppLayout() {
         <Route path="/gru/search" element={<SearchRisk />} />
         <Route path="/gru/all" element={<AllRisks />} />
         <Route path="/rl" element={<RLDecision />} />
+        <Route path="/rl/demo" element={<RLDemo />} />
       </Routes>
     );
   }
