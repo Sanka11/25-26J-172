@@ -15,13 +15,13 @@ const {
 const { predictRisk } = require("./src/http/mlProxy");
 const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
 
-// Express API (RL, disengagement, etc.)
-exports.api = require("./api").api;
-
 // Student risk explainability controller
 const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
+
+// Express API (RL, disengagement, etc.)
+exports.api = require("./api").api;
 
 // Export quiz functions
 exports.createQuiz = createQuiz;
