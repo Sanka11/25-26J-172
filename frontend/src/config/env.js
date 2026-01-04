@@ -12,7 +12,7 @@ const PREDICT_RECOMMENDATION_URL =
 
 const PREDICT_STRUGGLE_URL =
   import.meta.env.VITE_PREDICT_STRUGGLE_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/struggle";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/predictStruggle";
 
 // Quiz APIs
 const CREATE_QUIZ_URL =
@@ -29,37 +29,21 @@ const GET_QUIZZES_URL =
 
 const GET_QUIZ_BY_ID_URL =
   import.meta.env.VITE_GET_QUIZ_BY_ID_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizById";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/fetchQuizByUser";
 
 const GET_QUIZ_BY_LEVEL_URL =
   import.meta.env.GET_QUIZ_BY_LEVEL_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizByLevel"; 
-  
-  
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizByLevel";
+
 const GET_USER_LEVEL_URL =
   import.meta.env.VITE_GET_USER_LEVEL_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getUserLevel";  
-
-// Direct ML service endpoints (local FastAPI)
-const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
-
-const ML_UPLOAD_URL =
-  import.meta.env.VITE_ML_UPLOAD_URL || `${ML_BASE_URL}/upload_pdf`;
-
-const ML_CHAT_URL = import.meta.env.VITE_ML_CHAT_URL || `${ML_BASE_URL}/chat`;
-
-const ML_FEEDBACK_URL =
-  import.meta.env.VITE_ML_FEEDBACK_URL || `${ML_BASE_URL}/feedback`;
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getUserLevel";
 
 export const appConfig = {
   ENV,
 
   // ML
   PREDICT_RISK_URL,
-  ML_BASE_URL,
-  ML_UPLOAD_URL,
-  ML_CHAT_URL,
-  ML_FEEDBACK_URL,
   PREDICT_RECOMMENDATION_URL,
   PREDICT_STRUGGLE_URL,
 
