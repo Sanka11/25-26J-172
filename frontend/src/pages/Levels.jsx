@@ -1,579 +1,386 @@
-
-// import { useNavigate } from "react-router-dom";
-
-// export default function Levels({ currentLevel = 1 }) {
-//   const navigate = useNavigate();
-
-//   return (
-//     <div style={{ padding: 20 }}>
-//       <h2>🎮 Game Levels</h2>
-
-//       {[1, 2, 3, 4, 5].map((lvl) => (
-//         <button
-//           key={lvl}
-//           disabled={lvl > currentLevel}
-//           onClick={() => navigate(`/quiz/${lvl}`)}
-//           style={{
-//             margin: 6,
-//             padding: "10px 16px",
-//             cursor: lvl > currentLevel ? "not-allowed" : "pointer",
-//             opacity: lvl > currentLevel ? 0.4 : 1,
-//           }}
-//         >
-//           Level {lvl}
-//         </button>
-//       ))}
-//     </div>
-//   );
-// }
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import Confetti from "react-confetti"; // Optional: install with npm install react-confetti
+import { getQuizzes, fetchQuizByUser } from "../services/api/quizApi";
 
-export default function Levels({ currentLevel = 1 }) {
+export default function Levels({ userId = "student_002" }) {
   const navigate = useNavigate();
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [hoveredLevel, setHoveredLevel] = useState(null);
-  const [completedLevels, setCompletedLevels] = useState(
-    Array.from({ length: currentLevel - 1 }, (_, i) => i + 1)
-  );
-  const [unlockedAnimations, setUnlockedAnimations] = useState([]);
 
-  // Light purple game theme
-  const theme = {
-    primary: "#9C27B0",
-    lightPrimary: "#E1BEE7",
-    secondary: "#7B1FA2",
-    darkPurple: "#6A1B9A",
-    background: "#F5F0FA",
-    gradientStart: "#E1BEE7",
-    gradientEnd: "#CE93D8",
-    gold: "#FFD700",
-    silver: "#C0C0C0",
-    bronze: "#CD7F32",
-    success: "#4CAF50",
-    text: "#333333",
-    lightText: "#666666",
-  };
+  const [quizzes, setQuizzes] = useState([]);
+  const [userLevel, setUserLevel] = useState(1);
+  const [completedLevels, setCompletedLevels] = useState([]);
+  const [quizScores, setQuizScores] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Show confetti when user completes a new level
-    if (currentLevel > 1 && !showConfetti) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    }
-  }, [currentLevel]);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const allQuizzes = await getQuizzes();
+        setQuizzes(allQuizzes);
+
+        const userProgress = await fetchQuizByUser(userId);
+        setUserLevel(userProgress.current_level);
+        setCompletedLevels(userProgress.completed_levels || []);
+        setQuizScores(userProgress.quiz_scores || {});
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load levels");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [userId]);
+
+  const groupQuizzesByLevel = (quizList) => {
+    const grouped = {};
+    quizList.forEach((q) => {
+      if (!grouped[q.level]) grouped[q.level] = [];
+      grouped[q.level].push(q);
+    });
+    return grouped;
+  };
+
+  const groupedQuizzes = groupQuizzesByLevel(quizzes);
+  const availableLevels = Object.keys(groupedQuizzes)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  const getLevelStatus = (level) => {
+    if (level < userLevel) return "completed";
+    if (level === userLevel) return "current";
+    return "locked";
+  };
+
+  const getCompletedQuizzesCount = (level) => {
+    const levelQuizzes = groupedQuizzes[level] || [];
+    return levelQuizzes.filter((quiz) => quizScores[quiz.id]).length;
+  };
 
   const handleLevelClick = (level) => {
-    if (level <= currentLevel) {
-      // Trigger unlock animation for newly unlocked levels
-      if (level === currentLevel) {
-        setUnlockedAnimations([...unlockedAnimations, level]);
-        setTimeout(() => {
-          setUnlockedAnimations(unlockedAnimations.filter((l) => l !== level));
-        }, 2000);
-      }
-      navigate(`/quiz/${level}`);
-    }
+    const status = getLevelStatus(level);
+    if (status === "locked") return;
+    navigate(`/quiz/${level}`);
   };
 
-  const getLevelEmoji = (level) => {
-    const emojis = ["🌱", "🚀", "🎯", "🏆", "👑", "⚡", "💎", "🌟", "✨", "💫"];
-    return emojis[level % emojis.length];
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading levels...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const getLevelBadge = (level) => {
-    if (level <= currentLevel - 1) {
-      return "✅";
-    } else if (level === currentLevel) {
-      return "🎮";
-    }
-    return "🔒";
-  };
-
-  const getLevelTitle = (level) => {
-    const titles = {
-      1: "Beginner's Quest",
-      2: "Rising Challenge",
-      3: "Expert Arena",
-      4: "Master Trial",
-      5: "Grand Finale",
-    };
-    return titles[level] || `Level ${level}`;
-  };
-
-  const getLevelDescription = (level) => {
-    const descriptions = {
-      1: "Start your journey!",
-      2: "Things get interesting...",
-      3: "Prove your skills!",
-      4: "The ultimate test!",
-      5: "Become a champion!",
-    };
-    return descriptions[level] || "Unlock to discover!";
-  };
-
-  const styles = {
-    container: {
-      minHeight: "100vh",
-      background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
-      padding: "20px",
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    },
-    header: {
-      textAlign: "center",
-      marginBottom: "40px",
-      animation: "fadeInDown 0.8s ease",
-    },
-    title: {
-      fontSize: "3rem",
-      fontWeight: "800",
-      background: `linear-gradient(45deg, ${theme.primary}, ${theme.secondary})`,
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      marginBottom: "10px",
-      textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
-    },
-    subtitle: {
-      fontSize: "1.2rem",
-      color: theme.lightText,
-      maxWidth: "600px",
-      margin: "0 auto 20px",
-    },
-    progressContainer: {
-      maxWidth: "500px",
-      margin: "0 auto 40px",
-      background: "rgba(255, 255, 255, 0.9)",
-      padding: "20px",
-      borderRadius: "20px",
-      boxShadow: "0 10px 30px rgba(156, 39, 176, 0.2)",
-    },
-    progressText: {
-      display: "flex",
-      justifyContent: "space-between",
-      marginBottom: "10px",
-      color: theme.text,
-    },
-    progressBar: {
-      height: "12px",
-      background: theme.lightPrimary,
-      borderRadius: "6px",
-      overflow: "hidden",
-    },
-    progressFill: {
-      height: "100%",
-      background: `linear-gradient(90deg, ${theme.primary}, ${theme.secondary})`,
-      borderRadius: "6px",
-      transition: "width 1s ease",
-      width: `${((currentLevel - 1) / 5) * 100}%`,
-    },
-    levelsGrid: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-      gap: "25px",
-      maxWidth: "1200px",
-      margin: "0 auto",
-    },
-    levelCard: {
-      position: "relative",
-      background: "white",
-      borderRadius: "20px",
-      padding: "25px",
-      textAlign: "center",
-      cursor: "pointer",
-      transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-      transform: "translateY(0)",
-      boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
-      border: "3px solid transparent",
-      overflow: "hidden",
-    },
-    levelCardLocked: {
-      filter: "grayscale(0.8)",
-      cursor: "not-allowed",
-      opacity: "0.7",
-    },
-    levelCardUnlocked: {
-      cursor: "pointer",
-    },
-    levelCardCurrent: {
-      border: `3px solid ${theme.primary}`,
-      boxShadow: `0 0 30px ${theme.lightPrimary}`,
-    },
-    levelBadge: {
-      position: "absolute",
-      top: "15px",
-      right: "15px",
-      fontSize: "1.5rem",
-    },
-    levelEmoji: {
-      fontSize: "3rem",
-      marginBottom: "15px",
-      display: "block",
-      animation: "float 3s ease-in-out infinite",
-    },
-    levelNumber: {
-      fontSize: "2rem",
-      fontWeight: "700",
-      color: theme.primary,
-      marginBottom: "5px",
-    },
-    levelTitle: {
-      fontSize: "1.3rem",
-      fontWeight: "600",
-      color: theme.text,
-      marginBottom: "10px",
-    },
-    levelDescription: {
-      fontSize: "0.9rem",
-      color: theme.lightText,
-      marginBottom: "20px",
-      minHeight: "40px",
-    },
-    starContainer: {
-      display: "flex",
-      justifyContent: "center",
-      gap: "5px",
-      marginBottom: "20px",
-    },
-    star: {
-      fontSize: "1.2rem",
-      opacity: "0.3",
-    },
-    starActive: {
-      opacity: "1",
-      color: theme.gold,
-    },
-    playButton: {
-      padding: "12px 30px",
-      background: `linear-gradient(45deg, ${theme.primary}, ${theme.secondary})`,
-      color: "white",
-      border: "none",
-      borderRadius: "50px",
-      fontSize: "1rem",
-      fontWeight: "600",
-      cursor: "pointer",
-      transition: "all 0.3s ease",
-      boxShadow: "0 4px 15px rgba(156, 39, 176, 0.4)",
-    },
-    lockIcon: {
-      fontSize: "2rem",
-      color: theme.lightText,
-      marginBottom: "15px",
-    },
-    lockedText: {
-      color: theme.lightText,
-      fontSize: "0.9rem",
-      marginBottom: "20px",
-    },
-    achievementSection: {
-      maxWidth: "1200px",
-      margin: "50px auto",
-      padding: "30px",
-      background: "rgba(255, 255, 255, 0.9)",
-      borderRadius: "20px",
-      boxShadow: "0 10px 30px rgba(156, 39, 176, 0.2)",
-    },
-    achievementTitle: {
-      fontSize: "1.8rem",
-      fontWeight: "700",
-      color: theme.primary,
-      textAlign: "center",
-      marginBottom: "30px",
-    },
-    achievementsGrid: {
-      display: "flex",
-      justifyContent: "center",
-      gap: "20px",
-      flexWrap: "wrap",
-    },
-    achievementBadge: {
-      width: "80px",
-      height: "80px",
-      borderRadius: "50%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "2rem",
-      background: `linear-gradient(45deg, ${theme.lightPrimary}, ${theme.primary})`,
-      color: "white",
-      animation: "pulse 2s infinite",
-    },
-    unlockAnimation: {
-      position: "absolute",
-      top: "0",
-      left: "0",
-      right: "0",
-      bottom: "0",
-      background: `radial-gradient(circle, ${theme.lightPrimary} 0%, transparent 70%)`,
-      animation: "unlockGlow 2s ease",
-      zIndex: "1",
-    },
-  };
-
-  // Add animations to document head
-  useEffect(() => {
-    const style = document.createElement("style");
-    style.textContent = `
-      @keyframes fadeInDown {
-        from {
-          opacity: 0;
-          transform: translateY(-30px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      
-      @keyframes float {
-        0%, 100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-10px);
-        }
-      }
-      
-      @keyframes pulse {
-        0%, 100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.1);
-        }
-      }
-      
-      @keyframes unlockGlow {
-        0% {
-          opacity: 0;
-          transform: scale(0.5);
-        }
-        50% {
-          opacity: 1;
-          transform: scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: scale(1.5);
-        }
-      }
-      
-      @keyframes bounce {
-        0%, 100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-20px);
-        }
-      }
-      
-      @keyframes sparkle {
-        0%, 100% {
-          opacity: 0;
-          transform: scale(0);
-        }
-        50% {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={styles.container}>
-      {showConfetti && (
-        <Confetti
-          width={window.innerWidth}
-          height={window.innerHeight}
-          recycle={false}
-          numberOfPieces={200}
-          colors={[theme.primary, theme.secondary, theme.lightPrimary]}
-        />
-      )}
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+            Learning Levels
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Progress through each level to unlock the next
+          </p>
 
-      <div style={styles.header}>
-        <h1 style={styles.title}>🚀 Knowledge Quest</h1>
-        <p style={styles.subtitle}>
-          Complete levels to unlock new challenges and earn achievements!
-        </p>
-      </div>
-
-      {/* Progress Section */}
-      <div style={styles.progressContainer}>
-        <div style={styles.progressText}>
-          <span>Your Progress</span>
-          <span>{currentLevel - 1}/5 levels completed</span>
+          {/* Progress Summary */}
+          <div className="inline-flex items-center bg-white rounded-lg px-6 py-3 shadow-sm border border-gray-200">
+            <div className="text-center px-4">
+              <div className="text-sm text-gray-500">Current Level</div>
+              <div className="text-2xl font-bold text-red-600">{userLevel}</div>
+            </div>
+            <div className="h-10 w-px bg-gray-300 mx-4"></div>
+            <div className="text-center px-4">
+              <div className="text-sm text-gray-500">Completed</div>
+              <div className="text-2xl font-bold text-green-600">
+                {userLevel - 1}/{availableLevels.length}
+              </div>
+            </div>
+          </div>
         </div>
-        <div style={styles.progressBar}>
-          <div style={styles.progressFill}></div>
-        </div>
-      </div>
 
-      {/* Levels Grid */}
-      <div style={styles.levelsGrid}>
-        {[1, 2, 3, 4, 5].map((level) => {
-          const isLocked = level > currentLevel;
-          const isCurrent = level === currentLevel;
-          const isCompleted = level < currentLevel;
-          const isUnlocking = unlockedAnimations.includes(level);
-
-          return (
+        {/* Progress Bar */}
+        <div className="mb-10">
+          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div
-              key={level}
+              className="h-full bg-gradient-to-r from-green-400 to-blue-500 transition-all duration-1000 ease-out"
               style={{
-                ...styles.levelCard,
-                ...(isLocked
-                  ? styles.levelCardLocked
-                  : styles.levelCardUnlocked),
-                ...(isCurrent && !isLocked ? styles.levelCardCurrent : {}),
-                transform:
-                  hoveredLevel === level && !isLocked
-                    ? "translateY(-10px)"
-                    : "translateY(0)",
-                boxShadow:
-                  hoveredLevel === level && !isLocked
-                    ? "0 20px 40px rgba(156, 39, 176, 0.3)"
-                    : styles.levelCard.boxShadow,
+                width: `${(userLevel / availableLevels.length) * 100}%`,
               }}
-              onMouseEnter={() => !isLocked && setHoveredLevel(level)}
-              onMouseLeave={() => setHoveredLevel(null)}
-              onClick={() => handleLevelClick(level)}
-            >
-              {isUnlocking && <div style={styles.unlockAnimation}></div>}
+            ></div>
+          </div>
+          <div className="flex justify-between mt-1 text-xs text-gray-500">
+            <span>Start</span>
+            <span className="font-medium">
+              Level {userLevel} of {availableLevels.length}
+            </span>
+            <span>End</span>
+          </div>
+        </div>
 
-              <div style={styles.levelBadge}>{getLevelBadge(level)}</div>
+        {/* Levels List */}
+        <div className="space-y-4">
+          {availableLevels.map((level) => {
+            const status = getLevelStatus(level);
+            const isCompleted = status === "completed";
+            const isCurrent = status === "current";
+            const isLocked = status === "locked";
 
-              <span
-                style={{
-                  ...styles.levelEmoji,
-                  animationDelay: `${level * 0.2}s`,
-                }}
+            const levelQuizzes = groupedQuizzes[level] || [];
+            const quizCount = levelQuizzes.length;
+            const completedCount = getCompletedQuizzesCount(level);
+            const totalQuestions = levelQuizzes.reduce(
+              (sum, q) => sum + (q.question_count || 0),
+              0
+            );
+
+            return (
+              <div
+                key={level}
+                className={`relative transition-all duration-200 ${
+                  isCompleted ? "opacity-75" : ""
+                }`}
               >
-                {getLevelEmoji(level)}
-              </span>
+                {/* Card */}
+                <div
+                  onClick={() =>
+                    !isLocked && !isCompleted && handleLevelClick(level)
+                  }
+                  className={`
+                    bg-white rounded-lg border p-5
+                    ${isCompleted ? "border-gray-300" : ""}
+                    ${
+                      isCurrent ? "border-red-400 shadow-sm" : "border-gray-200"
+                    }
+                    ${isLocked ? "border-gray-200 opacity-50" : ""}
+                    ${
+                      !isCompleted && !isCurrent && !isLocked
+                        ? "cursor-pointer hover:border-blue-300 hover:shadow"
+                        : ""
+                    }
+                    ${isCompleted ? "cursor-default" : ""}
+                  `}
+                >
+                  <div className="flex items-start justify-between">
+                    {/* Left side - Level info */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div
+                          className={`
+                          w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
+                          ${isCompleted ? "bg-gray-100 text-gray-400" : ""}
+                          ${isCurrent ? "bg-red-100 text-red-600" : ""}
+                          ${isLocked ? "bg-gray-100 text-gray-400" : ""}
+                          ${
+                            !isCompleted && !isCurrent && !isLocked
+                              ? "bg-blue-100 text-blue-600"
+                              : ""
+                          }
+                        `}
+                        >
+                          {level}
+                        </div>
 
-              <h2 style={styles.levelNumber}>Level {level}</h2>
-              <h3 style={styles.levelTitle}>{getLevelTitle(level)}</h3>
-              <p style={styles.levelDescription}>
-                {getLevelDescription(level)}
-              </p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-800">
+                              Level {level}
+                            </h3>
+                            {isCompleted && (
+                              <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded">
+                                Completed
+                              </span>
+                            )}
+                            {isCurrent && (
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded animate-pulse">
+                                Current
+                              </span>
+                            )}
+                          </div>
 
-              {isLocked ? (
-                <>
-                  <div style={styles.lockIcon}>🔒</div>
-                  <p style={styles.lockedText}>
-                    Complete Level {level - 1} to unlock
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div style={styles.starContainer}>
-                    {[1, 2, 3].map((star) => (
-                      <span
-                        key={star}
-                        style={{
-                          ...styles.star,
-                          ...(star <= (isCompleted ? 3 : 0)
-                            ? styles.starActive
-                            : {}),
+                          {/* Quiz progress */}
+                          <div className="text-sm text-gray-600 mt-1">
+                            {quizCount} quiz{quizCount !== 1 ? "zes" : ""} •{" "}
+                            {totalQuestions} questions
+                            {isCurrent && completedCount > 0 && (
+                              <span className="ml-2 text-blue-600 font-medium">
+                                ({completedCount}/{quizCount} done)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress bar for current level */}
+                      {isCurrent && quizCount > 0 && (
+                        <div className="mt-3">
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-green-400 to-blue-400 transition-all duration-500"
+                              style={{
+                                width: `${(completedCount / quizCount) * 100}%`,
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right side - Action button */}
+                    <div className="ml-4">
+                      <button
+                        disabled={isLocked || isCompleted}
+                        className={`
+                          px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap
+                          transition-colors duration-200
+                          ${
+                            isCompleted
+                              ? "bg-gray-100 text-gray-400 cursor-default"
+                              : ""
+                          }
+                          ${
+                            isCurrent
+                              ? "bg-red-600 text-white hover:bg-red-700"
+                              : ""
+                          }
+                          ${
+                            isLocked
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : ""
+                          }
+                          ${
+                            !isCompleted && !isCurrent && !isLocked
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : ""
+                          }
+                        `}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isLocked && !isCompleted) {
+                            handleLevelClick(level);
+                          }
                         }}
                       >
-                        ⭐
-                      </span>
-                    ))}
+                        {isCompleted
+                          ? "Completed"
+                          : isCurrent
+                          ? `Continue (${completedCount}/${quizCount})`
+                          : isLocked
+                          ? "Locked"
+                          : "Start"}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    style={{
-                      ...styles.playButton,
-                      transform:
-                        hoveredLevel === level ? "scale(1.05)" : "scale(1)",
-                      background: isCurrent
-                        ? `linear-gradient(45deg, ${theme.success}, ${theme.primary})`
-                        : styles.playButton.background,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleLevelClick(level);
-                    }}
-                  >
-                    {isCurrent ? "Continue" : "Play"} →
-                  </button>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
 
-      {/* Achievements Section */}
-      <div style={styles.achievementSection}>
-        <h2 style={styles.achievementTitle}>🏆 Your Achievements</h2>
-        <div style={styles.achievementsGrid}>
-          <div style={styles.achievementBadge}>
-            {currentLevel >= 1 ? "🥇" : "?"}
-          </div>
-          <div
-            style={{
-              ...styles.achievementBadge,
-              animation: currentLevel >= 3 ? "pulse 2s infinite" : "none",
-              opacity: currentLevel >= 3 ? 1 : 0.5,
-            }}
-          >
-            {currentLevel >= 3 ? "💪" : "?"}
-          </div>
-          <div
-            style={{
-              ...styles.achievementBadge,
-              animation: currentLevel >= 5 ? "bounce 2s infinite" : "none",
-              opacity: currentLevel >= 5 ? 1 : 0.5,
-            }}
-          >
-            {currentLevel >= 5 ? "👑" : "?"}
+                  {/* Locked message */}
+                  {isLocked && (
+                    <div className="mt-3 text-sm text-gray-400 flex items-center gap-1">
+                      <span className="text-xs">🔒</span>
+                      Complete Level {level - 1} to unlock
+                    </div>
+                  )}
+                </div>
+
+                {/* Current level indicator */}
+                {isCurrent && (
+                  <div className="absolute -left-3 top-1/2 transform -translate-y-1/2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
+                    <div className="w-2 h-2 bg-red-500 rounded-full absolute top-0 left-0"></div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="mt-12 pt-8 border-t border-gray-200">
+          <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                <span className="text-xs text-gray-600">Locked</span>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span className="text-xs text-gray-600">Current</span>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-xs text-gray-600">Completed</span>
+              </div>
+            </div>
           </div>
         </div>
-        <p
-          style={{
-            textAlign: "center",
-            color: theme.lightText,
-            marginTop: "20px",
-          }}
-        >
-          Complete more levels to unlock secret achievements!
-        </p>
+
+        {/* Info */}
+        <div className="mt-8 text-center">
+          <p className="text-sm text-gray-500">
+            Complete all quizzes in a level to progress to the next one
+          </p>
+        </div>
       </div>
 
-      {/* Floating particles effect */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      >
-        {Array.from({ length: 20 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: "4px",
-              height: "4px",
-              background: theme.lightPrimary,
-              borderRadius: "50%",
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animation: `sparkle ${2 + Math.random() * 3}s infinite`,
-              animationDelay: `${Math.random() * 2}s`,
-            }}
-          />
-        ))}
-      </div>
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .space-y-4 > div {
+          animation: fadeIn 0.3s ease-out forwards;
+          opacity: 0;
+        }
+
+        .space-y-4 > div:nth-child(1) {
+          animation-delay: 0.05s;
+        }
+        .space-y-4 > div:nth-child(2) {
+          animation-delay: 0.1s;
+        }
+        .space-y-4 > div:nth-child(3) {
+          animation-delay: 0.15s;
+        }
+        .space-y-4 > div:nth-child(4) {
+          animation-delay: 0.2s;
+        }
+        .space-y-4 > div:nth-child(5) {
+          animation-delay: 0.25s;
+        }
+        .space-y-4 > div:nth-child(6) {
+          animation-delay: 0.3s;
+        }
+      `}</style>
     </div>
   );
 }
