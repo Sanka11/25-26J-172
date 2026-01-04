@@ -124,6 +124,7 @@ function App() {
           }
         />
         <Route path="/rl" element={<RLDecision />} />
+        <Route path="/rl/demo" element={<RLDemo />} />
 
         {/* All other routes with NavigationBar */}
         <Route
