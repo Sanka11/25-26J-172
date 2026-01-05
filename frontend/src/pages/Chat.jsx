@@ -22,6 +22,9 @@ export default function Chat({ onClose }) {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [avgRating, setAvgRating] = useState(null);
+  const [ratingCount, setRatingCount] = useState(0);
+  const [statsLoading, setStatsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -209,11 +212,43 @@ export default function Chat({ onClose }) {
     setTypingState(null);
   };
 
+  const loadFeedbackStats = async () => {
+    try {
+      setStatsLoading(true);
+      const res = await fetch(appConfig.GET_CHAT_FEEDBACK_STATS_URL);
+      if (!res.ok) {
+        throw new Error(`Stats request failed with status ${res.status}`);
+      }
+      const data = await res.json();
+      setAvgRating(
+        typeof data.average_rating === "number" ? data.average_rating : null
+      );
+      setRatingCount(
+        typeof data.total_ratings === "number" ? data.total_ratings : 0
+      );
+    } catch (err) {
+      console.error("Failed to load feedback stats", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showFeedback) {
+      loadFeedbackStats();
+    }
+  }, [showFeedback]);
+
   const handleSubmitFeedback = async (e) => {
     e.preventDefault();
     setFeedbackStatus("");
 
     const trimmed = feedbackComment.trim();
+    if (!feedbackRating) {
+      setFeedbackStatus("Please select a rating between 1 and 5.");
+      return;
+    }
+
     if (!trimmed) {
       setFeedbackStatus("Please enter your feedback before submitting.");
       return;
@@ -235,7 +270,7 @@ export default function Chat({ onClose }) {
 
     try {
       setFeedbackLoading(true);
-      const res = await fetch(appConfig.ML_FEEDBACK_URL, {
+      const res = await fetch(appConfig.SUBMIT_CHAT_FEEDBACK_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -250,6 +285,7 @@ export default function Chat({ onClose }) {
       setFeedbackStatus("Thank you, your feedback has been recorded.");
       setFeedbackComment("");
       setFeedbackRating(null);
+      await loadFeedbackStats();
     } catch (err) {
       console.error(err);
       setFeedbackStatus(
@@ -309,7 +345,18 @@ export default function Chat({ onClose }) {
       {/* Feedback panel */}
       {showFeedback && (
         <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white text-[11px] space-y-2">
-          <p className="font-semibold text-slate-800">Rate this chatbot</p>
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-slate-800">Rate this chatbot</p>
+            <p className="text-[10px] text-slate-500">
+              {statsLoading
+                ? "Loading rating…"
+                : ratingCount > 0 && avgRating != null
+                ? `Average: ${avgRating.toFixed(
+                    1
+                  )} / 5 (${ratingCount} ratings)`
+                : "No ratings yet"}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button

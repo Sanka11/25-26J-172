@@ -20,6 +20,22 @@ const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
 
+// Announcement controllers
+const {
+  createAnnouncement,
+  getAnnouncements,
+  updateAnnouncement,
+  deleteAnnouncement,
+} = require("./src/http/announcementController");
+
+// Chat feedback controllers
+const {
+  submitChatFeedback,
+  getChatFeedbackStats,
+  listChatFeedback,
+  deleteChatFeedback,
+} = require("./src/http/chatFeedbackController");
+
 // Express API (RL, disengagement, etc.)
 exports.api = require("./api").api;
 
@@ -36,3 +52,15 @@ exports.predictRecommendation = predictRecommendation;
 
 // Export student risk explanation API
 exports.getStudentRiskExplanation = getStudentRiskExplanation;
+
+// Export announcement functions
+exports.createAnnouncement = createAnnouncement;
+exports.getAnnouncements = getAnnouncements;
+exports.updateAnnouncement = updateAnnouncement;
+exports.deleteAnnouncement = deleteAnnouncement;
+
+// Export chat feedback functions
+exports.submitChatFeedback = submitChatFeedback;
+exports.getChatFeedbackStats = getChatFeedbackStats;
+exports.listChatFeedback = listChatFeedback;
+exports.deleteChatFeedback = deleteChatFeedback;
