@@ -55,6 +55,18 @@ const NavigationBar = () => {
       icon: <RecommendIcon />,
     },
     {
+      path: "/admin/announcements",
+      label: "Manage Announcements",
+      icon: <DashboardIcon />,
+    },
+    {
+      path: "/announcements",
+      label: "Announcements",
+      // show bell emoji as the icon
+      icon: <span style={{ fontSize: 18 }}>🔔</span>,
+      iconOnly: true,
+    },
+    {
       path: "/create-quiz",
       label: "Create Quiz",
       icon: <CreateIcon />,
@@ -194,9 +206,11 @@ const NavigationBar = () => {
                         : "1px solid transparent",
                     }}
                   >
-                    <Typography variant="button" sx={{ fontSize: "0.8rem" }}>
-                      {item.label}
-                    </Typography>
+                    {!item.iconOnly && (
+                      <Typography variant="button" sx={{ fontSize: "0.8rem" }}>
+                        {item.label}
+                      </Typography>
+                    )}
                   </Button>
                 </Tooltip>
               ))}

@@ -20,23 +20,63 @@ const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
 
-// Student risk explainability semester wise controller
+// ✅ Student risk history (semester-wise temporal tracking)
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 
+// Announcement controllers
+const {
+  createAnnouncement,
+  getAnnouncements,
+  updateAnnouncement,
+  deleteAnnouncement,
+} = require("./src/http/announcementController");
+
+// Chat feedback controllers
+const {
+  submitChatFeedback,
+  getChatFeedbackStats,
+  listChatFeedback,
+  deleteChatFeedback,
+} = require("./src/http/chatFeedbackController");
+
+// -------------------------------
 // Express API (RL, disengagement, etc.)
+// -------------------------------
 exports.api = require("./api").api;
 
-// Export quiz functions
+// -------------------------------
+// Quiz exports
+// -------------------------------
 exports.createQuiz = createQuiz;
 exports.submitQuiz = submitQuiz;
 exports.getAllQuizzes = getAllQuizzes;
 exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
 
-// Export ML functions
+// -------------------------------
+// ML exports
+// -------------------------------
 exports.predictRisk = predictRisk;
 exports.predictRecommendation = predictRecommendation;
 
-// Export student risk explanation API
+// -------------------------------
+// Student risk APIs
+// -------------------------------
 exports.getStudentRiskExplanation = getStudentRiskExplanation;
 exports.getStudentRiskHistory = getStudentRiskHistory;
+
+// -------------------------------
+// Announcement APIs
+// -------------------------------
+exports.createAnnouncement = createAnnouncement;
+exports.getAnnouncements = getAnnouncements;
+exports.updateAnnouncement = updateAnnouncement;
+exports.deleteAnnouncement = deleteAnnouncement;
+
+// -------------------------------
+// Chat feedback APIs
+// -------------------------------
+exports.submitChatFeedback = submitChatFeedback;
+exports.getChatFeedbackStats = getChatFeedbackStats;
+exports.listChatFeedback = listChatFeedback;
+exports.deleteChatFeedback = deleteChatFeedback;
