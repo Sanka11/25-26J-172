@@ -5,6 +5,7 @@ import {
   Route,
   Link,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import RiskDemo from "./pages/RiskDemo";
@@ -15,6 +16,10 @@ import Levels from "./pages/Levels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import NavigationBar from "./componets/Navigationbar";
+import LiveRiskDashboard from "./pages/LiveRiskDashboard";
+import GlobalReminders from "./componets/GlobalReminders";
+import UserAnnouncements from "./pages/UserAnnouncements";
+import AdminAnnouncements from "./pages/AdminAnnouncements";
 
 /* ================= GRU + RL MODULE PAGES ================= */
 import GRUMain from "./pages/GRUMain";
@@ -80,6 +85,13 @@ function AppLayout() {
             Risk Demo
           </button>
           <button
+            onClick={() => (window.location.href = "/live-risk")}
+            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+          >
+            Live Risk (Real-time)
+          </button>
+
+          <button
             onClick={() => setView("upload")}
             className="w-full px-3 py-2 rounded bg-slate-800 text-white"
           >
@@ -117,7 +129,6 @@ function AppLayout() {
 function App() {
   return (
     <BrowserRouter>
-      {/* Navigation Bar - Shows on all routes except standalone ML routes */}
       <Routes>
         {/* Standalone ML routes without NavigationBar */}
         <Route
@@ -135,9 +146,41 @@ function App() {
         <Route path="/peer" element={<PeerStudentDashboard />} />
         <Route path="/support" element={<HighRiskInterventionDashboard />} />
 
-        {/* All other routes with NavigationBar */}
+        {/* All other routes go through the main shell */}
+        <Route path="/*" element={<MainShell />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function MainShell() {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <NavigationBar />
+      <GlobalReminders onReminderClick={() => navigate("/announcements")} />
+      <Routes>
+        {/* Dashboard/Home */}
+        <Route path="/" element={<AppLayout />} />
+
+        {/* Demo Routes */}
         <Route
-          path="/*"
+          path="/risk"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                  Risk Analysis Demo
+                </h1>
+                <RiskDemo />
+              </div>
+            </div>
+          }
+        />
+
+        <Route
+          path="/recommendation"
           element={
             <>
               <NavigationBar />
@@ -155,6 +198,20 @@ function App() {
                           Risk Analysis Demo
                         </h1>
                         <RiskDemo />
+                      </div>
+                    </div>
+                  }
+                />
+
+                <Route
+                  path="/live-risk"
+                  element={
+                    <div className="min-h-screen bg-slate-100 p-6">
+                      <div className="max-w-7xl mx-auto">
+                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                          Live Student Risk & Explainable AI
+                        </h1>
+                        <LiveRiskDashboard />
                       </div>
                     </div>
                   }
@@ -259,10 +316,127 @@ function App() {
                 />
               </Routes>
             </>
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                  Recommendation Demo
+                </h1>
+                <RecommendationDemo />
+              </div>
+            </div>
+          }
+        />
+
+        {/* Quiz Routes */}
+        <Route
+          path="/create-quiz"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <CreateQuiz />
+              </div>
+            </div>
+          }
+        />
+
+        <Route
+          path="/levels"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <Levels currentLevel={1} />
+              </div>
+            </div>
+          }
+        />
+
+        <Route
+          path="/quiz/:level"
+          element={
+            <div className="min-h-screen bg-slate-100">
+              <TakeQuiz />
+            </div>
+          }
+        />
+
+        {/* Upload PDFs */}
+        <Route
+          path="/upload"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                  PDF Upload
+                </h1>
+                <PdfUpload />
+              </div>
+            </div>
+          }
+        />
+
+        {/* Chat */}
+        <Route
+          path="/chat"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-slate-800 mb-6">
+                  Chat Assistant
+                </h1>
+                <Chat />
+              </div>
+            </div>
+          }
+        />
+
+        {/* Announcements (student view) */}
+        <Route
+          path="/announcements"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <UserAnnouncements />
+              </div>
+            </div>
+          }
+        />
+
+        {/* Announcements (admin view) */}
+        <Route
+          path="/admin/announcements"
+          element={
+            <div className="min-h-screen bg-slate-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <AdminAnnouncements />
+              </div>
+            </div>
+          }
+        />
+
+        {/* Fallback */}
+        <Route
+          path="*"
+          element={
+            <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-slate-800 mb-4">
+                  404 - Page Not Found
+                </h1>
+                <p className="text-slate-600 mb-8">
+                  The page you're looking for doesn't exist.
+                </p>
+                <Link
+                  to="/"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Return to Dashboard
+                </Link>
+              </div>
+            </div>
           }
         />
       </Routes>
-    </BrowserRouter>
+    </>
   );
 }
 
