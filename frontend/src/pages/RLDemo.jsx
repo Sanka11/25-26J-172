@@ -4,16 +4,26 @@ import { useState, useEffect } from "react";
 // Generate 1000 mock students
 const generateMockStudents = () => {
   const departments = ["Computer Science", "Mathematics", "Physics", "Engineering", "Biology", "Chemistry"];
-  const names = ["Alex", "Maria", "David", "Sarah", "James", "Emma", "Michael", "Sophia", "William", "Olivia"];
-  const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"];
+  const sriLankanNames = [
+    "Mihindu", "Sachini", "Dasun", "Nadeesha", "Chamath", "Tharushi", "Kasun", "Dilhani", "Isuru", "Shanika",
+    "Pasan", "Amandi", "Ravindu", "Minoli", "Suresh", "Yasodha", "Lahiru", "Kavindi", "Dilshan", "Nishadi",
+    "Madushan", "Charuni", "Janith", "Sasanthi", "Tharaka", "Anjali", "Prabath", "Niroshini", "Chathura", "Imesha"
+  ];
+  const sriLankanLastNames = [
+    "Perera", "Fernando", "Silva", "Bandara", "Jayawardena", "Ratnayake", "Wickramasinghe", "Rajapaksa", "Gunawardena", "Weerasinghe",
+    "Dissanayake", "Amarasinghe", "Herath", "Abeysekara", "Kumarasinghe", "Jayasinghe", "Premaratne", "Wijesekara", "Mendis", "Samarasinghe",
+    "Wijeratne", "Ranatunga", "Karunaratne", "Jayawickrama", "Senanayake", "Wickremesinghe", "Alwis", "De Silva", "Peiris", "Cooray"
+  ];
   
   const students = [];
+  const currentWeek = 8; // Same week for everyone
   
   for (let i = 1; i <= 1000; i++) {
     const riskScore = Math.min(0.95, Math.max(0.1, Math.random() * 0.9));
-    const riskLevel = riskScore > 0.6 ? "HIGH" : riskScore > 0.3 ? "MEDIUM" : "LOW";
+    const riskLevel = riskScore > 0.7 ? "HIGH" : riskScore > 0.4 ? "MEDIUM" : "LOW";
     const engagementScore = Math.min(3.0, Math.max(0.5, 1 + Math.random() * 2));
     
+    // Generate realistic history based on current risk
     const history = [
       Math.max(0.1, riskScore - Math.random() * 0.3),
       Math.max(0.1, riskScore - Math.random() * 0.2),
@@ -28,13 +38,23 @@ const generateMockStudents = () => {
       engagementScore
     ];
     
-    const previousActions = ["NONE", "NONE", "NONE"];
-    const week = Math.floor(Math.random() * 12) + 1;
+    // Initialize previous actions based on risk level
+    let previousActions;
+    if (riskLevel === "HIGH") {
+      previousActions = Math.random() > 0.5 ? ["NONE", "NONE", "NONE"] : ["EMAIL_REMINDER", "IN_APP_REMINDER", "NONE"];
+    } else if (riskLevel === "MEDIUM") {
+      previousActions = ["NONE", "NONE", "NONE"];
+    } else {
+      previousActions = ["DO_NOTHING", "DO_NOTHING", "DO_NOTHING"];
+    }
+    
+    // Determine previous action (latest one)
+    const previousAction = previousActions[2];
     
     students.push({
       studentId: `S${i.toString().padStart(4, '0')}`,
-      name: `${names[Math.floor(Math.random() * names.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-      week: week,
+      name: `${sriLankanNames[Math.floor(Math.random() * sriLankanNames.length)]} ${sriLankanLastNames[Math.floor(Math.random() * sriLankanLastNames.length)]}`,
+      week: currentWeek,
       gru: {
         riskScore: riskScore,
         riskLevel: riskLevel,
@@ -43,7 +63,7 @@ const generateMockStudents = () => {
       },
       engagementScore: engagementScore,
       engagementHistory: engagementHistory,
-      previousAction: "NONE",
+      previousAction: previousAction,
       previousActions: previousActions,
       department: departments[Math.floor(Math.random() * departments.length)],
       lastActive: `${Math.floor(Math.random() * 7)} days ago`,
@@ -75,11 +95,17 @@ const actionDescriptions = {
     color: "bg-green-100 text-green-800 border-green-200",
     icon: "💪"
   },
-  "ESCALATE_PEER_CHEER": {
+  "PEER_CHEER": {
     title: "Peer Support",
     description: "Engage peer mentors for additional support",
     color: "bg-purple-100 text-purple-800 border-purple-200",
     icon: "👥"
+  },
+  "HUMAN_SUPPORT": {
+    title: "Human Support",
+    description: "Escalate to teacher or counselor for personal support",
+    color: "bg-red-100 text-red-800 border-red-200",
+    icon: "👨‍🏫"
   },
   "DO_NOTHING": {
     title: "No Action",
@@ -96,17 +122,24 @@ const actionDescriptions = {
 };
 
 function simulateNextWeek(student) {
-  const riskChange = student.gru.riskScore > 0.6 ? -0.18 : 
-                    student.gru.riskScore > 0.3 ? -0.12 : -0.05;
+  // Simulate risk change based on current action
+  let riskChange = 0;
+  if (student.gru.riskLevel === "HIGH") {
+    riskChange = -0.2 + (Math.random() * 0.2 - 0.1); // More volatility for high risk
+  } else if (student.gru.riskLevel === "MEDIUM") {
+    riskChange = -0.1 + (Math.random() * 0.1 - 0.05);
+  } else {
+    riskChange = -0.05 + (Math.random() * 0.05 - 0.025);
+  }
   
-  const newRiskScore = Math.max(0.1, Math.min(0.95, student.gru.riskScore + riskChange + (Math.random() * 0.1 - 0.05)));
+  const newRiskScore = Math.max(0.1, Math.min(0.95, student.gru.riskScore + riskChange));
   const newEngagementScore = Math.max(0.5, Math.min(3.0, student.engagementScore + (Math.random() > 0.4 ? 0.2 : -0.1)));
   
   return {
     week: student.week + 1,
     gru: {
       riskScore: newRiskScore,
-      riskLevel: newRiskScore > 0.6 ? "HIGH" : newRiskScore > 0.3 ? "MEDIUM" : "LOW",
+      riskLevel: newRiskScore > 0.7 ? "HIGH" : newRiskScore > 0.4 ? "MEDIUM" : "LOW",
       reconstructionError: Math.max(0.01, student.gru.reconstructionError - 0.003),
       history: [...student.gru.history.slice(1), student.gru.riskScore],
     },
@@ -115,16 +148,68 @@ function simulateNextWeek(student) {
   };
 }
 
-function decideRL(riskLevel, engagement, previousAction) {
-  if (riskLevel === "HIGH" && previousAction === "NONE")
-    return "IN_APP_REMINDER";
-  if (riskLevel === "HIGH" && engagement < 1.6)
+function decideRL(riskLevel, riskScore, engagement, previousAction, previousActions) {
+  // Enhanced RL logic based on requirements
+  
+  // HIGH RISK STUDENTS
+  if (riskLevel === "HIGH") {
+    // First intervention: Start with email or in-app reminder
+    if (previousAction === "NONE") {
+      return Math.random() > 0.5 ? "EMAIL_REMINDER" : "IN_APP_REMINDER";
+    }
+    
+    // Check if previous action was email/in-app and still high risk
+    if ((previousAction === "EMAIL_REMINDER" || previousAction === "IN_APP_REMINDER")) {
+      // If it's the second time with same action, escalate
+      if (previousActions.filter(a => a === previousAction).length >= 2) {
+        return "PEER_CHEER";
+      }
+      return previousAction; // Try same action again
+    }
+    
+    // If previous was peer cheer and still high risk, escalate to human support
+    if (previousAction === "PEER_CHEER") {
+      return "HUMAN_SUPPORT";
+    }
+    
+    // If previous was human support and still high risk, continue human support
+    if (previousAction === "HUMAN_SUPPORT") {
+      return "HUMAN_SUPPORT";
+    }
+    
+    // Default for high risk
     return "EMAIL_REMINDER";
-  if (riskLevel === "MEDIUM" && engagement > 1.8)
-    return "MOTIVATIONAL_MESSAGE";
-  if (riskLevel === "LOW")
+  }
+  
+  // MEDIUM RISK STUDENTS
+  if (riskLevel === "MEDIUM") {
+    // Send motivational messages for medium risk with engagement below 2.0
+    if (engagement < 2.0 && riskScore > 0.5) {
+      return "MOTIVATIONAL_MESSAGE";
+    }
+    
+    // For medium-low risk, do nothing
+    if (riskScore < 0.5) {
+      return "DO_NOTHING";
+    }
+    
+    // Default for medium risk
+    return previousAction === "MOTIVATIONAL_MESSAGE" ? "DO_NOTHING" : "MOTIVATIONAL_MESSAGE";
+  }
+  
+  // LOW RISK STUDENTS
+  if (riskLevel === "LOW") {
+    // Send occasional motivational messages for low risk students
+    if (engagement < 2.5 && Math.random() > 0.7) {
+      return "MOTIVATIONAL_MESSAGE";
+    }
+    
+    // Default for low risk
     return "DO_NOTHING";
-  return "ESCALATE_PEER_CHEER";
+  }
+  
+  // Fallback
+  return "DO_NOTHING";
 }
 
 /* ================= MAIN DEMO ================= */
@@ -168,8 +253,10 @@ export default function RLDemo() {
     setTimeout(() => {
       const action = decideRL(
         selectedStudent.gru.riskLevel,
+        selectedStudent.gru.riskScore,
         selectedStudent.engagementScore,
-        selectedStudent.previousAction
+        selectedStudent.previousAction,
+        selectedStudent.previousActions
       );
       setRlAction(action);
       setStage("RL_DONE");
@@ -182,6 +269,8 @@ export default function RLDemo() {
         week: selectedStudent.week,
         action,
         riskLevel: selectedStudent.gru.riskLevel,
+        riskScore: selectedStudent.gru.riskScore,
+        engagement: selectedStudent.engagementScore,
         timestamp: new Date().toLocaleTimeString(),
       }, ...prev.slice(0, 19)]);
     }, 800);
@@ -223,8 +312,10 @@ export default function RLDemo() {
         .map(student => {
           const action = decideRL(
             student.gru.riskLevel,
+            student.gru.riskScore,
             student.engagementScore,
-            student.previousAction
+            student.previousAction,
+            student.previousActions
           );
           return {
             studentId: student.studentId,
@@ -313,15 +404,15 @@ export default function RLDemo() {
               <div className="text-xs text-gray-500 mt-1">Require immediate attention</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-md">
-              <div className="text-sm text-gray-500">Avg Engagement</div>
-              <div className="text-2xl font-bold text-emerald-600">
-                {(students.reduce((acc, s) => acc + s.engagementScore, 0) / students.length).toFixed(1)}
+              <div className="text-sm text-gray-500">Current Week</div>
+              <div className="text-2xl font-bold text-blue-600">
+                Week {students[0]?.week || 8}
               </div>
-              <div className="text-xs text-gray-500 mt-1">Out of 3.0 scale</div>
+              <div className="text-xs text-gray-500 mt-1">All students same week</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-md">
               <div className="text-sm text-gray-500">Active Interventions</div>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-purple-600">
                 {students.filter(s => s.previousAction !== "NONE" && s.previousAction !== "DO_NOTHING").length.toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1">Ongoing actions</div>
@@ -430,9 +521,43 @@ export default function RLDemo() {
             </div>
             
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Summary:</span> Analyzed {batchAnalysisResults.length} students. 
-                {batchAnalysisResults.filter(r => r.newAction !== "DO_NOTHING").length} require interventions.
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <div className="text-sm text-blue-700 font-medium">High Risk</div>
+                  <div className="text-xl font-bold">
+                    {batchAnalysisResults.filter(r => r.currentRisk === "HIGH").length}
+                  </div>
+                  <div className="text-xs text-blue-600">
+                    Email/In-App first
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-amber-50 rounded-lg">
+                  <div className="text-sm text-amber-700 font-medium">Medium Risk</div>
+                  <div className="text-xl font-bold">
+                    {batchAnalysisResults.filter(r => r.currentRisk === "MEDIUM").length}
+                  </div>
+                  <div className="text-xs text-amber-600">
+                    Motivational/Do Nothing
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                  <div className="text-sm text-emerald-700 font-medium">Low Risk</div>
+                  <div className="text-xl font-bold">
+                    {batchAnalysisResults.filter(r => r.currentRisk === "LOW").length}
+                  </div>
+                  <div className="text-xs text-emerald-600">
+                    Do Nothing mostly
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
+                  <div className="text-sm text-purple-700 font-medium">Escalations</div>
+                  <div className="text-xl font-bold">
+                    {batchAnalysisResults.filter(r => r.newAction === "HUMAN_SUPPORT" || r.newAction === "PEER_CHEER").length}
+                  </div>
+                  <div className="text-xs text-purple-600">
+                    Need escalated support
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -509,6 +634,14 @@ export default function RLDemo() {
                     <div className="mt-2 flex justify-between text-xs text-gray-500">
                       <span>Week {student.week}</span>
                       <span>Eng: {student.engagementScore.toFixed(1)}</span>
+                    </div>
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                        actionDescriptions[student.previousAction].color
+                      }`}>
+                        <span>{actionDescriptions[student.previousAction].icon}</span>
+                        <span>{actionDescriptions[student.previousAction].title}</span>
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -719,15 +852,19 @@ export default function RLDemo() {
                     </div>
 
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="text-sm text-gray-500 mb-2">Key Metrics</div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="text-center p-2 bg-white rounded">
-                          <div className="text-xs text-gray-500">Risk Threshold</div>
-                          <div className="font-bold">0.60</div>
+                      <div className="text-sm text-gray-500 mb-2">Intervention Logic</div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-red-600 font-medium">High Risk</span>
+                          <span>Email/In-App → Peer → Human</span>
                         </div>
-                        <div className="text-center p-2 bg-white rounded">
-                          <div className="text-xs text-gray-500">Engagement Goal</div>
-                          <div className="font-bold">1.80</div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-amber-600 font-medium">Medium Risk</span>
+                          <span>Motivational Msg or Do Nothing</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-emerald-600 font-medium">Low Risk</span>
+                          <span>Do Nothing mostly</span>
                         </div>
                       </div>
                     </div>
@@ -774,14 +911,20 @@ export default function RLDemo() {
                       <div className="text-sm text-blue-800">
                         <span className="font-semibold">Decision Logic:</span> {
                           selectedStudent.gru.riskLevel === "HIGH" && selectedStudent.previousAction === "NONE"
-                            ? "High risk with no previous action → Send In-App Reminder"
-                            : selectedStudent.gru.riskLevel === "HIGH" && selectedStudent.engagementScore < 1.6
-                            ? "High risk with low engagement → Send Email Reminder"
-                            : selectedStudent.gru.riskLevel === "MEDIUM" && selectedStudent.engagementScore > 1.8
-                            ? "Medium risk with good engagement → Send Motivational Message"
-                            : selectedStudent.gru.riskLevel === "LOW"
-                            ? "Low risk → No action needed"
-                            : "Complex case → Escalate to Peer Support"
+                            ? "High risk with no previous action → Send Email/In-App Reminder"
+                            : selectedStudent.gru.riskLevel === "HIGH" && (selectedStudent.previousAction === "EMAIL_REMINDER" || selectedStudent.previousAction === "IN_APP_REMINDER")
+                            ? "High risk with previous email/in-app → Try same action again"
+                            : selectedStudent.gru.riskLevel === "HIGH" && selectedStudent.previousAction === "PEER_CHEER"
+                            ? "High risk after peer support → Escalate to Human Support"
+                            : selectedStudent.gru.riskLevel === "HIGH" && selectedStudent.previousAction === "HUMAN_SUPPORT"
+                            ? "High risk with human support → Continue Human Support"
+                            : selectedStudent.gru.riskLevel === "MEDIUM" && selectedStudent.engagementScore < 2.0 && selectedStudent.gru.riskScore > 0.5
+                            ? "Medium risk with low engagement → Send Motivational Message"
+                            : selectedStudent.gru.riskLevel === "MEDIUM" && selectedStudent.gru.riskScore < 0.5
+                            ? "Medium-Low risk → Do Nothing"
+                            : selectedStudent.gru.riskLevel === "LOW" && selectedStudent.engagementScore < 2.5
+                            ? "Low risk with moderate engagement → Send Motivational Message"
+                            : "Low risk → No action needed"
                         }
                       </div>
                     </div>
@@ -894,12 +1037,12 @@ export default function RLDemo() {
               
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <div className="text-sm text-gray-600">
-                  <div className="font-medium mb-2">Quick Stats:</div>
+                  <div className="font-medium mb-2">Current Week Actions:</div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="text-xs">Avg Week: {(students.reduce((acc, s) => acc + s.week, 0) / students.length).toFixed(0)}</div>
-                    <div className="text-xs">Avg Eng: {(students.reduce((acc, s) => acc + s.engagementScore, 0) / students.length).toFixed(1)}</div>
-                    <div className="text-xs">Active: {students.filter(s => s.previousAction !== "NONE").length}</div>
-                    <div className="text-xs">Inactive: {students.filter(s => s.previousAction === "NONE").length}</div>
+                    <div className="text-xs">Email/In-App: {students.filter(s => s.previousAction === "EMAIL_REMINDER" || s.previousAction === "IN_APP_REMINDER").length}</div>
+                    <div className="text-xs">Motivational: {students.filter(s => s.previousAction === "MOTIVATIONAL_MESSAGE").length}</div>
+                    <div className="text-xs">Peer Support: {students.filter(s => s.previousAction === "PEER_CHEER").length}</div>
+                    <div className="text-xs">Human Support: {students.filter(s => s.previousAction === "HUMAN_SUPPORT").length}</div>
                   </div>
                 </div>
               </div>
@@ -918,22 +1061,22 @@ export default function RLDemo() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-300 mb-1">RL Policy</div>
-                  <div className="font-medium">Q-Learning with Experience Replay</div>
+                  <div className="font-medium">Enhanced Intervention Logic</div>
                   <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
-                    <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: '88.5%' }} />
+                    <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: '92.5%' }} />
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-300 mb-1">Data Freshness</div>
-                  <div className="font-medium">Updated Daily</div>
+                  <div className="text-sm text-gray-300 mb-1">Current Week</div>
+                  <div className="font-medium">Week {students[0]?.week || 8} (All Students)</div>
                   <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
                     <div className="h-1.5 rounded-full bg-purple-500" style={{ width: '100%' }} />
                   </div>
                 </div>
                 <div className="pt-4 border-t border-gray-700">
-                  <div className="text-sm text-gray-300">Total Students</div>
+                  <div className="text-sm text-gray-300">Sri Lankan Students</div>
                   <div className="font-medium text-2xl">{students.length.toLocaleString()}</div>
-                  <div className="text-xs text-gray-400 mt-1">Last Updated: {new Date().toLocaleString()}</div>
+                  <div className="text-xs text-gray-400 mt-1">All students at Week {students[0]?.week || 8}</div>
                 </div>
               </div>
             </div>
@@ -942,7 +1085,7 @@ export default function RLDemo() {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-gray-600 text-sm">
-          <p>Adaptive Learning Intervention System v2.0 • GRU + RL Implementation</p>
+          <p>Adaptive Learning Intervention System v2.0 • Enhanced RL Logic with Sri Lankan Names</p>
           <p className="mt-1">All predictions are simulated for demonstration purposes</p>
         </footer>
       </div>

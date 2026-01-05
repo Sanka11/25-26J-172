@@ -27,6 +27,8 @@ import SearchRisk from "./pages/SearchRisk";
 import AllRisks from "./pages/AllRisks";
 import RLDecision from "./pages/RLDecision";
 import RLDemo from "./pages/RLDemo";
+import PeerStudentDashboard  from "./pages/PeerDashBoard";
+import HighRiskInterventionDashboard from "./pages/HumanSupport";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -175,6 +177,8 @@ export default function App() {
         <Route path="/gru/all" element={<AllRisks />} />
         <Route path="/rl" element={<RLDecision />} />
         <Route path="/rl/demo" element={<RLDemo />} />
+        <Route path="/peer" element={<PeerStudentDashboard />} />
+        <Route path="/support" element={<HighRiskInterventionDashboard />} />
 
         {/* Main application */}
         <Route path="/*" element={<MainShell />} />
