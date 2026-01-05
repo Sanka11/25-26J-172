@@ -22,6 +22,9 @@ import SearchRisk from "./pages/SearchRisk";
 import AllRisks from "./pages/AllRisks";
 import RLDecision from "./pages/RLDecision";
 import RLDemo from "./pages/RLDemo";
+import PeerStudentDashboard  from "./pages/PeerDashBoard";
+import HighRiskInterventionDashboard from "./pages/HumanSupport";
+
 
 /* =========================================================
    Route-aware layout
@@ -41,7 +44,9 @@ function AppLayout() {
     "/gru/search",
     "/gru/all",
     "/rl",
-    "/rl/demo", // ✅ added correctly
+    "/rl/demo", 
+    "/peer",
+    "/support",
   ];
 
   if (standaloneRoutes.includes(location.pathname)) {
@@ -52,6 +57,8 @@ function AppLayout() {
         <Route path="/gru/all" element={<AllRisks />} />
         <Route path="/rl" element={<RLDecision />} />
         <Route path="/rl/demo" element={<RLDemo />} />
+        <Route path="/peer" element={<PeerStudentDashboard />} />
+        <Route path="/support" element={<HighRiskInterventionDashboard />} />
       </Routes>
     );
   }
@@ -125,6 +132,8 @@ function App() {
         />
         <Route path="/rl" element={<RLDecision />} />
         <Route path="/rl/demo" element={<RLDemo />} />
+        <Route path="/peer" element={<PeerStudentDashboard />} />
+        <Route path="/support" element={<HighRiskInterventionDashboard />} />
 
         {/* All other routes with NavigationBar */}
         <Route
