@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
 import {
   AppBar,
   Toolbar,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   Chip,
 } from "@mui/material";
+
 import {
   School as SchoolIcon,
   TrendingUp as RiskIcon,
@@ -27,35 +29,30 @@ import {
 const NavigationBar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth(); // ✅ AUTH HOOK
+  const { user, logout } = useAuth(); // ✅ optional auth
 
-  // Theme colors
   const theme = {
     primary: "#1A237E",
     primaryLight: "#E8EAF6",
     secondary: "#283593",
   };
 
-  // Navigation items
   const navItems = [
     { path: "/", label: "Home", icon: <HomeIcon />, exact: true },
     { path: "/risk", label: "Risk Demo", icon: <RiskIcon /> },
     {
       path: "/recommendation",
-      label: "Recommendation Demo",
+      label: "Recommendation",
       icon: <RecommendIcon />,
-    },
-    {
-      path: "/admin/announcements",
-      label: "Manage Announcements",
-      icon: <DashboardIcon />,
     },
     {
       path: "/announcements",
       label: "Announcements",
-      icon: <span style={{ fontSize: 18 }}>🔔</span>,
+      icon: <span>🔔</span>,
       iconOnly: true,
     },
+    { path: "/create-quiz", label: "Create Quiz", icon: <CreateIcon /> },
+    { path: "/levels", label: "Quizzes", icon: <DashboardIcon /> },
   ];
 
   const isActive = (path, exact = false) =>
@@ -73,50 +70,63 @@ const NavigationBar = () => {
       sx={{
         background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
         borderBottom: `2px solid ${theme.primaryLight}`,
+        boxShadow: "0 4px 20px rgba(26,35,126,0.3)",
       }}
     >
       <Container maxWidth="xl">
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           {/* LEFT */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+            {/* Logo */}
             <Box
               component={Link}
               to="/"
               sx={{
                 display: "flex",
                 alignItems: "center",
-                color: "white",
                 textDecoration: "none",
+                color: "white",
               }}
             >
               <SchoolIcon sx={{ fontSize: 36, mr: 1 }} />
-              <Typography variant="h6" fontWeight={700}>
-                AcademiGuard
-              </Typography>
+              <Box>
+                <Typography fontWeight={800} variant="h6">
+                  AcademiGuard
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  LEARNING PLATFORM
+                </Typography>
+              </Box>
             </Box>
 
+            {/* Desktop Nav */}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
               {navItems.map((item) => (
-                <Button
-                  key={item.path}
-                  component={Link}
-                  to={item.path}
-                  startIcon={item.icon}
-                  sx={{
-                    color: isActive(item.path, item.exact)
-                      ? "#FFD700"
-                      : "white",
-                    fontWeight: isActive(item.path, item.exact) ? 700 : 500,
-                  }}
-                >
-                  {!item.iconOnly && item.label}
-                </Button>
+                <Tooltip key={item.path} title={item.label}>
+                  <Button
+                    component={Link}
+                    to={item.path}
+                    startIcon={item.icon}
+                    sx={{
+                      color: isActive(item.path, item.exact)
+                        ? "#FFD700"
+                        : "white",
+                      fontWeight: isActive(item.path, item.exact) ? 700 : 500,
+                      backgroundColor: isActive(item.path, item.exact)
+                        ? "rgba(255,215,0,0.12)"
+                        : "transparent",
+                    }}
+                  >
+                    {!item.iconOnly && item.label}
+                  </Button>
+                </Tooltip>
               ))}
             </Box>
           </Box>
 
           {/* RIGHT */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {/* User badge (only if logged in) */}
             {user && (
               <Chip
                 icon={<ProfileIcon />}
@@ -129,17 +139,28 @@ const NavigationBar = () => {
               />
             )}
 
-            {/* LOGOUT BUTTON */}
-            {user && (
+            {/* Login / Logout */}
+            {!user ? (
+              <Button
+                component={Link}
+                to="/login"
+                variant="outlined"
+                sx={{
+                  color: "white",
+                  borderColor: "white",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" },
+                }}
+              >
+                Login
+              </Button>
+            ) : (
               <Tooltip title="Logout">
                 <IconButton
                   onClick={handleLogout}
                   sx={{
                     color: "white",
                     backgroundColor: "rgba(255,255,255,0.15)",
-                    "&:hover": {
-                      backgroundColor: "rgba(255,255,255,0.3)",
-                    },
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" },
                   }}
                 >
                   <LogoutIcon />
