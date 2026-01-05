@@ -4,10 +4,10 @@ from app.predict_single_student import get_student_risk
 from app.rl.rl_inference import load_rl_agent
 from app.rl.state_builder import build_state
 
-
 # ======================================================
 # CONFIG
 # ======================================================
+
 DATASET_PATH = "app/data/dataset.csv"
 SEQ_LEN = 10
 MAX_STEPS = 5
@@ -20,39 +20,43 @@ ACTIONS = {
     4: "ESCALATE_PEER_CHEER"
 }
 
+# ======================================================
+# LOAD RL AGENT (ONCE)
+# ======================================================
 
-# ======================================================
-# LOAD RL AGENT
-# ======================================================
 rl_agent = load_rl_agent()
 
+# ======================================================
+# MULTI-WEEK SIMULATION (RETURN TRAJECTORY)
+# ======================================================
 
-# ======================================================
-# MULTI-WEEK SIMULATION
-# ======================================================
 def simulate_student_multiweek(student_id: str):
+    """
+    Simulates adaptive GRU → RL interventions over multiple weeks
+    Returns full intervention trajectory (no file writes)
+    """
 
     df = pd.read_csv(DATASET_PATH)
-    df = df.sort_values(["student_id", "week_start_date"]).reset_index(drop=True)
+    df = df.sort_values(
+        ["student_id", "week_start_date"]
+    ).reset_index(drop=True)
 
     student_df = df[df["student_id"] == student_id].reset_index(drop=True)
 
     if len(student_df) < SEQ_LEN:
-        print(f"⚠️ Student {student_id} skipped (needs at least {SEQ_LEN} weeks)")
-        return
-
-    print("\n===================================================")
-    print(f"📈 MULTI-STEP GRU → RL SIMULATION | Student: {student_id}")
-    print("===================================================\n")
+        raise ValueError(
+            f"Student {student_id} requires at least {SEQ_LEN} weeks of data"
+        )
 
     trajectory = []
 
-    # Use last week as current context
+    # Use most recent week as current context
     current_row = student_df.iloc[-1].copy()
 
     # --------------------------------------------------
-    # 1️⃣ RUN GRU (AUTHORITATIVE)
+    # 1️⃣ AUTHORITATIVE GRU RISK
     # --------------------------------------------------
+
     gru_raw = get_student_risk(
         student_id=student_id,
         dataset_path=DATASET_PATH,
@@ -60,8 +64,7 @@ def simulate_student_multiweek(student_id: str):
     )
 
     if gru_raw["risk_level"] is None:
-        print("❌ GRU could not compute risk")
-        return
+        raise RuntimeError("GRU could not compute risk")
 
     gru_state = {
         "risk": gru_raw["risk_level"],
@@ -72,8 +75,9 @@ def simulate_student_multiweek(student_id: str):
     academic_issue = int(len(gru_state["reasons"]) > 0)
 
     # --------------------------------------------------
-    # 2️⃣ ADAPTIVE RL LOOP
+    # 2️⃣ MULTI-WEEK ADAPTIVE RL LOOP
     # --------------------------------------------------
+
     for step in range(1, MAX_STEPS + 1):
 
         state = build_state(
@@ -82,22 +86,19 @@ def simulate_student_multiweek(student_id: str):
         )
 
         # ==================================================
-        # ACTION MASKING + ESCALATION LOGIC (FINAL)
+        # FINAL ACTION SELECTION (RULE + RL)
         # ==================================================
 
-        # ---------- LOW RISK ----------
         if gru_risk == "LOW":
             action_name = "DO_NOTHING"
 
-        # ---------- NORMAL RISK ----------
         elif gru_risk == "NORMAL":
             allowed = ["DO_NOTHING", "IN_APP_REMINDER"]
             action_id = rl_agent.choose_action(state)
             proposed = ACTIONS.get(action_id, "DO_NOTHING")
             action_name = proposed if proposed in allowed else "IN_APP_REMINDER"
 
-        # ---------- HIGH RISK ----------
-        else:
+        else:  # HIGH RISK
             if academic_issue == 1:
                 action_name = "MOTIVATIONAL_MESSAGE"
             elif current_row["alerts_sent"] == 0:
@@ -110,29 +111,31 @@ def simulate_student_multiweek(student_id: str):
         # --------------------------------------------------
         # LOG STEP
         # --------------------------------------------------
+
         trajectory.append({
             "step": step,
             "gru_risk": gru_risk,
             "rl_action": action_name,
-            "days_since_last_login": current_row["days_since_last_login"],
-            "alerts_sent": current_row["alerts_sent"],
-            "alerts_responded": current_row["alerts_responded"],
-            "engagement_score": current_row.get("engagement_score"),
-            "academic_reasons": ", ".join(gru_state["reasons"])
+            "days_since_last_login": int(current_row["days_since_last_login"]),
+            "alerts_sent": int(current_row["alerts_sent"]),
+            "alerts_responded": int(current_row["alerts_responded"]),
+            "engagement_score": round(
+                float(current_row.get("engagement_score", 1.5)), 2
+            ),
+            "academic_reasons": gru_state["reasons"]
         })
 
         # --------------------------------------------------
         # STOP CONDITIONS
         # --------------------------------------------------
-        if gru_risk == "LOW":
-            break
 
-        if action_name == "ESCALATE_PEER_CHEER":
+        if gru_risk == "LOW" or action_name == "ESCALATE_PEER_CHEER":
             break
 
         # --------------------------------------------------
         # SIMULATED EFFECT OF ACTION
         # --------------------------------------------------
+
         if action_name != "DO_NOTHING":
             current_row["alerts_sent"] += 1
 
@@ -143,12 +146,14 @@ def simulate_student_multiweek(student_id: str):
             )
 
         current_row["engagement_score"] = min(
-            3.0, current_row.get("engagement_score", 1.5) + 0.4
+            3.0,
+            float(current_row.get("engagement_score", 1.5)) + 0.4
         )
 
         # --------------------------------------------------
         # SIMULATED RISK TRANSITION
         # --------------------------------------------------
+
         if step >= 2 and gru_risk == "HIGH":
             gru_risk = "NORMAL"
             gru_state["risk"] = "NORMAL"
@@ -159,24 +164,19 @@ def simulate_student_multiweek(student_id: str):
             gru_risk = "LOW"
             gru_state["risk"] = "LOW"
 
-    # ======================================================
-    # OUTPUT
-    # ======================================================
-    result_df = pd.DataFrame(trajectory)
-
-    print("📊 RL ADAPTIVE TRAJECTORY")
-    print("-----------------------------------")
-    print(result_df)
-
-    out_path = f"app/rl/trajectory_{student_id}.csv"
-    result_df.to_csv(out_path, index=False)
-    print(f"\n📁 Saved trajectory to {out_path}\n")
-
+    return {
+        "student_id": student_id,
+        "trajectory": trajectory
+    }
 
 # ======================================================
-# CLI ENTRY POINT
+# OPTIONAL CLI TESTING
 # ======================================================
+
 if __name__ == "__main__":
-    print("🚀 RL Multi-week Simulation Started")
-    student_id = input("Enter student ID: ").strip()
-    simulate_student_multiweek(student_id)
+    sid = input("Enter student ID: ").strip()
+    result = simulate_student_multiweek(sid)
+
+    print("\n📊 ADAPTIVE INTERVENTION TRAJECTORY\n")
+    for row in result["trajectory"]:
+        print(row)

@@ -19,3 +19,27 @@
 // exports.predictRisk = predictRisk;
 // exports.predictRecommendation = predictRecommendation;
 // exports.api = require("./api").api;
+
+
+const {
+  submitChatFeedback,
+  getChatFeedbackStats,
+  listChatFeedback,
+  deleteChatFeedback,
+} = require("./http/chatFeedbackController");
+const {
+  createAnnouncement,
+  getAnnouncements,
+  updateAnnouncement,
+  deleteAnnouncement,
+} = require("./http/announcementController");
+
+
+exports.createAnnouncement = createAnnouncement;
+exports.getAnnouncements = getAnnouncements;
+exports.updateAnnouncement = updateAnnouncement;
+exports.deleteAnnouncement = deleteAnnouncement;
+exports.submitChatFeedback = submitChatFeedback;
+exports.getChatFeedbackStats = getChatFeedbackStats;
+exports.listChatFeedback = listChatFeedback;
+exports.deleteChatFeedback = deleteChatFeedback;
