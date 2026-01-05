@@ -1,7 +1,8 @@
 import joblib
 from collections import defaultdict
 
-model = joblib.load("app/models/db_struggle_model.pkl")
+# Load the trained struggle model from the models folder
+model = joblib.load("app/models/gb_struggle_model.pkl")
 
 def predict_struggle(data):
     lesson_map = defaultdict(list)
