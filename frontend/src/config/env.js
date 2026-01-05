@@ -25,25 +25,78 @@ const SUBMIT_QUIZ_URL =
 
 const GET_QUIZZES_URL =
   import.meta.env.VITE_GET_QUIZZES_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getAllQuizzes";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizzes";
 
 const GET_QUIZ_BY_ID_URL =
   import.meta.env.VITE_GET_QUIZ_BY_ID_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/fetchQuizByUser";
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizById";
 
-const GET_QUIZ_BY_LEVEL_URL =
-  import.meta.env.GET_QUIZ_BY_LEVEL_URL ||
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getQuizByLevel";
+const CHECK_LEVEL_URL =
+  import.meta.env.VITE_CHECK_LEVEL_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/checkLevelUnlock";
 
 const GET_USER_LEVEL_URL =
   import.meta.env.VITE_GET_USER_LEVEL_URL ||
   "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getUserLevel";
+
+// Announcements
+const CREATE_ANNOUNCEMENT_URL =
+  import.meta.env.VITE_CREATE_ANNOUNCEMENT_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/createAnnouncement";
+
+const GET_ANNOUNCEMENTS_URL =
+  import.meta.env.VITE_GET_ANNOUNCEMENTS_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getAnnouncements";
+
+const UPDATE_ANNOUNCEMENT_URL =
+  import.meta.env.VITE_UPDATE_ANNOUNCEMENT_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/updateAnnouncement";
+
+const DELETE_ANNOUNCEMENT_URL =
+  import.meta.env.VITE_DELETE_ANNOUNCEMENT_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/deleteAnnouncement";
+
+// Chatbot feedback
+const SUBMIT_CHAT_FEEDBACK_URL =
+  import.meta.env.VITE_SUBMIT_CHAT_FEEDBACK_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/submitChatFeedback";
+
+const GET_CHAT_FEEDBACK_STATS_URL =
+  import.meta.env.VITE_GET_CHAT_FEEDBACK_STATS_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/getChatFeedbackStats";
+
+const LIST_CHAT_FEEDBACK_URL =
+  import.meta.env.VITE_LIST_CHAT_FEEDBACK_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/listChatFeedback";
+
+const DELETE_CHAT_FEEDBACK_URL =
+  import.meta.env.VITE_DELETE_CHAT_FEEDBACK_URL ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/deleteChatFeedback";
+
+// Direct ML service endpoints (local FastAPI)
+const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
+
+const ML_UPLOAD_URL =
+  import.meta.env.VITE_ML_UPLOAD_URL || `${ML_BASE_URL}/upload_pdf`;
+
+const ML_CHAT_URL = import.meta.env.VITE_ML_CHAT_URL || `${ML_BASE_URL}/chat`;
+
+const ML_FEEDBACK_URL =
+  import.meta.env.VITE_ML_FEEDBACK_URL || `${ML_BASE_URL}/feedback`;
+
+const ML_LIST_DOCS_URL =
+  import.meta.env.VITE_ML_LIST_DOCS_URL || `${ML_BASE_URL}/documents`;
 
 export const appConfig = {
   ENV,
 
   // ML
   PREDICT_RISK_URL,
+  ML_BASE_URL,
+  ML_UPLOAD_URL,
+  ML_CHAT_URL,
+  ML_FEEDBACK_URL,
+  ML_LIST_DOCS_URL,
   PREDICT_RECOMMENDATION_URL,
   PREDICT_STRUGGLE_URL,
 
@@ -52,6 +105,18 @@ export const appConfig = {
   SUBMIT_QUIZ_URL,
   GET_QUIZZES_URL,
   GET_QUIZ_BY_ID_URL,
-  GET_QUIZ_BY_LEVEL_URL,
+  CHECK_LEVEL_URL,
   GET_USER_LEVEL_URL,
+
+  // Announcements
+  CREATE_ANNOUNCEMENT_URL,
+  GET_ANNOUNCEMENTS_URL,
+  UPDATE_ANNOUNCEMENT_URL,
+  DELETE_ANNOUNCEMENT_URL,
+
+  // Chatbot feedback
+  SUBMIT_CHAT_FEEDBACK_URL,
+  GET_CHAT_FEEDBACK_STATS_URL,
+  LIST_CHAT_FEEDBACK_URL,
+  DELETE_CHAT_FEEDBACK_URL,
 };
