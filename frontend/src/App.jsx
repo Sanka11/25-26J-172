@@ -19,6 +19,7 @@ import LiveRiskDashboard from "./pages/LiveRiskDashboard";
 import StudentRiskTimeline from "./pages/StudentRiskTimeline";
 import UserAnnouncements from "./pages/UserAnnouncements";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import Login from "./pages/Login";
 
 /* ================= GRU + RL ================= */
 import GRUMain from "./pages/GRUMain";
@@ -165,6 +166,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Login (optional) */}
+        <Route path="/login" element={<Login />} />
+
         {/* Standalone ML routes */}
         <Route path="/gru" element={<GRUMain />} />
         <Route path="/gru/search" element={<SearchRisk />} />
