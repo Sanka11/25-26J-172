@@ -20,10 +20,6 @@ SMALL_TALK_PATTERNS = [
      "You're welcome! If you have more questions about the LMS or academic integrity, feel free to ask."),
 ]
 
-# If nothing in the vector store is close enough to the question,
-# skip the LLM entirely and give a clear LMS-focused message.
-IRRELEVANCE_DISTANCE_THRESHOLD = 1.5
-
 
 def build_prompt(question: str, retrieved_docs: list):
     # retrieved_docs: list of documents and metadatas
@@ -61,22 +57,7 @@ def answer_question(question: str, top_k: int = 3):
             "sources": results,
         }
 
-    # 3) If retrieved chunks are all far away, treat as out-of-scope.
-    distances = results.get("distances") or []
-    first_row = distances[0] if distances else []
-    if first_row:
-        min_distance = min(first_row)
-        if min_distance > IRRELEVANCE_DISTANCE_THRESHOLD:
-            return {
-                "answer": (
-                    "That question doesn't seem related to the LMS policies or course "
-                    "documents I've been given. Please ask about plagiarism, assessments, "
-                    "academic integrity, or other LMS-related topics."
-                ),
-                "sources": results,
-            }
-
-    # 4) Build prompt and call the LLM as usual.
+    # 3) Build prompt and call the LLM as usual.
     prompt = build_prompt(question, results)
     answer = call_ollama(prompt)
     return {"answer": answer, "sources": results}

@@ -14,3 +14,6 @@ OLLAMA_MODEL = "llama3.1"
 # Local models (especially large ones on CPU) can take a while
 # to generate, so give them a generous timeout.
 OLLAMA_TIMEOUT = 300
+
+OLLAMA_MODEL = "llama3.2:1b"  # or another small model you actually have
+OLLAMA_TIMEOUT = 60           # optional: don’t wait 5 minutes
