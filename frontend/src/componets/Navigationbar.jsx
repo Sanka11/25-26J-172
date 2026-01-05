@@ -1,6 +1,7 @@
-// components/NavigationBar.jsx
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
 import {
   AppBar,
   Toolbar,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   Chip,
 } from "@mui/material";
+
 import {
   School as SchoolIcon,
   TrendingUp as RiskIcon,
@@ -26,74 +28,39 @@ import {
 
 const NavigationBar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth(); // ✅ optional auth
 
-  // Theme colors
   const theme = {
     primary: "#1A237E",
     primaryLight: "#E8EAF6",
-    primaryDark: "#0D47A1",
     secondary: "#283593",
-    accent: "#303F9F",
   };
 
-  // Navigation items
   const navItems = [
-    {
-      path: "/",
-      label: "Home",
-      icon: <HomeIcon />,
-      exact: true,
-    },
-    {
-      path: "/risk",
-      label: "Risk Demo",
-      icon: <RiskIcon />,
-    },
+    { path: "/", label: "Home", icon: <HomeIcon />, exact: true },
+    { path: "/risk", label: "Risk Demo", icon: <RiskIcon /> },
     {
       path: "/recommendation",
-      label: "Recommendation Demo",
+      label: "Recommendation",
       icon: <RecommendIcon />,
-    },
-    {
-      path: "/admin/announcements",
-      label: "Manage Announcements",
-      icon: <DashboardIcon />,
     },
     {
       path: "/announcements",
       label: "Announcements",
-      // show bell emoji as the icon
-      icon: <span style={{ fontSize: 18 }}>🔔</span>,
+      icon: <span>🔔</span>,
       iconOnly: true,
     },
-    {
-      path: "/create-quiz",
-      label: "Create Quiz",
-      icon: <CreateIcon />,
-    },
-    {
-      path: "/levels",
-      label: "Quizzes",
-      icon: <DashboardIcon />,
-    },
-    {
-      path: "/analytics",
-      label: "Analytics",
-      icon: <AnalyticsIcon />,
-    },
-    {
-      path: "/profile",
-      label: "Profile",
-      icon: <ProfileIcon />,
-    },
+    { path: "/create-quiz", label: "Create Quiz", icon: <CreateIcon /> },
+    { path: "/levels", label: "Quizzes", icon: <DashboardIcon /> },
   ];
 
-  // Check if current path matches nav item
-  const isActive = (path, exact = false) => {
-    if (exact) {
-      return location.pathname === path;
-    }
-    return location.pathname.startsWith(path);
+  const isActive = (path, exact = false) =>
+    exact ? location.pathname === path : location.pathname.startsWith(path);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
   };
 
   return (
@@ -103,80 +70,39 @@ const NavigationBar = () => {
       sx={{
         background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
         borderBottom: `2px solid ${theme.primaryLight}`,
-        boxShadow: "0 4px 20px rgba(26, 35, 126, 0.3)",
+        boxShadow: "0 4px 20px rgba(26,35,126,0.3)",
       }}
     >
       <Container maxWidth="xl">
-        <Toolbar
-          sx={{
-            px: { xs: 1, md: 2 },
-            py: 1,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {/* Left side - Logo and main navigation */}
+        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+          {/* LEFT */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
             {/* Logo */}
             <Box
+              component={Link}
+              to="/"
               sx={{
                 display: "flex",
                 alignItems: "center",
                 textDecoration: "none",
-                color: "inherit",
-                mr: 2,
+                color: "white",
               }}
-              component={Link}
-              to="/"
             >
-              <SchoolIcon
-                sx={{
-                  fontSize: 36,
-                  mr: 1.5,
-                  color: "white",
-                  filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
-                }}
-              />
+              <SchoolIcon sx={{ fontSize: 36, mr: 1 }} />
               <Box>
-                <Typography
-                  variant="h5"
-                  sx={{
-                    fontWeight: 800,
-                    color: "white",
-                    background: "linear-gradient(90deg, #FFFFFF, #E3F2FD)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    letterSpacing: "0.5px",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  QuizMaster Pro
+                <Typography fontWeight={800} variant="h6">
+                  AcademiGuard
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "rgba(255, 255, 255, 0.8)",
-                    fontSize: "0.7rem",
-                    fontWeight: 500,
-                    letterSpacing: "1px",
-                  }}
-                >
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
                   LEARNING PLATFORM
                 </Typography>
               </Box>
             </Box>
 
-            {/* Main Navigation Links */}
-            <Box
-              sx={{
-                display: { xs: "none", md: "flex" },
-                gap: 0.5,
-                alignItems: "center",
-              }}
-            >
-              {navItems.slice(0, 5).map((item) => (
-                <Tooltip key={item.path} title={item.label} arrow>
+            {/* Desktop Nav */}
+            <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
+              {navItems.map((item) => (
+                <Tooltip key={item.path} title={item.label}>
                   <Button
                     component={Link}
                     to={item.path}
@@ -185,114 +111,64 @@ const NavigationBar = () => {
                       color: isActive(item.path, item.exact)
                         ? "#FFD700"
                         : "white",
-                      fontWeight: isActive(item.path, item.exact) ? 700 : 600,
+                      fontWeight: isActive(item.path, item.exact) ? 700 : 500,
                       backgroundColor: isActive(item.path, item.exact)
-                        ? "rgba(255, 215, 0, 0.1)"
+                        ? "rgba(255,215,0,0.12)"
                         : "transparent",
-                      borderRadius: 2,
-                      px: 2,
-                      py: 1,
-                      minWidth: "auto",
-                      "&:hover": {
-                        backgroundColor: isActive(item.path, item.exact)
-                          ? "rgba(255, 215, 0, 0.2)"
-                          : "rgba(255, 255, 255, 0.15)",
-                        transform: "translateY(-2px)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                      },
-                      transition: "all 0.3s ease",
-                      border: isActive(item.path, item.exact)
-                        ? "1px solid rgba(255, 215, 0, 0.3)"
-                        : "1px solid transparent",
                     }}
                   >
-                    {!item.iconOnly && (
-                      <Typography variant="button" sx={{ fontSize: "0.8rem" }}>
-                        {item.label}
-                      </Typography>
-                    )}
+                    {!item.iconOnly && item.label}
                   </Button>
                 </Tooltip>
               ))}
             </Box>
           </Box>
 
-          {/* Right side - User info and additional actions */}
+          {/* RIGHT */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {/* User info */}
-            <Chip
-              icon={<ProfileIcon />}
-              label="Student 002"
-              sx={{
-                backgroundColor: "rgba(255, 255, 255, 0.2)",
-                color: "white",
-                fontWeight: 600,
-                "& .MuiChip-icon": {
+            {/* User badge (only if logged in) */}
+            {user && (
+              <Chip
+                icon={<ProfileIcon />}
+                label={`${user.role.toUpperCase()} • ${user.id}`}
+                sx={{
+                  backgroundColor: "rgba(255,255,255,0.2)",
                   color: "white",
-                },
-              }}
-            />
+                  fontWeight: 600,
+                }}
+              />
+            )}
 
-            {/* Additional navigation for mobile */}
-            <Box sx={{ display: { xs: "flex", md: "none" }, gap: 1 }}>
-              <Tooltip title="Menu">
+            {/* Login / Logout */}
+            {!user ? (
+              <Button
+                component={Link}
+                to="/login"
+                variant="outlined"
+                sx={{
+                  color: "white",
+                  borderColor: "white",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" },
+                }}
+              >
+                Login
+              </Button>
+            ) : (
+              <Tooltip title="Logout">
                 <IconButton
-                  component={Link}
-                  to="/levels"
+                  onClick={handleLogout}
                   sx={{
                     color: "white",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    "&:hover": {
-                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                    },
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" },
                   }}
                 >
-                  <DashboardIcon />
+                  <LogoutIcon />
                 </IconButton>
               </Tooltip>
-            </Box>
+            )}
           </Box>
         </Toolbar>
-
-        {/* Mobile Navigation Bar */}
-        <Box
-          sx={{
-            display: { xs: "flex", md: "none" },
-            justifyContent: "center",
-            py: 1,
-            borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-            backgroundColor: "rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <Box sx={{ display: "flex", gap: 1, overflowX: "auto", px: 1 }}>
-            {navItems.slice(1, 5).map((item) => (
-              <Chip
-                key={item.path}
-                icon={item.icon}
-                label={item.label}
-                component={Link}
-                to={item.path}
-                clickable
-                sx={{
-                  backgroundColor: isActive(item.path)
-                    ? "rgba(255, 215, 0, 0.2)"
-                    : "rgba(255, 255, 255, 0.1)",
-                  color: isActive(item.path) ? "#FFD700" : "white",
-                  fontWeight: 600,
-                  "& .MuiChip-icon": {
-                    color: isActive(item.path) ? "#FFD700" : "white",
-                  },
-                  "&:hover": {
-                    backgroundColor: isActive(item.path)
-                      ? "rgba(255, 215, 0, 0.3)"
-                      : "rgba(255, 255, 255, 0.2)",
-                  },
-                }}
-                size="small"
-              />
-            ))}
-          </Box>
-        </Box>
       </Container>
     </AppBar>
   );
