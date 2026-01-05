@@ -101,3 +101,8 @@ frontend/.cache/
 # -------------------------------
 coverage/
 *.lcov
+
+# -------------------------------
+# Firebase Admin Key
+# -------------------------------
+backend/functions/serviceAccountKey.json
