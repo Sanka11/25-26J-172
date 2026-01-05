@@ -27,7 +27,7 @@ import SearchRisk from "./pages/SearchRisk";
 import AllRisks from "./pages/AllRisks";
 import RLDecision from "./pages/RLDecision";
 import RLDemo from "./pages/RLDemo";
-import PeerStudentDashboard  from "./pages/PeerDashBoard";
+import PeerStudentDashboard from "./pages/PeerDashBoard";
 import HighRiskInterventionDashboard from "./pages/HumanSupport";
 
 /* ================= Components ================= */
@@ -39,7 +39,6 @@ import GlobalReminders from "./componets/GlobalReminders";
    ====================================================== */
 function AppLayout() {
   const [view, setView] = useState("risk");
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-900 flex">
@@ -85,22 +84,6 @@ function AppLayout() {
         {view === "risk" && <RiskDemo />}
         {view === "upload" && <PdfUpload />}
       </div>
-
-      {/* Chat */}
-      {!isChatOpen && (
-        <button
-          onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-5 right-5 bg-blue-600 text-white px-4 py-2 rounded-full"
-        >
-          Ask AcademiGuard
-        </button>
-      )}
-
-      {isChatOpen && (
-        <div className="fixed bottom-5 right-5 w-[90vw] max-w-md">
-          <Chat onClose={() => setIsChatOpen(false)} />
-        </div>
-      )}
     </div>
   );
 }
@@ -110,6 +93,7 @@ function AppLayout() {
    ====================================================== */
 function MainShell() {
   const navigate = useNavigate();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
     <>
@@ -157,6 +141,25 @@ function MainShell() {
           }
         />
       </Routes>
+
+      {/* Global floating chatbot, visible on all main pages */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        >
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[11px] font-bold">
+            AI
+          </span>
+          <span>Ask AcademiGuard</span>
+        </button>
+      )}
+
+      {isChatOpen && (
+        <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-[92vw] max-w-md">
+          <Chat onClose={() => setIsChatOpen(false)} />
+        </div>
+      )}
     </>
   );
 }
