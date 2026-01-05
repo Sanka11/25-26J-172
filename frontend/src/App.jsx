@@ -15,7 +15,9 @@ import Levels from "./pages/Levels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import NavigationBar from "./componets/Navigationbar";
+
 import LiveRiskDashboard from "./pages/LiveRiskDashboard";
+import StudentRiskTimeline from "./pages/StudentRiskTimeline";
 
 /* ================= GRU + RL MODULE PAGES ================= */
 import GRUMain from "./pages/GRUMain";
@@ -146,6 +148,15 @@ function App() {
                         </h1>
                         <RiskDemo />
                       </div>
+                    </div>
+                  }
+                />
+
+                <Route
+                  path="/student-risk"
+                  element={
+                    <div className="p-6 bg-slate-100 min-h-screen">
+                      <StudentRiskTimeline studentId="S1000" />
                     </div>
                   }
                 />
