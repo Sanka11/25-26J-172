@@ -5,8 +5,10 @@ import {
   Route,
   Link,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
+/* ================= Pages ================= */
 import RiskDemo from "./pages/RiskDemo";
 import RecommendationDemo from "./pages/RecommendationDemo";
 import CreateQuiz from "./pages/CreateQuiz";
@@ -14,9 +16,11 @@ import TakeQuiz from "./pages/TakeQuiz";
 import Levels from "./pages/Levels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
-import NavigationBar from "./componets/Navigationbar";
+import LiveRiskDashboard from "./pages/LiveRiskDashboard";
+import UserAnnouncements from "./pages/UserAnnouncements";
+import AdminAnnouncements from "./pages/AdminAnnouncements";
 
-/* ================= GRU + RL MODULE PAGES ================= */
+/* ================= GRU + RL ================= */
 import GRUMain from "./pages/GRUMain";
 import SearchRisk from "./pages/SearchRisk";
 import AllRisks from "./pages/AllRisks";
@@ -25,70 +29,50 @@ import RLDemo from "./pages/RLDemo";
 import PeerStudentDashboard  from "./pages/PeerDashBoard";
 import HighRiskInterventionDashboard from "./pages/HumanSupport";
 
+/* ================= Components ================= */
+import NavigationBar from "./componets/Navigationbar";
+import GlobalReminders from "./componets/GlobalReminders";
 
-/* =========================================================
-   Route-aware layout
-   - Isolates GRU & RL pages
-   - Preserves existing application UI
-   ========================================================= */
+/* ======================================================
+   APP LAYOUT (Sidebar + Chat)
+   ====================================================== */
 function AppLayout() {
-  const location = useLocation();
-
-  // Existing state-based navigation
   const [view, setView] = useState("risk");
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  /* ---------------- Standalone ML routes ---------------- */
-  const standaloneRoutes = [
-    "/gru",
-    "/gru/search",
-    "/gru/all",
-    "/rl",
-    "/rl/demo", 
-    "/peer",
-    "/support",
-  ];
-
-  if (standaloneRoutes.includes(location.pathname)) {
-    return (
-      <Routes>
-        <Route path="/gru" element={<GRUMain />} />
-        <Route path="/gru/search" element={<SearchRisk />} />
-        <Route path="/gru/all" element={<AllRisks />} />
-        <Route path="/rl" element={<RLDecision />} />
-        <Route path="/rl/demo" element={<RLDemo />} />
-        <Route path="/peer" element={<PeerStudentDashboard />} />
-        <Route path="/support" element={<HighRiskInterventionDashboard />} />
-      </Routes>
-    );
-  }
-
-  /* ---------------- Main application layout ---------------- */
   return (
-    <div className="min-h-screen bg-slate-900 flex text-slate-900">
+    <div className="min-h-screen bg-slate-900 flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-950/95 text-slate-100 flex flex-col border-r border-slate-800/80">
-        <div className="px-5 py-4 border-b border-slate-800/80">
+      <aside className="w-64 bg-slate-950 text-slate-100 border-r border-slate-800">
+        <div className="px-5 py-4 border-b border-slate-800">
           <h1 className="text-sm font-semibold">AcademiGuard</h1>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-4 text-sm">
+        <nav className="p-4 space-y-2 text-sm">
           <button
             onClick={() => setView("risk")}
             className="w-full px-3 py-2 rounded bg-slate-800 text-white"
           >
             Risk Demo
           </button>
+
           <button
             onClick={() => setView("upload")}
             className="w-full px-3 py-2 rounded bg-slate-800 text-white"
           >
             Upload PDFs
           </button>
+
+          <button
+            onClick={() => (window.location.href = "/live-risk")}
+            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+          >
+            Live Risk
+          </button>
         </nav>
       </aside>
 
-      {/* Main Content */}
+      {/* Main content */}
       <div className="flex-1 bg-slate-100 p-6">
         {view === "risk" && <RiskDemo />}
         {view === "upload" && <PdfUpload />}
@@ -105,7 +89,7 @@ function AppLayout() {
       )}
 
       {isChatOpen && (
-        <div className="fixed bottom-5 right-5 w-[92vw] max-w-md">
+        <div className="fixed bottom-5 right-5 w-[90vw] max-w-md">
           <Chat onClose={() => setIsChatOpen(false)} />
         </div>
       )}
@@ -113,157 +97,71 @@ function AppLayout() {
   );
 }
 
-/* ================= ROOT ================= */
-function App() {
+/* ======================================================
+   MAIN SHELL (Navbar + Reminders)
+   ====================================================== */
+function MainShell() {
+  const navigate = useNavigate();
+
   return (
-    <BrowserRouter>
-      {/* Navigation Bar - Shows on all routes except standalone ML routes */}
+    <>
+      <NavigationBar />
+      <GlobalReminders onReminderClick={() => navigate("/announcements")} />
+
       <Routes>
-        {/* Standalone ML routes without NavigationBar */}
+        <Route path="/" element={<AppLayout />} />
+        <Route path="/risk" element={<RiskDemo />} />
+        <Route path="/live-risk" element={<LiveRiskDashboard />} />
+        <Route path="/recommendation" element={<RecommendationDemo />} />
+
+        <Route path="/create-quiz" element={<CreateQuiz />} />
+        <Route path="/levels" element={<Levels currentLevel={1} />} />
+        <Route path="/quiz/:level" element={<TakeQuiz />} />
+
+        <Route path="/upload" element={<PdfUpload />} />
+        <Route path="/chat" element={<Chat />} />
+
+        <Route path="/announcements" element={<UserAnnouncements />} />
+        <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+
+        {/* 404 */}
         <Route
-          path="/gru/*"
+          path="*"
           element={
-            <Routes>
-              <Route path="/" element={<GRUMain />} />
-              <Route path="/search" element={<SearchRisk />} />
-              <Route path="/all" element={<AllRisks />} />
-            </Routes>
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold">404</h1>
+                <Link to="/" className="text-blue-600 underline">
+                  Go Home
+                </Link>
+              </div>
+            </div>
           }
         />
+      </Routes>
+    </>
+  );
+}
+
+/* ======================================================
+   ROOT APP
+   ====================================================== */
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Standalone ML routes */}
+        <Route path="/gru" element={<GRUMain />} />
+        <Route path="/gru/search" element={<SearchRisk />} />
+        <Route path="/gru/all" element={<AllRisks />} />
         <Route path="/rl" element={<RLDecision />} />
         <Route path="/rl/demo" element={<RLDemo />} />
         <Route path="/peer" element={<PeerStudentDashboard />} />
-        <Route path="/human" element={<HighRiskInterventionDashboard />} />
+        <Route path="/support" element={<HighRiskInterventionDashboard />} />
 
-        {/* All other routes with NavigationBar */}
-        <Route
-          path="/*"
-          element={
-            <>
-              <NavigationBar />
-              <Routes>
-                {/* Dashboard/Home */}
-                <Route path="/" element={<AppLayout />} />
-
-                {/* Demo Routes */}
-                <Route
-                  path="/risk"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
-                          Risk Analysis Demo
-                        </h1>
-                        <RiskDemo />
-                      </div>
-                    </div>
-                  }
-                />
-
-                <Route
-                  path="/recommendation"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
-                          Recommendation Demo
-                        </h1>
-                        <RecommendationDemo />
-                      </div>
-                    </div>
-                  }
-                />
-
-                {/* Quiz Routes */}
-                <Route
-                  path="/create-quiz"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <CreateQuiz />
-                      </div>
-                    </div>
-                  }
-                />
-
-                <Route
-                  path="/levels"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <Levels currentLevel={1} />
-                      </div>
-                    </div>
-                  }
-                />
-
-                <Route
-                  path="/quiz/:level"
-                  element={
-                    <div className="min-h-screen bg-slate-100">
-                      <TakeQuiz />
-                    </div>
-                  }
-                />
-
-                {/* Additional Routes */}
-                <Route
-                  path="/upload"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
-                          PDF Upload
-                        </h1>
-                        <PdfUpload />
-                      </div>
-                    </div>
-                  }
-                />
-
-                <Route
-                  path="/chat"
-                  element={
-                    <div className="min-h-screen bg-slate-100 p-6">
-                      <div className="max-w-7xl mx-auto">
-                        <h1 className="text-3xl font-bold text-slate-800 mb-6">
-                          Chat Assistant
-                        </h1>
-                        <Chat />
-                      </div>
-                    </div>
-                  }
-                />
-
-                {/* Fallback */}
-                <Route
-                  path="*"
-                  element={
-                    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-4xl font-bold text-slate-800 mb-4">
-                          404 - Page Not Found
-                        </h1>
-                        <p className="text-slate-600 mb-8">
-                          The page you're looking for doesn't exist.
-                        </p>
-                        <Link
-                          to="/"
-                          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                        >
-                          Return to Dashboard
-                        </Link>
-                      </div>
-                    </div>
-                  }
-                />
-              </Routes>
-            </>
-          }
-        />
+        {/* Main app */}
+        <Route path="/*" element={<MainShell />} />
       </Routes>
     </BrowserRouter>
   );
 }
-
-export default App;
