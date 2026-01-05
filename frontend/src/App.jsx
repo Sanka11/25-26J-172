@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
   Link,
-  useLocation,
   useNavigate,
 } from "react-router-dom";
 
@@ -17,8 +16,10 @@ import Levels from "./pages/Levels";
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import LiveRiskDashboard from "./pages/LiveRiskDashboard";
+import StudentRiskTimeline from "./pages/StudentRiskTimeline";
 import UserAnnouncements from "./pages/UserAnnouncements";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import Login from "./pages/Login";
 
 /* ================= GRU + RL ================= */
 import GRUMain from "./pages/GRUMain";
@@ -49,24 +50,31 @@ function AppLayout() {
         <nav className="p-4 space-y-2 text-sm">
           <button
             onClick={() => setView("risk")}
-            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+            className="w-full px-3 py-2 rounded bg-slate-800"
           >
             Risk Demo
           </button>
 
           <button
             onClick={() => setView("upload")}
-            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+            className="w-full px-3 py-2 rounded bg-slate-800"
           >
             Upload PDFs
           </button>
 
-          <button
-            onClick={() => (window.location.href = "/live-risk")}
-            className="w-full px-3 py-2 rounded bg-slate-800 text-white"
+          <Link
+            to="/live-risk"
+            className="block text-center px-3 py-2 rounded bg-slate-800"
           >
             Live Risk
-          </button>
+          </Link>
+
+          <Link
+            to="/student-risk"
+            className="block text-center px-3 py-2 rounded bg-slate-800"
+          >
+            My Risk Timeline
+          </Link>
         </nav>
       </aside>
 
@@ -110,6 +118,16 @@ function MainShell() {
         <Route path="/" element={<AppLayout />} />
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/live-risk" element={<LiveRiskDashboard />} />
+
+        <Route
+          path="/student-risk"
+          element={
+            <div className="p-6 bg-slate-100 min-h-screen">
+              <StudentRiskTimeline studentId="S1000" />
+            </div>
+          }
+        />
+
         <Route path="/recommendation" element={<RecommendationDemo />} />
 
         <Route path="/create-quiz" element={<CreateQuiz />} />
@@ -148,6 +166,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Login (optional) */}
+        <Route path="/login" element={<Login />} />
+
         {/* Standalone ML routes */}
         <Route path="/gru" element={<GRUMain />} />
         <Route path="/gru/search" element={<SearchRisk />} />
@@ -155,7 +176,7 @@ export default function App() {
         <Route path="/rl" element={<RLDecision />} />
         <Route path="/rl/demo" element={<RLDemo />} />
 
-        {/* Main app */}
+        {/* Main application */}
         <Route path="/*" element={<MainShell />} />
       </Routes>
     </BrowserRouter>
