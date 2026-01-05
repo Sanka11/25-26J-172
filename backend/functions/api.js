@@ -23,8 +23,7 @@ app.get("/", (req, res) => {
 // -------------------------------
 // Explainable AI – Student Risk
 // -------------------------------
-// Endpoint:
-// GET /api/student-risk-explanation?studentId=XXXX
+// GET /api/student-risk-explanation?studentId=S1000
 const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
@@ -40,10 +39,16 @@ app.use("/api", disengagementRoutes);
 // ----------------------------------------------------
 // RL FEATURE ROUTES
 // ----------------------------------------------------
-// Endpoint examples:
-// /api/rl/decide/:studentId
 const rlRoutes = require("./features/rl/routes");
 app.use("/api/rl", rlRoutes);
+
+// ----------------------------------------------------
+// Temporal Risk History (Semester-wise)
+// ----------------------------------------------------
+const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
+
+// ✅ FIXED PATH
+app.get("/api/students/:studentId/risk-history", getStudentRiskHistory);
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function
