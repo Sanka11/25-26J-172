@@ -20,6 +20,9 @@ const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
 
+// Student risk explainability semester wise controller
+const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
+
 // Express API (RL, disengagement, etc.)
 exports.api = require("./api").api;
 
@@ -36,3 +39,4 @@ exports.predictRecommendation = predictRecommendation;
 
 // Export student risk explanation API
 exports.getStudentRiskExplanation = getStudentRiskExplanation;
+exports.getStudentRiskHistory = getStudentRiskHistory;
