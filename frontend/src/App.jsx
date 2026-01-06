@@ -50,13 +50,6 @@ function AppLayout() {
 
         <nav className="p-4 space-y-2 text-sm">
           <button
-            onClick={() => setView("risk")}
-            className="w-full px-3 py-2 rounded bg-slate-800"
-          >
-            Risk Demo
-          </button>
-
-          <button
             onClick={() => setView("upload")}
             className="w-full px-3 py-2 rounded bg-slate-800"
           >
