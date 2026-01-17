@@ -1,7 +1,3 @@
-// ================================
-// Firebase main entry (REQUIRED)
-// ================================
-
 // Quiz controllers
 const {
   createQuiz,
@@ -20,7 +16,7 @@ const {
   getStudentRiskExplanation,
 } = require("./src/http/studentRiskExplanation");
 
-// ✅ Student risk history (semester-wise temporal tracking)
+// Student risk history (temporal tracking)
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 
 // Announcement controllers
@@ -39,9 +35,7 @@ const {
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
 
-// -------------------------------
-// Express API (RL, disengagement, etc.)
-// -------------------------------
+// Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
 
 // -------------------------------
