@@ -6,11 +6,26 @@ const {
   getQuizByLevel,
   fetchQuizByUser,
 } = require("./src/http/quizController");
+const {
+  createSubject,
+  getAllSubjects,
+} = require("./src/http/subjectController");
+const {
+  enrollSubject,
+  getStudentEnrollment,
+} = require("./src/http/enrollmentController");
+const { enrollInternship } = require("./src/http/internshipController");
+const { generateStudentTodos } = require("./src/http/todoController");
 
+
+const {
+  generateWorkload,
+  getDailyWorkload,
+} = require("./src/http/workloadController");
 // ML controllers
 const { predictRisk } = require("./src/http/mlProxy");
-const { predictRecommendation } = require("./src/http/mlRecommendationProxy");
-
+const { careerReadinessProxy } = require("./src/http/mlRecommendationProxy");
+const { detectCognitiveLoad } = require("./src/http/mlCognitiveLoadProxy");
 // Student risk explainability controller
 const {
   getStudentRiskExplanation,
@@ -46,12 +61,24 @@ exports.submitQuiz = submitQuiz;
 exports.getAllQuizzes = getAllQuizzes;
 exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
+exports.generateWorkload = generateWorkload;
+exports.getDailyWorkload = getDailyWorkload;
+exports.createSubject = createSubject;
+exports.getAllSubjects = getAllSubjects;
+
+exports.enrollSubject = enrollSubject;
+exports.getStudentEnrollment = getStudentEnrollment;
+exports.enrollInternship = enrollInternship;
+exports.generateStudentTodos = generateStudentTodos;
+
+exports.careerReadinessProxy = careerReadinessProxy;
+exports.detectCognitiveLoad = detectCognitiveLoad;
 
 // -------------------------------
 // ML exports
 // -------------------------------
 exports.predictRisk = predictRisk;
-exports.predictRecommendation = predictRecommendation;
+
 
 // -------------------------------
 // Student risk APIs
