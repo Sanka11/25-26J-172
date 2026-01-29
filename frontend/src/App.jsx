@@ -9,7 +9,7 @@ import {
 
 /* ================= Pages ================= */
 import RiskDemo from "./pages/RiskDemo";
-import RecommendationDemo from "./pages/RecommendationDemo";
+import CareerRecommendation from "./pages/CareerRecommendation";
 import CreateQuiz from "./pages/CreateQuiz";
 import TakeQuiz from "./pages/TakeQuiz";
 import Levels from "./pages/Levels";
@@ -19,8 +19,13 @@ import LiveRiskDashboard from "./pages/LiveRiskDashboard";
 import StudentRiskTimeline from "./pages/StudentRiskTimeline";
 import UserAnnouncements from "./pages/UserAnnouncements";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import WorkloadDashboard from "./pages/StudentDashboard";
+import AddSubject from "./pages/AddSubject";
+import EnrollCourses from "./pages/EnrollCourses";
+import EnrollInternship from "./pages/EnrollInternship";
+import CareerReadiness from "./pages/CareerReadiness";
+import CognitiveLoad from "./pages/CognitiveLoad";
 import Login from "./pages/Login";
-
 /* ================= GRU + RL ================= */
 import GRUMain from "./pages/GRUMain";
 import SearchRisk from "./pages/SearchRisk";
@@ -97,7 +102,6 @@ function MainShell() {
         <Route path="/" element={<AppLayout />} />
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/live-risk" element={<LiveRiskDashboard />} />
-
         <Route
           path="/student-risk"
           element={
@@ -106,16 +110,20 @@ function MainShell() {
             </div>
           }
         />
-
-        <Route path="/recommendation" element={<RecommendationDemo />} />
-
+        <Route path="/recommendation" element={<CareerRecommendation />} />
         <Route path="/create-quiz" element={<CreateQuiz />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
+        <Route path="/WorkloadDashboard" element={<WorkloadDashboard />} />
+        <Route path="/enroll-subject" element={<EnrollCourses />} />
+        <Route path="/enroll-internship" element={<EnrollInternship />} />
+        <Route path="/careerReadiness" element={<CareerReadiness />} />
+        <Route path="/cognitiveLoad" element={<CognitiveLoad />} />
 
+        {/* Lecturer / Admin */}
+        <Route path="/add-subject" element={<AddSubject />} />
         <Route path="/upload" element={<PdfUpload />} />
         <Route path="/chat" element={<Chat />} />
-
         <Route path="/announcements" element={<UserAnnouncements />} />
         <Route path="/admin/announcements" element={<AdminAnnouncements />} />
 
