@@ -39,7 +39,7 @@ const NavigationBar = () => {
 
   const navItems = [
     { path: "/", label: "Home", icon: <HomeIcon />, exact: true },
-    { path: "/risk", label: "Risk Demo", icon: <RiskIcon /> },
+    { path: "/risk", label: "Risk Dashboard", icon: <RiskIcon /> },
     {
       path: "/recommendation",
       label: "Recommendation",

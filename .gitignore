@@ -50,7 +50,7 @@ ml-service/venv/
 *.pyd
 
 # ML model files (optional)
-*.pkl
+
 *.joblib
 # Chroma / Vector DB files
 ml-service/chroma_db/
