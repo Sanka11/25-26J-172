@@ -6,7 +6,7 @@ const { ML_STRUGGLE_URL } = require("../config");
 const db = admin.firestore();
 
 // 🔧 CONFIG
-const QUIZ_PASS_THRESHOLD = 0.5; // for level unlock
+const QUIZ_PASS_THRESHOLD = 0.6; // for level unlock
 const STRUGGLE_THRESHOLD = 0.6; // for struggling lessons
 
 /* =====================================================

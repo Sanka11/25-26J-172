@@ -1,22 +1,46 @@
 const functions = require("firebase-functions");
 const axios = require("axios");
-const { RECOMMENDATION_SERVICE_URL } = require("../config");
+const { ML_CAREER_RECOMMEND_URL } = require("../config");
 
-const predictRecommendation = functions.https.onRequest(async (req, res) => {
+/**
+ * Career Readiness Recommendation (LLM-based)
+ * Firebase Function → ML Service (FastAPI + Ollama)
+ */
+exports.careerReadinessProxy = functions.https.onRequest(async (req, res) => {
   try {
-    if (req.method !== "POST") {
-      return res.status(405).send("Method Not Allowed");
+    const { user_skills, job_title } = req.body;
+
+    // 🔹 Validate input
+    if (!user_skills || !job_title) {
+      return res.status(400).json({
+        error: "user_skills and job_title are required",
+      });
     }
 
-    const payload = req.body;
+    // 🔹 Call ML-service (FastAPI)
+    const mlResponse = await axios.post(
+      ML_CAREER_RECOMMEND_URL,
+      {
+        user_skills,
+        job_title,
+      },
+      {
+        timeout: 60000,
+      },
+    );
 
-    const response = await axios.post(RECOMMENDATION_SERVICE_URL, payload);
-
-    return res.status(200).json(response.data);
+    // 🔹 Return ML response
+    return res.status(200).json({
+      service: "Career Readiness Recommendation",
+      via: "Firebase Function → ML-Service (FastAPI + Ollama)",
+      ...mlResponse.data,
+    });
   } catch (error) {
-    console.error("Recommendation ML error:", error.message);
-    return res.status(500).json({ error: "Recommendation ML service error" });
+    console.error("Career Recommendation Error:", error.message);
+
+    return res.status(500).json({
+      error: "ML-service unavailable",
+      details: error.message,
+    });
   }
 });
-
-module.exports = { predictRecommendation };

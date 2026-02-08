@@ -51,6 +51,13 @@ const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 app.get("/api/students/:studentId/risk-history", getStudentRiskHistory);
 
 // ----------------------------------------------------
+// Risk real-time
+// ----------------------------------------------------
+const { updateStudentMetrics } = require("./src/http/realtimeRiskController");
+
+app.post("/api/student/update-metrics", updateStudentMetrics);
+
+// ----------------------------------------------------
 // Export Firebase HTTPS function
 // ----------------------------------------------------
 exports.api = onRequest(app);

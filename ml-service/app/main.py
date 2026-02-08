@@ -14,11 +14,15 @@ from app.schemas.risk import RiskRequest, RiskResponse
 from app.schemas.struggle import StruggleRequest, StruggleResponse
 from app.services.struggle_service import predict_struggle
 
-
+from app.schemas.cognitive_load_schema import CognitiveLoadRequest
+from app.services.cognitive_load_service import analyze_cognitive_overlap
 # RECOMMENDATION SCHEMAS
-from app.schemas.recommendation_schemas import (
-    RecommendationRequest,
-    RecommendationResponse,
+from app.schemas.career_readiness_schema import (
+    CareerReadinessRequest,
+    CareerReadinessResponse
+)
+from app.services.career_readiness_service import (
+    career_readiness_assessment
 )
 
 # ----------------------------
@@ -26,7 +30,7 @@ from app.schemas.recommendation_schemas import (
 # ----------------------------
 from app.services.risk_service import predict_risk_score
 from app.services.risk_service import predict_risk_score
-from app.services.recommendation_service import generate_recommendations
+
 
 # ----------------------------
 # RAG MODULES
@@ -65,13 +69,12 @@ def predict_risk(payload: RiskRequest):
     return RiskResponse(risk_score=score)
 
 
-@app.post("/recommend", response_model=RecommendationResponse)
-def recommend(payload: RecommendationRequest):
-    # If your service already returns {"recommendations": [...]}, this is OK.
-    # If it returns a list, wrap it in RecommendationResponse(...)
-    return generate_recommendations(payload)
-
-
+@app.post("/career-readiness", response_model=CareerReadinessResponse)
+def assess_career_readiness(request: CareerReadinessRequest):
+    return career_readiness_assessment(
+        request.user_skills,
+        request.job_title
+    )
 
 @app.post("/struggle", response_model=StruggleResponse)
 def struggle(request: StruggleRequest):
@@ -80,6 +83,9 @@ def struggle(request: StruggleRequest):
         **predict_struggle(request)
     }
 
+@app.post("/cognitive-load")
+def detect_cognitive_load(request: CognitiveLoadRequest):
+    return analyze_cognitive_overlap(request.subjects)
 
 # -----------------------------------------------------------
 # NEW ENDPOINT: UPLOAD PDF → AUTO EMBED → VECTOR DB
