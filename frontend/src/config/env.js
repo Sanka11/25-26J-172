@@ -45,6 +45,12 @@ const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
 const ML_LIST_DOCS_URL = `${ML_BASE_URL}/documents`;
 
+
+// Academic APIs
+const GET_ALL_DEADLINES_URL = `${BASE_URL}/getAllDeadlines`;
+const GET_MODULE_INFO_URL = `${BASE_URL}/getModuleInfo`;
+const GET_UPCOMING_DEADLINES_URL = `${BASE_URL}/getUpcomingDeadlines`;
+
 export const appConfig = {
   ENV,
 
@@ -85,4 +91,5 @@ export const appConfig = {
   GET_CHAT_FEEDBACK_STATS_URL,
   LIST_CHAT_FEEDBACK_URL,
   DELETE_CHAT_FEEDBACK_URL,
+
 };
