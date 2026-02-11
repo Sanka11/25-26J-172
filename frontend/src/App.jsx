@@ -7,6 +7,10 @@ import {
   useNavigate,
 } from "react-router-dom";
 
+/* ================= AUTH ================= */
+import ProtectedRoute from "./componets/ProtectedRoute";
+import { ROLES } from "./context/AuthContext";
+
 /* ================= Pages ================= */
 import RiskDemo from "./pages/RiskDemo";
 import CareerRecommendation from "./pages/CareerRecommendation";
@@ -26,6 +30,8 @@ import EnrollInternship from "./pages/EnrollInternship";
 import CareerReadiness from "./pages/CareerReadiness";
 import CognitiveLoad from "./pages/CognitiveLoad";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+
 /* ================= GRU + RL ================= */
 import GRUMain from "./pages/GRUMain";
 import SearchRisk from "./pages/SearchRisk";
@@ -47,7 +53,6 @@ function AppLayout() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex">
-      {/* Sidebar */}
       <aside className="w-64 bg-slate-950 text-slate-100 border-r border-slate-800">
         <div className="px-5 py-4 border-b border-slate-800">
           <h1 className="text-sm font-semibold">AcademiGuard</h1>
@@ -77,7 +82,6 @@ function AppLayout() {
         </nav>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 bg-slate-100 p-6">
         {view === "risk" && <RiskDemo />}
         {view === "upload" && <PdfUpload />}
@@ -87,7 +91,7 @@ function AppLayout() {
 }
 
 /* ======================================================
-   MAIN SHELL (Navbar + Reminders)
+   MAIN SHELL
    ====================================================== */
 function MainShell() {
   const navigate = useNavigate();
@@ -100,16 +104,51 @@ function MainShell() {
 
       <Routes>
         <Route path="/" element={<AppLayout />} />
-        <Route path="/risk" element={<RiskDemo />} />
-        <Route path="/live-risk" element={<LiveRiskDashboard />} />
+
+        {/* STUDENT ONLY */}
         <Route
           path="/student-risk"
           element={
-            <div className="p-6 bg-slate-100 min-h-screen">
-              <StudentRiskTimeline studentId="S1000" />
-            </div>
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT]}>
+              <div className="p-6 bg-slate-100 min-h-screen">
+                <StudentRiskTimeline studentId="S1000" />
+              </div>
+            </ProtectedRoute>
           }
         />
+
+        {/* LECTURER ONLY */}
+        <Route
+          path="/live-risk"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.LECTURER]}>
+              <LiveRiskDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* STAFF */}
+        <Route
+          path="/upload"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.STAFF]}>
+              <PdfUpload />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ADMIN */}
+        <Route
+          path="/admin/announcements"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <AdminAnnouncements />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* SHARED ROUTES */}
+        <Route path="/risk" element={<RiskDemo />} />
         <Route path="/recommendation" element={<CareerRecommendation />} />
         <Route path="/create-quiz" element={<CreateQuiz />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
@@ -119,13 +158,8 @@ function MainShell() {
         <Route path="/enroll-internship" element={<EnrollInternship />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
         <Route path="/cognitiveLoad" element={<CognitiveLoad />} />
-
-        {/* Lecturer / Admin */}
-        <Route path="/add-subject" element={<AddSubject />} />
-        <Route path="/upload" element={<PdfUpload />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />
-        <Route path="/admin/announcements" element={<AdminAnnouncements />} />
 
         {/* 404 */}
         <Route
@@ -143,21 +177,17 @@ function MainShell() {
         />
       </Routes>
 
-      {/* Global floating chatbot, visible on all main pages */}
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="fixed bottom-5 right-5 z-50 rounded-full bg-blue-600 px-4 py-2 text-white shadow-lg hover:bg-blue-700"
         >
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[11px] font-bold">
-            AI
-          </span>
-          <span>Ask AcademiGuard</span>
+          Ask AcademiGuard
         </button>
       )}
 
       {isChatOpen && (
-        <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 w-[92vw] max-w-md">
+        <div className="fixed bottom-5 right-5 z-50 w-[92vw] max-w-md">
           <Chat onClose={() => setIsChatOpen(false)} />
         </div>
       )}
@@ -172,20 +202,89 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login (optional) */}
+        {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
 
-        {/* Standalone ML routes */}
-        <Route path="/gru" element={<GRUMain />} />
-        <Route path="/gru/search" element={<SearchRisk />} />
-        <Route path="/gru/all" element={<AllRisks />} />
-        <Route path="/rl" element={<RLDecision />} />
-        <Route path="/rl/demo" element={<RLDemo />} />
-        <Route path="/peer" element={<PeerStudentDashboard />} />
-        <Route path="/support" element={<HighRiskInterventionDashboard />} />
+        {/* SUPER ADMIN ONLY ML ROUTES */}
+        <Route
+          path="/gru"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <GRUMain />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gru/search"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <SearchRisk />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gru/all"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <AllRisks />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rl"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <RLDecision />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rl/demo"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <RLDemo />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Main application */}
-        <Route path="/*" element={<MainShell />} />
+        {/* Lecturer */}
+        <Route
+          path="/peer"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.LECTURER]}>
+              <PeerStudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin */}
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+              <HighRiskInterventionDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Main Application */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute
+              allowedRoles={[
+                ROLES.STUDENT,
+                ROLES.LECTURER,
+                ROLES.STAFF,
+                ROLES.ADMIN,
+                ROLES.SUPER_ADMIN,
+              ]}
+            >
+              <MainShell />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
