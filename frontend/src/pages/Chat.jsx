@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function Chat({ onClose }) {
   const [question, setQuestion] = useState("");
@@ -17,6 +21,7 @@ export default function Chat({ onClose }) {
   const [typingState, setTypingState] = useState(null); // for word-by-word animation
   const [voiceListening, setVoiceListening] = useState(false);
   const [imageProcessing, setImageProcessing] = useState(false);
+  const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(null);
   const [feedbackComment, setFeedbackComment] = useState("");
@@ -27,6 +32,7 @@ export default function Chat({ onClose }) {
   const [statsLoading, setStatsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -83,7 +89,7 @@ export default function Chat({ onClose }) {
     } catch (err) {
       console.error(err);
       setError(
-        "Failed to get answer from chatbot. Make sure ML service is running and PDFs are uploaded."
+        "Failed to get answer from chatbot. Make sure ML service is running and PDFs are uploaded.",
       );
       setMessages((prev) => [
         ...prev,
@@ -124,8 +130,8 @@ export default function Chat({ onClose }) {
                 ...m,
                 text: segments.slice(0, index + 1).join(""),
               }
-            : m
-        )
+            : m,
+        ),
       );
 
       setTypingState(
@@ -133,7 +139,7 @@ export default function Chat({ onClose }) {
           prev && {
             ...prev,
             index: prev.index + 1,
-          }
+          },
       );
     }, 25); // faster word-by-word animation for snappier responses
 
@@ -183,11 +189,11 @@ export default function Chat({ onClose }) {
       const text = (data && data.text && data.text.trim()) || "";
       if (!text) {
         setError(
-          "Could not read any text from the image. Please try another image."
+          "Could not read any text from the image. Please try another image.",
         );
       } else {
         setQuestion((prev) =>
-          prev ? `${prev}\n\n[From image]\n${text}` : `[From image]\n${text}`
+          prev ? `${prev}\n\n[From image]\n${text}` : `[From image]\n${text}`,
         );
       }
     } catch (err) {
@@ -195,6 +201,41 @@ export default function Chat({ onClose }) {
       setError("Failed to process the image. Please try again.");
     } finally {
       setImageProcessing(false);
+    }
+  };
+
+  const handlePdfSelect = async (file) => {
+    if (!file) return;
+    setPdfProcessing(true);
+    setError("");
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+
+      // Extract text from all pages
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item) => item.str).join(" ");
+        fullText += pageText + "\n";
+      }
+
+      const text = fullText.trim();
+      if (!text) {
+        setError(
+          "Could not read any text from the PDF. Please try another PDF.",
+        );
+      } else {
+        setQuestion((prev) =>
+          prev ? `${prev}\n\n[From PDF]\n${text}` : `[From PDF]\n${text}`,
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to process the PDF. Please try again.");
+    } finally {
+      setPdfProcessing(false);
     }
   };
 
@@ -221,10 +262,10 @@ export default function Chat({ onClose }) {
       }
       const data = await res.json();
       setAvgRating(
-        typeof data.average_rating === "number" ? data.average_rating : null
+        typeof data.average_rating === "number" ? data.average_rating : null,
       );
       setRatingCount(
-        typeof data.total_ratings === "number" ? data.total_ratings : 0
+        typeof data.total_ratings === "number" ? data.total_ratings : 0,
       );
     } catch (err) {
       console.error("Failed to load feedback stats", err);
@@ -289,7 +330,7 @@ export default function Chat({ onClose }) {
     } catch (err) {
       console.error(err);
       setFeedbackStatus(
-        "Unable to send feedback right now. Please try again later."
+        "Unable to send feedback right now. Please try again later.",
       );
     } finally {
       setFeedbackLoading(false);
@@ -351,10 +392,10 @@ export default function Chat({ onClose }) {
               {statsLoading
                 ? "Loading rating…"
                 : ratingCount > 0 && avgRating != null
-                ? `Average: ${avgRating.toFixed(
-                    1
-                  )} / 5 (${ratingCount} ratings)`
-                : "No ratings yet"}
+                  ? `Average: ${avgRating.toFixed(
+                      1,
+                    )} / 5 (${ratingCount} ratings)`
+                  : "No ratings yet"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -508,6 +549,13 @@ export default function Chat({ onClose }) {
             >
               📷
             </button>
+            <button
+              type="button"
+              onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
+            >
+              📄
+            </button>
             <span className="ml-1 hidden md:inline">
               Powered by PDFs, voice, and images.
             </span>
@@ -534,9 +582,27 @@ export default function Chat({ onClose }) {
             }
           }}
         />
+        <input
+          ref={pdfInputRef}
+          type="file"
+          accept=".pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handlePdfSelect(file);
+              e.target.value = "";
+            }
+          }}
+        />
         {imageProcessing && (
           <p className="text-[10px] text-slate-400">
             Extracting text from image…
+          </p>
+        )}
+        {pdfProcessing && (
+          <p className="text-[10px] text-slate-400">
+            Extracting text from PDF…
           </p>
         )}
       </form>

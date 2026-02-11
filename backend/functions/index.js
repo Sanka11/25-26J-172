@@ -101,3 +101,15 @@ exports.submitChatFeedback = submitChatFeedback;
 exports.getChatFeedbackStats = getChatFeedbackStats;
 exports.listChatFeedback = listChatFeedback;
 exports.deleteChatFeedback = deleteChatFeedback;
+
+// academic data (deadlines)
+
+const {
+  getAllDeadlines,
+  getModuleInfo,
+  getUpcomingDeadlines,
+} = require("./src/http/academicDataController");
+
+exports.getAllDeadlines = getAllDeadlines;
+exports.getModuleInfo = getModuleInfo;
+exports.getUpcomingDeadlines = getUpcomingDeadlines;
