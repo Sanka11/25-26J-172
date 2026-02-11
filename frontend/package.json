@@ -17,7 +17,7 @@
     "@mui/styled-engine": "^7.3.6",
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
-    "firebase": "^12.7.0",
+    "firebase": "^12.9.0",
     "lucide-react": "^0.562.0",
     "pdfjs-dist": "^5.4.624",
     "react": "^19.2.0",

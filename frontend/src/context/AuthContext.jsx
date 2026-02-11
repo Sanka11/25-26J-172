@@ -1,32 +1,87 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { auth, db } from "../config/firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
+
+export const ROLES = {
+  STUDENT: "student",
+  LECTURER: "lecturer",
+  STAFF: "staff",
+  ADMIN: "admin",
+  SUPER_ADMIN: "super_admin",
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Restore session on refresh
+  // Listen for login state changes
   useEffect(() => {
-    const stored = localStorage.getItem("academiguard_user");
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const docRef = doc(db, "users", user.uid);
+        const snap = await getDoc(docRef);
+        setCurrentUser(user);
+        setUserData(snap.data());
+      } else {
+        setCurrentUser(null);
+        setUserData(null);
+      }
+      setLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
-  const login = ({ id, role }) => {
-    const userData = { id, role };
-    localStorage.setItem("academiguard_user", JSON.stringify(userData));
-    setUser(userData);
+  // Signup
+  const signup = async (formData) => {
+    const { email, password, firstName, lastName, contactNo, role } = formData;
+
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password,
+    );
+
+    await setDoc(doc(db, "users", userCredential.user.uid), {
+      firstName,
+      lastName,
+      contactNo,
+      email,
+      role,
+      createdAt: new Date(),
+    });
   };
 
-  const logout = () => {
-    localStorage.removeItem("academiguard_user");
-    setUser(null);
+  // Login
+  const login = async (email, password) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  // Logout
+  const logout = async () => {
+    await signOut(auth);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      {children}
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        userData,
+        signup,
+        login,
+        logout,
+      }}
+    >
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
