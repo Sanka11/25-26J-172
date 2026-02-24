@@ -7,30 +7,27 @@ import os
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+
+# RECOMMENDATION SCHEMAS & SERVICES
+from app.schemas.recommendation_schema import (
+    RecommendationRequest,
+    RecommendationResponse
+)
+from app.services.recommendation_service import predict_recommendations
+
 # ----------------------------
-# SCHEMAS (ABSOLUTE IMPORTS ONLY)
+# struggle SCHEMAS & service
 # ----------------------------
-from app.schemas.risk import RiskRequest, RiskResponse
 from app.schemas.struggle import StruggleRequest, StruggleResponse
 from app.services.struggle_service import predict_struggle
 
-from app.schemas.cognitive_load_schema import CognitiveLoadRequest
-from app.services.cognitive_load_service import analyze_cognitive_overlap
-# RECOMMENDATION SCHEMAS
-from app.schemas.career_readiness_schema import (
-    CareerReadinessRequest,
-    CareerReadinessResponse
-)
-from app.services.career_readiness_service import (
-    career_readiness_assessment
-)
 
 # ----------------------------
-# SERVICES
+# Risk SERVICES
 # ----------------------------
 from app.services.risk_service import predict_risk_score
 from app.services.risk_service import predict_risk_score
-
+from app.schemas.risk import RiskRequest, RiskResponse
 
 # ----------------------------
 # RAG MODULES
@@ -67,14 +64,15 @@ def health():
 def predict_risk(payload: RiskRequest):
     score = predict_risk_score(payload)
     return RiskResponse(risk_score=score)
+    
+@app.post("/recommendations", response_model=RecommendationResponse)
+def get_student_recommendations(request: RecommendationRequest):
+    """
+    Analyzes a batch of students, calculates their Recommendation Index using the ML Model (.pkl), 
+    and generates personalized academic/wellness advice via LLM (Ollama).
+    """
+    return predict_recommendations(request)
 
-
-@app.post("/career-readiness", response_model=CareerReadinessResponse)
-def assess_career_readiness(request: CareerReadinessRequest):
-    return career_readiness_assessment(
-        request.user_skills,
-        request.job_title
-    )
 
 @app.post("/struggle", response_model=StruggleResponse)
 def struggle(request: StruggleRequest):
@@ -82,10 +80,6 @@ def struggle(request: StruggleRequest):
         "user_id": request.user_id,
         **predict_struggle(request)
     }
-
-@app.post("/cognitive-load")
-def detect_cognitive_load(request: CognitiveLoadRequest):
-    return analyze_cognitive_overlap(request.subjects)
 
 # -----------------------------------------------------------
 # NEW ENDPOINT: UPLOAD PDF → AUTO EMBED → VECTOR DB
