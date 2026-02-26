@@ -21,7 +21,6 @@ import {
   AddCircle as CreateIcon,
   Dashboard as DashboardIcon,
   Home as HomeIcon,
-  BarChart as AnalyticsIcon,
   Person as ProfileIcon,
   ExitToApp as LogoutIcon,
 } from "@mui/icons-material";
@@ -29,7 +28,9 @@ import {
 const NavigationBar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth(); // ✅ optional auth
+
+  // ✅ IMPORTANT: remembers login state
+  const { currentUser, userData, logout } = useAuth();
 
   const theme = {
     primary: "#1A237E",
@@ -58,9 +59,16 @@ const NavigationBar = () => {
   const isActive = (path, exact = false) =>
     exact ? location.pathname === path : location.pathname.startsWith(path);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  // ✅ Logout handler
+  const handleLogout = async () => {
+    try {
+      await logout();
+      localStorage.clear();
+      sessionStorage.clear();
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   return (
@@ -75,9 +83,9 @@ const NavigationBar = () => {
     >
       <Container maxWidth="xl">
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          {/* LEFT */}
+          {/* LEFT SIDE */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-            {/* Logo */}
+            {/* LOGO */}
             <Box
               component={Link}
               to="/"
@@ -99,7 +107,7 @@ const NavigationBar = () => {
               </Box>
             </Box>
 
-            {/* Desktop Nav */}
+            {/* NAV LINKS */}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
               {navItems.map((item) => (
                 <Tooltip key={item.path} title={item.label}>
@@ -124,13 +132,13 @@ const NavigationBar = () => {
             </Box>
           </Box>
 
-          {/* RIGHT */}
+          {/* RIGHT SIDE */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {/* User badge (only if logged in) */}
-            {user && (
+            {/* USER BADGE */}
+            {currentUser && (
               <Chip
                 icon={<ProfileIcon />}
-                label={`${user.role.toUpperCase()} • ${user.id}`}
+                label={`${userData?.role?.toUpperCase() || "USER"} • ${currentUser?.uid || ""}`}
                 sx={{
                   backgroundColor: "rgba(255,255,255,0.2)",
                   color: "white",
@@ -139,8 +147,8 @@ const NavigationBar = () => {
               />
             )}
 
-            {/* Login / Logout */}
-            {!user ? (
+            {/* LOGIN / LOGOUT BUTTON */}
+            {!currentUser ? (
               <Button
                 component={Link}
                 to="/login"

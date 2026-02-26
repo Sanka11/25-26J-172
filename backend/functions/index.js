@@ -6,26 +6,23 @@ const {
   getQuizByLevel,
   fetchQuizByUser,
 } = require("./src/http/quizController");
-const {
-  createSubject,
-  getAllSubjects,
-} = require("./src/http/subjectController");
-const {
-  enrollSubject,
-  getStudentEnrollment,
-} = require("./src/http/enrollmentController");
-const { enrollInternship } = require("./src/http/internshipController");
-const { generateStudentTodos } = require("./src/http/todoController");
-
 
 const {
   generateWorkload,
-  getDailyWorkload,
+  generateLectureAlerts,
+  getWeeklyWorkload,
+  generateOverloadReminders,
+  dismissReminder,
+  getActiveReminders,
+  generateBusyWeekReminders,
 } = require("./src/http/workloadController");
+// recommendation savindi
+const { getRecommendations } = require("./src/http/recommendationProxy");
+
 // ML controllers
 const { predictRisk } = require("./src/http/mlProxy");
-const { careerReadinessProxy } = require("./src/http/mlRecommendationProxy");
-const { detectCognitiveLoad } = require("./src/http/mlCognitiveLoadProxy");
+
+
 // Student risk explainability controller
 const {
   getStudentRiskExplanation,
@@ -33,6 +30,7 @@ const {
 
 // Student risk history (temporal tracking)
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
+
 
 // Announcement controllers
 const {
@@ -52,9 +50,9 @@ const {
 
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
-
+exports.getRecommendations = getRecommendations;
 // -------------------------------
-// Quiz exports
+// Quiz exports savindi 
 // -------------------------------
 exports.createQuiz = createQuiz;
 exports.submitQuiz = submitQuiz;
@@ -62,17 +60,16 @@ exports.getAllQuizzes = getAllQuizzes;
 exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
 exports.generateWorkload = generateWorkload;
-exports.getDailyWorkload = getDailyWorkload;
-exports.createSubject = createSubject;
-exports.getAllSubjects = getAllSubjects;
+// -------------------------------
+// workload savindi 
+// -------------------------------
+exports.generateLectureAlerts = generateLectureAlerts;
+exports.getWeeklyWorkload = getWeeklyWorkload;
+exports.generateOverloadReminders = generateOverloadReminders;
+exports.dismissReminder = dismissReminder;
+exports.getActiveReminders = getActiveReminders;
+exports.generateBusyWeekReminders = generateBusyWeekReminders;
 
-exports.enrollSubject = enrollSubject;
-exports.getStudentEnrollment = getStudentEnrollment;
-exports.enrollInternship = enrollInternship;
-exports.generateStudentTodos = generateStudentTodos;
-
-exports.careerReadinessProxy = careerReadinessProxy;
-exports.detectCognitiveLoad = detectCognitiveLoad;
 
 // -------------------------------
 // ML exports
