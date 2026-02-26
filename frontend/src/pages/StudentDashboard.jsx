@@ -1,128 +1,457 @@
 import { useEffect, useState } from "react";
 import {
-  startOfWeek,
-  addDays,
-  format,
-  differenceInDays,
-  parseISO,
-  addWeeks,
-  startOfDay,
-  endOfDay,
-} from "date-fns";
-import {
   GraduationCap,
-  Briefcase,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  AlertCircle,
   Bell,
-  CheckCircle2,
-  Clock,
   Calendar,
+  Users,
   BookOpen,
-  Plus,
-  X,
-  CheckSquare,
-  Square,
-  Trash2,
-  Edit2,
-  CalendarDays,
-  Target,
+  Clock,
+  Grid,
+  AlertTriangle,
+  CheckCircle,
   TrendingUp,
-  ListTodo,
-  Filter as FilterIcon,
-  Sparkles,
-  Trophy,
+  BarChart3,
+  Lightbulb,
+  X,
+  Loader,
 } from "lucide-react";
 
 import WorkloadCalendar from "../componets/WorkloadCalendar";
-import WorkloadSummary from "../componets/WorkloadSummary";
-import DayBreakdown from "../componets/DayBreakdown";
-import StudyTimetable from "../componets/StudyTimetable";
 
-import { fetchDailyWorkload } from "../services/api/workloadService";
-import { fetchStudentEnrollment } from "../services/api/studentService";
+import {
+  fetchWeeklyWorkload,
+  fetchLectureAlerts,
+  fetchStudentEnrollment,
+  generateWorkloadIfNeeded,
+  fetchActiveReminders,
+  dismissReminder,
+  generateBusyWeekReminders,
+} from "../services/api/workloadService";
+
+/* ---------------- HELPERS ---------------- */
+
+function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
+  const start = new Date(semesterStartDate);
+  const today = new Date(targetDate);
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.floor(
+    (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+function getAcademicPeriod(semesterStartDate) {
+  const start = new Date(semesterStartDate);
+  const today = new Date();
+
+  return {
+    month: today.toLocaleDateString("en-US", { month: "long" }),
+    year: today.getFullYear(),
+    semester: `${start.getMonth() < 6 ? "Spring" : "Fall"} ${start.getFullYear()}`,
+  };
+}
+
+// Enhanced status helper function
+const getStatusLabel = (status = "NORMAL") => {
+  const statusMap = {
+    NORMAL: {
+      label: "Normal",
+      color: "bg-green-100 text-green-800",
+      icon: CheckCircle,
+    },
+    BUSY: {
+      label: "Busy",
+      color: "bg-amber-100 text-amber-800",
+      icon: AlertTriangle,
+    },
+    LIGHT: {
+      label: "Light",
+      color: "bg-blue-100 text-blue-800",
+      icon: CheckCircle,
+    },
+    MODERATE: {
+      label: "Moderate",
+      color: "bg-blue-100 text-blue-800",
+      icon: TrendingUp,
+    },
+    HEAVY: {
+      label: "Heavy",
+      color: "bg-amber-100 text-amber-800",
+      icon: AlertTriangle,
+    },
+    OVERLOADED: {
+      label: "Overloaded",
+      color: "bg-red-100 text-red-800",
+      icon: AlertTriangle,
+    },
+  };
+
+  return (
+    statusMap[status] || {
+      label: status.charAt(0) + status.slice(1).toLowerCase(),
+      color: "bg-gray-100 text-gray-800",
+      icon: CheckCircle,
+    }
+  );
+};
+
+// Generate weeks for week selector
+function generateWeekOptions(semesterStart) {
+  const totalWeeks = 16; // Typical semester length
+  const weeks = [];
+
+  for (let i = 1; i <= totalWeeks; i++) {
+    const weekStart = new Date(semesterStart);
+    weekStart.setDate(weekStart.getDate() + (i - 1) * 7);
+
+    weeks.push({
+      weekNumber: i,
+      startDate: weekStart,
+      label: `Week ${i} (${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`,
+    });
+  }
+
+  return weeks;
+}
+
+// Calculate workload statistics from API response
+function calculateWorkloadStats(weeklyWorkload) {
+  const stats = {
+    totalWeeks: weeklyWorkload.length,
+    flaggedWeeks: 0,
+    normalWeeks: 0,
+    totalHours: 0,
+    maxHours: 0,
+    averageHours: 0,
+    statusDistribution: {},
+    upcomingBusyWeeks: [],
+  };
+
+  if (!Array.isArray(weeklyWorkload)) return stats;
+
+  weeklyWorkload.forEach((week) => {
+    // Count weeks by status
+    stats.statusDistribution[week.status] =
+      (stats.statusDistribution[week.status] || 0) + 1;
+
+    // Count flagged (non-normal) weeks
+    if (week.status !== "NORMAL") {
+      stats.flaggedWeeks++;
+
+      // Find upcoming busy weeks (weeks after current date)
+      const weekStart = new Date(week.weekStart._seconds * 1000);
+      const today = new Date();
+      if (weekStart > today) {
+        stats.upcomingBusyWeeks.push({
+          week: week.week,
+          weekStart: weekStart,
+          status: week.status,
+          totalHours: week.totalHours,
+        });
+      }
+    } else {
+      stats.normalWeeks++;
+    }
+
+    // Calculate hours
+    stats.totalHours += week.totalHours || 0;
+    stats.maxHours = Math.max(stats.maxHours, week.totalHours || 0);
+  });
+
+  stats.averageHours =
+    stats.totalWeeks > 0 ? (stats.totalHours / stats.totalWeeks).toFixed(1) : 0;
+
+  // Sort upcoming busy weeks by date
+  stats.upcomingBusyWeeks.sort((a, b) => a.weekStart - b.weekStart);
+
+  return stats;
+}
+
+// Generate tips based on workload
+function generateWorkloadTips(status, totalHours, breakdown = []) {
+  const tips = [];
+
+  if (status === "OVERLOADED" || totalHours > 20) {
+    tips.push(
+      "This is a high-intensity week. Consider breaking tasks into smaller chunks.",
+    );
+    tips.push("Schedule short breaks every 45-60 minutes to maintain focus.");
+    tips.push(
+      "Consider speaking with your academic advisor about workload management.",
+    );
+  } else if (status === "HEAVY" || totalHours > 15) {
+    tips.push("Plan your time carefully. Start preparing materials early.");
+    tips.push("Prioritize tasks based on deadlines and difficulty.");
+    tips.push("Use time-blocking techniques to stay focused.");
+  } else if (status === "BUSY") {
+    tips.push("Create a schedule to stay on track with all assignments.");
+    tips.push("Review materials in advance to save time during the busy week.");
+    tips.push("Group similar tasks together to improve efficiency.");
+  }
+
+  if (breakdown.some((item) => item.type && item.type.includes("EXAM"))) {
+    tips.push("Schedule dedicated study sessions for exam preparation.");
+    tips.push("Create a study guide or flashcards for exam topics.");
+  }
+
+  if (breakdown.some((item) => item.type && item.type.includes("ASSIGNMENT"))) {
+    tips.push("Start assignment research early to gather resources.");
+    tips.push("Break assignments into smaller milestones with deadlines.");
+  }
+
+  return tips;
+}
+
+/* ---------------- COMPONENT ---------------- */
 
 const StudentDashboard = () => {
   const studentId = "S001";
-  const [loading, setLoading] = useState(true);
+  const SEMESTER_START_DATE = "2026-01-26";
 
+  const [weeklyWorkload, setWeeklyWorkload] = useState([]);
+  const [lectureAlerts, setLectureAlerts] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [internship, setInternship] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
+  const [calendarView, setCalendarView] = useState("week");
+  const [loading, setLoading] = useState(true);
+  const [weekOptions, setWeekOptions] = useState([]);
+  const [workloadStats, setWorkloadStats] = useState(null);
+  const [backendReminders, setBackendReminders] = useState([]);
+  const [loadingReminders, setLoadingReminders] = useState(false);
+  const [hasLoadedReminders, setHasLoadedReminders] = useState(false);
 
-  const [workload, setWorkload] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null);
-
-  const [todos, setTodos] = useState([]);
-  const [manualReminders, setManualReminders] = useState([]);
-  const [showReminderForm, setShowReminderForm] = useState(false);
-  const [showTodoForm, setShowTodoForm] = useState(false);
-
-  const [newReminder, setNewReminder] = useState({
-    title: "",
-    date: "",
-    time: "",
-  });
-
-  const [newTodo, setNewTodo] = useState({
-    title: "",
-    description: "",
-    dueDate: "",
-    priority: "MEDIUM",
-    category: "study",
-    subjectId: "",
-  });
-
-  const [selectedSubject, setSelectedSubject] = useState("ALL");
-  const [todoFilter, setTodoFilter] = useState("ALL"); // ALL, ACTIVE, COMPLETED, TODAY
-  const [editingTodoId, setEditingTodoId] = useState(null);
-
-  const [weekStart, setWeekStart] = useState(
-    startOfWeek(new Date(), { weekStartsOn: 1 }),
+  const currentWeek = calculateAcademicWeek(
+    SEMESTER_START_DATE,
+    currentWeekStart,
   );
-  const weekEnd = addDays(weekStart, 6);
+  const academicPeriod = getAcademicPeriod(SEMESTER_START_DATE);
 
-  // Semester configuration
-  const semesterStartDate = new Date("2024-02-24");
-  const semesterDurationWeeks = 26; // 6 months ≈ 26 weeks
-  const [currentWeek, setCurrentWeek] = useState(1);
+  // Load backend reminders with improved logic
+  const loadBackendReminders = async () => {
+    try {
+      console.log("🔄 [Dashboard] Starting to load backend reminders...");
+      console.log(
+        "📊 [Dashboard] Weekly workload count:",
+        weeklyWorkload.length,
+      );
 
-  // Load existing todos from localStorage on mount
-  useEffect(() => {
-    const savedTodos = localStorage.getItem(`todos_${studentId}`);
-    if (savedTodos) {
-      try {
-        const parsedTodos = JSON.parse(savedTodos);
-        parsedTodos.forEach((todo) => {
-          todo.dueDate = new Date(todo.dueDate);
-          todo.createdAt = new Date(todo.createdAt);
-          if (todo.completedAt) todo.completedAt = new Date(todo.completedAt);
-        });
-        setTodos(parsedTodos);
-      } catch (error) {
-        console.error("Error loading todos:", error);
+      setLoadingReminders(true);
+
+      // Step 1: Try to fetch existing reminders
+      console.log(
+        "🔍 [Dashboard] Step 1: Fetching existing reminders from API...",
+      );
+      const reminderData = await fetchActiveReminders(studentId);
+
+      console.log("📥 [Dashboard] API Response received:", {
+        count: reminderData.count,
+        remindersLength: reminderData.reminders?.length || 0,
+        studentId: reminderData.studentId,
+      });
+
+      if (reminderData.reminders && reminderData.reminders.length > 0) {
+        console.log(
+          `✅ [Dashboard] Found ${reminderData.reminders.length} reminders from API`,
+        );
+
+        // Parse date strings to Date objects
+        const parsedReminders = reminderData.reminders.map((reminder) => ({
+          ...reminder,
+          targetWeekStart: new Date(reminder.targetWeekStart),
+          createdAt: new Date(reminder.createdAt),
+        }));
+
+        setBackendReminders(parsedReminders);
+        setHasLoadedReminders(true);
+        return;
       }
+
+      console.log("ℹ️ [Dashboard] No existing reminders found in API response");
+
+      // Step 2: Check if there are upcoming busy weeks in workload
+      if (weeklyWorkload.length > 0) {
+        const today = new Date();
+        const twoWeeksFromNow = new Date(
+          today.getTime() + 14 * 24 * 60 * 60 * 1000,
+        );
+
+        const upcomingBusyWeeks = weeklyWorkload.filter((week) => {
+          if (!week.weekStart?._seconds) return false;
+
+          const weekStart = new Date(week.weekStart._seconds * 1000);
+          const daysUntil = Math.floor(
+            (weekStart - today) / (1000 * 60 * 60 * 24),
+          );
+
+          return (
+            (week.status === "BUSY" ||
+              week.status === "HEAVY" ||
+              week.status === "OVERLOADED") &&
+            weekStart > today &&
+            daysUntil <= 14
+          );
+        });
+
+        console.log(
+          `📊 [Dashboard] Found ${upcomingBusyWeeks.length} upcoming busy weeks in workload`,
+        );
+
+        if (upcomingBusyWeeks.length > 0) {
+          // Step 3: Generate reminders for these weeks
+          console.log(
+            "🔧 [Dashboard] Step 3: Generating reminders for busy weeks...",
+          );
+          try {
+            await generateBusyWeekReminders(studentId);
+
+            // Step 4: Fetch the newly generated reminders
+            console.log(
+              "🔄 [Dashboard] Step 4: Fetching newly generated reminders...",
+            );
+            const newReminderData = await fetchActiveReminders(studentId);
+
+            if (
+              newReminderData.reminders &&
+              newReminderData.reminders.length > 0
+            ) {
+              console.log(
+                `✅ [Dashboard] Successfully loaded ${newReminderData.reminders.length} new reminders`,
+              );
+
+              // Parse date strings to Date objects
+              const parsedReminders = newReminderData.reminders.map(
+                (reminder) => ({
+                  ...reminder,
+                  targetWeekStart: new Date(reminder.targetWeekStart),
+                  createdAt: new Date(reminder.createdAt),
+                }),
+              );
+
+              setBackendReminders(parsedReminders);
+            } else {
+              console.log(
+                "⚠️ [Dashboard] No reminders generated even though busy weeks exist",
+              );
+              setBackendReminders([]);
+            }
+          } catch (genError) {
+            console.error(
+              "❌ [Dashboard] Failed to generate reminders:",
+              genError,
+            );
+            setBackendReminders([]);
+          }
+        } else {
+          console.log(
+            "✅ [Dashboard] No upcoming busy weeks to generate reminders for",
+          );
+          setBackendReminders([]);
+        }
+      } else {
+        console.log("⚠️ [Dashboard] No weekly workload data available yet");
+        setBackendReminders([]);
+      }
+
+      setHasLoadedReminders(true);
+    } catch (error) {
+      console.error("❌ [Dashboard] Error in loadBackendReminders:", error);
+      setBackendReminders([]);
+      setHasLoadedReminders(true);
+    } finally {
+      console.log("🏁 [Dashboard] Reminder loading complete");
+      setLoadingReminders(false);
     }
-  }, []);
+  };
+
+  // Dismiss a reminder
+  const handleDismissReminder = async (reminderId) => {
+    try {
+      console.log(`🗑️ [Dashboard] Dismissing reminder: ${reminderId}`);
+      await dismissReminder(reminderId, studentId);
+
+      // Remove from local state
+      setBackendReminders((prev) => prev.filter((r) => r.id !== reminderId));
+
+      console.log(
+        `✅ [Dashboard] Reminder ${reminderId} dismissed successfully`,
+      );
+    } catch (err) {
+      console.error("❌ [Dashboard] Error dismissing reminder:", err);
+    }
+  };
 
   useEffect(() => {
     async function loadDashboard() {
       try {
+        console.log("▶ [Dashboard] Loading dashboard for student:", studentId);
+
+        /* 1️⃣ Enrollment */
         const enrollment = await fetchStudentEnrollment(studentId);
-        setSubjects(enrollment.subjects || []);
-        setInternship(enrollment.internship || null);
-
-        const workloadData = await fetchDailyWorkload(studentId);
-        setWorkload(workloadData);
-
-        generateTodos(enrollment.subjects || [], enrollment.internship);
-        generateWeeklySchedule(
-          enrollment.subjects || [],
-          enrollment.internship,
+        console.log(
+          "✅ [Dashboard] Enrollment loaded:",
+          enrollment?.subjects?.length || 0,
+          "subjects",
         );
+        setSubjects(enrollment?.subjects || []);
+
+        /* 2️⃣ Generate workload */
+        await generateWorkloadIfNeeded(studentId, SEMESTER_START_DATE);
+        console.log("✅ [Dashboard] Workload generation completed");
+
+        /* 3️⃣ Fetch workload + alerts */
+        const [weeklyResponse, alertRes] = await Promise.all([
+          fetchWeeklyWorkload(studentId),
+          fetchLectureAlerts(),
+        ]);
+
+        console.log(
+          "✅ [Dashboard] Weekly workload response weeks:",
+          weeklyResponse?.weeks?.length || 0,
+        );
+        console.log(
+          "✅ [Dashboard] Lecture alerts count:",
+          alertRes?.alerts?.length || 0,
+        );
+
+        const weeks = Array.isArray(weeklyResponse?.weeks)
+          ? weeklyResponse.weeks
+          : [];
+
+        setWeeklyWorkload(weeks);
+        setLectureAlerts(alertRes?.alerts || []);
+
+        // Calculate workload statistics
+        const stats = calculateWorkloadStats(weeks);
+        setWorkloadStats(stats);
+
+        // Set selected date to first week if available
+        if (weeks.length > 0) {
+          const todayWeek =
+            weeks.find(
+              (w) =>
+                calculateAcademicWeek(SEMESTER_START_DATE, new Date()) ===
+                w.week,
+            ) || weeks[0];
+          setSelectedDate(todayWeek);
+        }
+
+        // Generate week options
+        const options = generateWeekOptions(SEMESTER_START_DATE);
+        setWeekOptions(options);
+
+        // Set current week start to today's week
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+        setCurrentWeekStart(weekStart);
+
+        console.log("✅ [Dashboard] Dashboard data loaded successfully");
       } catch (err) {
-        console.error("Dashboard load error:", err);
+        console.error("❌ [Dashboard] Error loading dashboard:", err);
       } finally {
         setLoading(false);
       }
@@ -131,1333 +460,704 @@ const StudentDashboard = () => {
     loadDashboard();
   }, []);
 
-  // Save todos to localStorage whenever they change
+  // Load reminders when workload is available
   useEffect(() => {
-    localStorage.setItem(`todos_${studentId}`, JSON.stringify(todos));
-  }, [todos]);
+    if (!loading && weeklyWorkload.length > 0 && !hasLoadedReminders) {
+      console.log("🔄 [Dashboard] Triggering reminder load...");
+      loadBackendReminders();
+    }
+  }, [loading, weeklyWorkload, hasLoadedReminders]);
 
-  // Calculate current week based on semester start
+  // Set up interval to refresh reminders periodically
   useEffect(() => {
-    const today = new Date();
-    const weekDiff =
-      Math.floor(differenceInDays(today, semesterStartDate) / 7) + 1;
-    setCurrentWeek(Math.min(Math.max(weekDiff, 1), semesterDurationWeeks));
-  }, []);
-
-  const generateTodos = (subjects, internship) => {
-    const today = new Date();
-    const list = [];
-
-    subjects.forEach((sub) => {
-      const base = new Date(sub.semesterStartDate || semesterStartDate);
-
-      const getDateByWeek = (week) =>
-        new Date(base.getTime() + (week - 1) * 7 * 86400000);
-
-      // Process all assessment types
-      const assessments = [
-        { key: "assignmentWeek", label: "Assignment" },
-        { key: "midExamWeek", label: "Mid Exam" },
-        { key: "finalExamWeek", label: "Final Exam" },
-        { key: "quizWeeks", label: "Quiz" },
-        { key: "projectSubmissionWeek", label: "Project" },
-      ];
-
-      assessments.forEach(({ key, label }) => {
-        if (sub.assessmentTimeline?.[key]) {
-          const weeks = Array.isArray(sub.assessmentTimeline[key])
-            ? sub.assessmentTimeline[key]
-            : [sub.assessmentTimeline[key]];
-
-          weeks.forEach((week) => {
-            const dueDate = getDateByWeek(week);
-            const daysLeft = differenceInDays(dueDate, today);
-
-            if (daysLeft >= 0 && daysLeft <= 14) {
-              list.push({
-                id: `auto_${Date.now()}_${Math.random()}`,
-                title: `${sub.subjectName} – ${label}`,
-                description: `Complete ${label.toLowerCase()} for ${sub.subjectName}`,
-                dueDate,
-                daysLeft,
-                priority: daysLeft <= 7 ? "HIGH" : "MEDIUM",
-                category: label.toLowerCase(),
-                subjectId: sub.subjectId,
-                subjectName: sub.subjectName,
-                type: "AUTO_GENERATED",
-                completed: false,
-                createdAt: new Date(),
-                isAutoGenerated: true,
-              });
-            }
-          });
+    const intervalId = setInterval(
+      () => {
+        if (hasLoadedReminders) {
+          console.log("🔄 [Dashboard] Periodic reminder refresh triggered");
+          loadBackendReminders();
         }
-      });
-    });
+      },
+      5 * 60 * 1000,
+    ); // Refresh every 5 minutes
 
-    if (internship?.submissionWeeks) {
-      internship.submissionWeeks.forEach((week) => {
-        const dueDate = new Date(
-          semesterStartDate.getTime() + (week - 1) * 7 * 86400000,
-        );
-        const daysLeft = differenceInDays(dueDate, today);
+    return () => clearInterval(intervalId);
+  }, [hasLoadedReminders]);
 
-        if (daysLeft >= 0 && daysLeft <= 14) {
-          list.push({
-            id: `internship_${Date.now()}_${Math.random()}`,
-            title: "Internship Weekly Submission",
-            description: "Submit weekly internship report",
-            dueDate,
-            daysLeft,
-            priority: "HIGH",
-            category: "internship",
-            type: "INTERNSHIP",
-            completed: false,
-            createdAt: new Date(),
-            isAutoGenerated: true,
-          });
-        }
-      });
-    }
+  const handleDayClick = (week) => setSelectedDate(week);
 
-    // Merge with existing todos, avoiding duplicates
-    setTodos((prevTodos) => {
-      const existingAutoIds = new Set(
-        prevTodos
-          .filter((t) => t.isAutoGenerated)
-          .map((t) => t.id.split("_")[1]),
-      );
-
-      const newAutoTodos = list.filter((todo) => {
-        const baseId = todo.id.split("_")[1];
-        return !existingAutoIds.has(baseId);
-      });
-
-      return [...prevTodos, ...newAutoTodos].sort(
-        (a, b) => a.dueDate - b.dueDate,
-      );
-    });
+  const handleWeekChange = (newWeekStart) => {
+    setCurrentWeekStart(newWeekStart);
   };
 
-  const generateWeeklySchedule = (subjects, internship) => {
-    console.log("Generating weekly schedule...");
-  };
-
-  // To-Do Functions
-  const addTodo = () => {
-    if (!newTodo.title.trim()) return;
-
-    const todo = {
-      id: `manual_${Date.now()}_${Math.random()}`,
-      ...newTodo,
-      dueDate: newTodo.dueDate ? new Date(newTodo.dueDate) : null,
-      completed: false,
-      createdAt: new Date(),
-      isAutoGenerated: false,
-    };
-
-    setTodos([...todos, todo]);
-    setNewTodo({
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "MEDIUM",
-      category: "study",
-      subjectId: "",
-    });
-    setShowTodoForm(false);
-  };
-
-  const toggleTodo = (id) => {
-    setTodos(
-      todos.map((todo) => {
-        if (todo.id === id) {
-          const updatedTodo = {
-            ...todo,
-            completed: !todo.completed,
-            completedAt: !todo.completed ? new Date() : null,
-          };
-
-          // Show celebration for completing a high priority todo
-          if (updatedTodo.completed && todo.priority === "HIGH") {
-            showTemporaryNotification(
-              "🎉 Great job completing a high priority task!",
-              "success",
-            );
-          }
-
-          return updatedTodo;
-        }
-        return todo;
-      }),
-    );
-  };
-
-  const deleteTodo = (id) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
-  };
-
-  const editTodo = (id) => {
-    const todoToEdit = todos.find((todo) => todo.id === id);
-    if (todoToEdit) {
-      setNewTodo({
-        title: todoToEdit.title,
-        description: todoToEdit.description || "",
-        dueDate: todoToEdit.dueDate
-          ? format(todoToEdit.dueDate, "yyyy-MM-dd")
-          : "",
-        priority: todoToEdit.priority,
-        category: todoToEdit.category,
-        subjectId: todoToEdit.subjectId || "",
-      });
-      setEditingTodoId(id);
-      setShowTodoForm(true);
+  const handleWeekSelect = (weekNumber) => {
+    const weekOption = weekOptions.find((w) => w.weekNumber === weekNumber);
+    if (weekOption) {
+      setCurrentWeekStart(weekOption.startDate);
+      // Find the week in workload data
+      const selectedWeek = weeklyWorkload.find((w) => w.week === weekNumber);
+      if (selectedWeek) {
+        setSelectedDate(selectedWeek);
+      }
     }
   };
 
-  const saveTodoEdit = () => {
-    if (!newTodo.title.trim()) return;
-
-    setTodos(
-      todos.map((todo) => {
-        if (todo.id === editingTodoId) {
-          return {
-            ...todo,
-            ...newTodo,
-            dueDate: newTodo.dueDate ? new Date(newTodo.dueDate) : null,
-          };
-        }
-        return todo;
-      }),
-    );
-
-    setNewTodo({
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "MEDIUM",
-      category: "study",
-      subjectId: "",
-    });
-    setEditingTodoId(null);
-    setShowTodoForm(false);
+  const getWeekStatus = (weekNumber) => {
+    const weekData = weeklyWorkload.find((w) => w.week === weekNumber);
+    return weekData ? weekData.status : "NORMAL";
   };
 
-  const addManualReminder = () => {
-    if (!newReminder.title || !newReminder.date) return;
-
-    const reminder = {
-      id: Date.now(),
-      ...newReminder,
-      date: parseISO(newReminder.date),
-      type: "manual",
-      priority: "MEDIUM",
-    };
-
-    setManualReminders([...manualReminders, reminder]);
-    setNewReminder({ title: "", date: "", time: "" });
-    setShowReminderForm(false);
-  };
-
-  const removeManualReminder = (id) => {
-    setManualReminders(manualReminders.filter((r) => r.id !== id));
-  };
-
-  const showTemporaryNotification = (message, type = "success") => {
-    // Create a temporary notification element
-    const notification = document.createElement("div");
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-500 ${
-      type === "success"
-        ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white"
-        : "bg-gradient-to-r from-red-500 to-rose-500 text-white"
-    }`;
-    notification.textContent = message;
-
-    document.body.appendChild(notification);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-      notification.style.opacity = "0";
-      notification.style.transform = "translateX(100%)";
-      setTimeout(() => {
-        document.body.removeChild(notification);
-      }, 500);
-    }, 3000);
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "HIGH":
-        return "bg-gradient-to-r from-red-500 to-rose-500";
-      case "MEDIUM":
-        return "bg-gradient-to-r from-amber-500 to-orange-500";
-      case "LOW":
-        return "bg-gradient-to-r from-blue-500 to-cyan-500";
-      default:
-        return "bg-gradient-to-r from-gray-500 to-slate-500";
-    }
-  };
-
-  const getPriorityTextColor = (priority) => {
-    switch (priority) {
-      case "HIGH":
-        return "text-red-700";
-      case "MEDIUM":
-        return "text-amber-700";
-      case "LOW":
-        return "text-blue-700";
-      default:
-        return "text-gray-700";
-    }
-  };
-
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case "study":
-        return "bg-gradient-to-r from-indigo-100 to-purple-100";
-      case "assignment":
-        return "bg-gradient-to-r from-amber-100 to-yellow-100";
-      case "exam":
-        return "bg-gradient-to-r from-red-100 to-pink-100";
-      case "internship":
-        return "bg-gradient-to-r from-emerald-100 to-green-100";
-      case "personal":
-        return "bg-gradient-to-r from-sky-100 to-cyan-100";
-      default:
-        return "bg-gradient-to-r from-gray-100 to-slate-100";
-    }
-  };
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case "study":
-        return <BookOpen className="w-4 h-4" />;
-      case "assignment":
-        return <ListTodo className="w-4 h-4" />;
-      case "exam":
-        return <Target className="w-4 h-4" />;
-      case "internship":
-        return <Briefcase className="w-4 h-4" />;
-      case "personal":
-        return <Sparkles className="w-4 h-4" />;
-      default:
-        return <ListTodo className="w-4 h-4" />;
-    }
-  };
-
-  // Filter todos based on selected filter
-  const filteredTodos = todos.filter((todo) => {
-    const today = startOfDay(new Date());
-
-    switch (todoFilter) {
-      case "COMPLETED":
-        return todo.completed;
-      case "ACTIVE":
-        return !todo.completed;
-      case "TODAY":
-        if (!todo.dueDate) return false;
-        const todoDate = startOfDay(new Date(todo.dueDate));
-        return !todo.completed && todoDate.getTime() === today.getTime();
-      case "UPCOMING":
-        if (!todo.dueDate) return false;
-        const dueDate = startOfDay(new Date(todo.dueDate));
-        return (
-          !todo.completed &&
-          dueDate > today &&
-          dueDate <= endOfDay(addDays(today, 7))
-        );
-      default:
-        return true;
-    }
-  });
-
-  // Calculate statistics
-  const todoStats = {
-    total: todos.length,
-    completed: todos.filter((t) => t.completed).length,
-    pending: todos.filter((t) => !t.completed).length,
-    overdue: todos.filter((t) => {
-      if (!t.dueDate || t.completed) return false;
-      return new Date(t.dueDate) < new Date();
-    }).length,
-    today: todos.filter((t) => {
-      if (!t.dueDate || t.completed) return false;
-      const today = startOfDay(new Date());
-      const todoDate = startOfDay(new Date(t.dueDate));
-      return todoDate.getTime() === today.getTime();
-    }).length,
-  };
-
-  const progressPercentage =
-    todoStats.total > 0
-      ? Math.round((todoStats.completed / todoStats.total) * 100)
-      : 0;
-
-  const subjectOptions = ["ALL", ...subjects.map((s) => s.subjectId)];
-
-  const weeklyWorkload = workload.filter((day) => {
-    const date = new Date(day.date);
-    if (date < weekStart || date > weekEnd) return false;
-    if (selectedSubject === "ALL") return true;
-    return day.subjectId === selectedSubject;
-  });
-
-  const nextWeekOverloaded = workload.some((day) => {
-    const date = new Date(day.date);
-    return (
-      date >= addDays(weekStart, 7) &&
-      date <= addDays(weekStart, 13) &&
-      day.loadStatus === "OVERLOADED"
-    );
-  });
-
-  const examInTwoWeeks = todos.some(
-    (t) => t.title.toLowerCase().includes("exam") && !t.completed,
-  );
-
-  const goPrevWeek = () => {
-    setSelectedDay(null);
-    setWeekStart(addDays(weekStart, -7));
-  };
-
-  const goNextWeek = () => {
-    setSelectedDay(null);
-    setWeekStart(addDays(weekStart, 7));
-  };
-
-  const getDayEvents = (date) => {
-    const dayStr = format(date, "yyyy-MM-dd");
-    const events = [];
-
-    // Add todos for this day
-    todos.forEach((todo) => {
-      if (todo.dueDate && format(todo.dueDate, "yyyy-MM-dd") === dayStr) {
-        events.push({
-          ...todo,
-          isTodo: true,
+  // Helper to format date safely
+  const formatDateSafe = (date) => {
+    if (!date) return "Date not available";
+    try {
+      if (typeof date === "string") {
+        return new Date(date).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      } else if (date instanceof Date) {
+        return date.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
         });
       }
-    });
-
-    // Add manual reminders for this day
-    manualReminders.forEach((reminder) => {
-      if (format(reminder.date, "yyyy-MM-dd") === dayStr) {
-        events.push({
-          ...reminder,
-          isReminder: true,
-        });
-      }
-    });
-
-    // Add lectures based on subject schedule
-    subjects.forEach((sub) => {
-      if (sub.schedule?.includes(format(date, "EEEE"))) {
-        events.push({
-          title: `${sub.subjectName} Lecture`,
-          type: "lecture",
-          priority: "LOW",
-        });
-      }
-    });
-
-    return events;
+      return "Invalid date";
+    } catch (error) {
+      console.error("Date formatting error:", error);
+      return "Date error";
+    }
   };
-
-  // Generate week days with dates
-  const weekDays = Array.from({ length: 7 }).map((_, i) => {
-    const date = addDays(weekStart, i);
-    return {
-      name: format(date, "EEEE"),
-      date: format(date, "yyyy-MM-dd"),
-      displayDate: format(date, "MMM dd"),
-      events: getDayEvents(date),
-    };
-  });
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Loading dashboard…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <GraduationCap className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">
-              Student Dashboard
-            </h1>
-            <div className="ml-auto bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-              Semester Week: {currentWeek}
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <GraduationCap className="text-blue-600 w-8 h-8" />
+            <div>
+              <h1 className="text-2xl font-bold">Student Dashboard</h1>
+              <p className="text-sm text-gray-600">
+                Week {currentWeek} • {academicPeriod.semester}
+              </p>
             </div>
           </div>
-          <p className="text-gray-600">
-            Manage your workload and track your progress
-          </p>
+
+          <div className="flex items-center gap-4">
+            {/* View Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setCalendarView("week")}
+                className={`px-3 py-1 rounded-md transition ${
+                  calendarView === "week"
+                    ? "bg-white shadow"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Grid className="w-4 h-4 inline mr-2" />
+                Week View
+              </button>
+              <button
+                onClick={() => setCalendarView("month")}
+                className={`px-3 py-1 rounded-md transition ${
+                  calendarView === "month"
+                    ? "bg-white shadow"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Calendar className="w-4 h-4 inline mr-2" />
+                Month View
+              </button>
+            </div>
+
+            {/* Notifications */}
+            <div className="relative">
+              <Bell className="w-6 h-6 text-gray-600 cursor-pointer" />
+              {(lectureAlerts.length > 0 || backendReminders.length > 0) && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {lectureAlerts.length + backendReminders.length}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        {nextWeekOverloaded && (
-          <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <Bell className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-amber-900">
-                Next week is overloaded
-              </p>
-              <p className="text-sm text-amber-700">
-                Consider planning ahead and distributing your workload
-              </p>
+        {/* DEBUG INFO - You can remove this in production */}
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <span className="font-medium">Debug Info:</span>
+              <span className="ml-2">
+                Workload: {weeklyWorkload.length} weeks
+              </span>
+              <span className="ml-2">
+                • Reminders: {backendReminders.length}
+              </span>
+              <span className="ml-2">• Current Week: {currentWeek}</span>
             </div>
+            <button
+              onClick={() => {
+                console.log("🔄 Manual refresh triggered");
+                loadBackendReminders();
+              }}
+              className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              Refresh
+            </button>
           </div>
-        )}
+        </div>
 
-        {examInTwoWeeks && (
-          <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-900">
-                Upcoming exams within 2 weeks
-              </p>
-              <p className="text-sm text-red-700">
-                Check your to-do list and start preparing
-              </p>
+        {/* BACKEND BUSY WEEK REMINDERS */}
+        {loadingReminders ? (
+          <div className="mb-6 bg-white p-5 rounded-lg shadow-sm border flex items-center justify-center">
+            <Loader className="w-5 h-5 text-blue-600 animate-spin mr-2" />
+            <span className="text-gray-600">Loading reminders...</span>
+          </div>
+        ) : backendReminders.length > 0 ? (
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-lg text-amber-800">
+                ⚠️ Busy Week Alerts ({backendReminders.length})
+              </h3>
+              <span className="text-xs text-gray-500">
+                Updated:{" "}
+                {new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
-          </div>
-        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Weekly Calendar View */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Week Overview
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={goPrevWeek}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <div className="px-4 py-2 bg-gray-50 rounded-lg">
-                    <span className="font-semibold text-gray-900">
-                      {format(weekStart, "MMM dd")} -{" "}
-                      {format(weekEnd, "MMM dd")}
-                    </span>
-                  </div>
-                  <button
-                    onClick={goNextWeek}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
-              </div>
+            {backendReminders.map((reminder) => {
+              const statusInfo = getStatusLabel(reminder.targetStatus);
+              const tips = generateWorkloadTips(
+                reminder.targetStatus,
+                reminder.targetTotalHours,
+                reminder.targetBreakdown || [],
+              );
 
-              {/* Weekly Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 mb-6">
-                {weekDays.map((day, index) => (
-                  <div key={index} className="text-center">
-                    <div className="text-sm font-semibold text-gray-600 mb-1">
-                      {day.name.substring(0, 3)}
-                    </div>
-                    <div
-                      className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
-                        format(new Date(), "yyyy-MM-dd") === day.date
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-100 text-gray-900"
-                      }`}
-                    >
-                      {format(parseISO(day.date), "d")}
-                    </div>
-                    {day.events.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {day.events.slice(0, 2).map((event, idx) => (
-                          <div
-                            key={idx}
-                            className={`text-xs px-2 py-1 rounded truncate ${
-                              event.type === "exam"
-                                ? "bg-red-100 text-red-800"
-                                : event.type === "assignment"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : event.type === "lecture"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : event.type === "internship"
-                                      ? "bg-purple-100 text-purple-800"
-                                      : "bg-green-100 text-green-800"
-                            }`}
-                            title={event.title}
-                          >
-                            {event.title.split(" – ")[0]}
+              // Calculate days until busy week
+              const daysUntil = Math.floor(
+                (reminder.targetWeekStart - new Date()) / (1000 * 60 * 60 * 24),
+              );
+              const weeksUntil = Math.ceil(daysUntil / 7);
+
+              return (
+                <div
+                  key={reminder.id}
+                  className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 rounded-r-lg p-5 relative"
+                >
+                  <button
+                    onClick={() => handleDismissReminder(reminder.id)}
+                    className="absolute top-3 right-3 p-1 text-amber-600 hover:text-amber-800"
+                    aria-label="Dismiss reminder"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-1" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-amber-900 text-lg">
+                            Week {reminder.targetBusyWeek} Alert
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded">
+                            {weeksUntil} week{weeksUntil !== 1 ? "s" : ""} away
+                          </span>
+                        </div>
+
+                        <p className="text-amber-800">
+                          {reminder.targetStatus} week starts in{" "}
+                          <span className="font-bold">{daysUntil} days</span>.
+                          Prepare for{" "}
+                          <span className="font-bold">
+                            {reminder.targetTotalHours} hours
+                          </span>{" "}
+                          of work.
+                        </p>
+
+                        {/* Work Breakdown */}
+                        {reminder.targetBreakdown?.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-sm font-medium text-amber-900 mb-2">
+                              📋 Work Breakdown:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {reminder.targetBreakdown.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between bg-amber-100/50 p-2 rounded"
+                                >
+                                  <span className="text-sm text-amber-800 truncate">
+                                    {item.subjectName || "Unnamed Subject"}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs px-2 py-1 bg-amber-200 text-amber-800 rounded">
+                                      {(item.type || "TASK").replace(/_/g, " ")}
+                                    </span>
+                                    <span className="font-medium text-amber-900">
+                                      {item.hours || 0}h
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                        {day.events.length > 2 && (
-                          <div className="text-xs text-gray-500">
-                            +{day.events.length - 2} more
+                        )}
+
+                        {/* Study Tips */}
+                        {tips.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-amber-900 mb-2 flex items-center gap-1">
+                              <Lightbulb className="w-4 h-4" /> Study Tips:
+                            </p>
+                            <ul className="space-y-1">
+                              {tips.map((tip, idx) => (
+                                <li
+                                  key={idx}
+                                  className="flex items-start gap-2 text-sm text-amber-700"
+                                >
+                                  <span className="text-amber-500">•</span>
+                                  <span>{tip}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
-                    )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 md:w-48">
+                      <button
+                        onClick={() =>
+                          handleWeekSelect(reminder.targetBusyWeek)
+                        }
+                        className="w-full px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition font-medium flex items-center justify-center gap-2"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        View Week {reminder.targetBusyWeek}
+                      </button>
+                      <button
+                        onClick={() => handleDismissReminder(reminder.id)}
+                        className="w-full px-4 py-2 bg-white text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-50 transition text-sm"
+                      >
+                        Dismiss Alert
+                      </button>
+                      <div className="text-xs text-amber-600 text-center mt-2">
+                        Starts: {formatDateSafe(reminder.targetWeekStart)}
+                      </div>
+                    </div>
                   </div>
-                ))}
+                </div>
+              );
+            })}
+          </div>
+        ) : hasLoadedReminders ? (
+          // Show message when no reminders after loading
+          <div className="mb-6 bg-green-50 border-l-4 border-green-500 rounded-r-lg p-5">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-900">
+                  No upcoming busy week alerts
+                </p>
+                <p className="text-sm text-green-800 mt-1">
+                  You're all caught up! No busy weeks detected in the next 2
+                  weeks.
+                </p>
               </div>
+            </div>
+          </div>
+        ) : null}
 
-              {/* Subject Filter */}
-              <div className="mb-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Filter className="w-4 h-4" />
-                  Filter by Subject
-                </label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => {
-                    setSelectedDay(null);
-                    setSelectedSubject(e.target.value);
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="ALL">All Subjects</option>
-                  <option value="INTERNSHIP">Internship</option>
-                  {subjects.map((s) => (
-                    <option key={s.subjectId} value={s.subjectId}>
-                      {s.subjectName}
-                    </option>
-                  ))}
-                </select>
+        {/* WORKLOAD STATISTICS */}
+        {workloadStats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Flagged Weeks</p>
+                  <p className="text-2xl font-bold text-amber-600 mt-1">
+                    {workloadStats.flaggedWeeks}
+                  </p>
+                </div>
+                <AlertTriangle className="w-8 h-8 text-amber-500" />
               </div>
-
-              <WorkloadSummary workload={weeklyWorkload} />
-              <WorkloadCalendar
-                workload={weeklyWorkload}
-                onDayClick={setSelectedDay}
-              />
+              <p className="text-xs text-gray-500 mt-2">
+                {workloadStats.totalWeeks} total weeks analyzed
+              </p>
             </div>
 
-            {/* To-Do List Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg">
-                    <ListTodo className="w-5 h-5 text-white" />
-                  </div>
+            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Average Weekly Hours</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-1">
+                    {workloadStats.averageHours}h
+                  </p>
+                </div>
+                <BarChart3 className="w-8 h-8 text-blue-500" />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Max: {workloadStats.maxHours}h this semester
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Normal Weeks</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">
+                    {workloadStats.normalWeeks}
+                  </p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Weeks with manageable workload
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Active Reminders</p>
+                  <p className="text-2xl font-bold text-red-600 mt-1">
+                    {backendReminders.length}
+                  </p>
+                </div>
+                <Bell className="w-8 h-8 text-red-500" />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Busy week alerts from system
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* LECTURE ALERTS */}
+        {lectureAlerts.length > 0 && (
+          <div className="mb-6 space-y-3">
+            {lectureAlerts.map((alert, i) => (
+              <div
+                key={i}
+                className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg"
+              >
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      To-Do List
-                    </h3>
+                    <p className="font-semibold text-blue-900">
+                      {alert.subjectName}
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      {alert.message}
+                    </p>
+                  </div>
+                  {alert.joinLink && (
+                    <a
+                      href={alert.joinLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Join Now
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* WEEK SELECTOR WITH STATUS INDICATORS */}
+        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold">Semester Weeks Overview</h3>
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-xs text-gray-600">Normal</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                <span className="text-xs text-gray-600">Busy</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {weekOptions.map((week) => {
+              const status = getWeekStatus(week.weekNumber);
+              const statusInfo = getStatusLabel(status);
+              const Icon = statusInfo.icon;
+
+              return (
+                <button
+                  key={week.weekNumber}
+                  onClick={() => handleWeekSelect(week.weekNumber)}
+                  className={`px-3 py-2 rounded-lg border text-sm transition flex items-center gap-2 ${
+                    week.weekNumber === currentWeek
+                      ? "ring-2 ring-blue-500 ring-offset-2"
+                      : ""
+                  } ${
+                    status === "NORMAL"
+                      ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                      : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {week.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* UPCOMING BUSY WEEKS */}
+        {workloadStats?.upcomingBusyWeeks.length > 0 && (
+          <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              All Upcoming Busy Weeks
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {workloadStats.upcomingBusyWeeks.map((busyWeek, index) => {
+                const hasReminder = backendReminders.some(
+                  (r) => r.targetBusyWeek === busyWeek.week,
+                );
+
+                return (
+                  <div
+                    key={index}
+                    className={`border rounded-lg p-4 transition hover:shadow-md ${
+                      hasReminder
+                        ? "border-amber-300 bg-amber-50 ring-2 ring-amber-200"
+                        : "border-amber-200 bg-amber-50"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-lg">
+                          Week {busyWeek.week}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {busyWeek.weekStart.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusLabel(busyWeek.status).color}`}
+                      >
+                        {getStatusLabel(busyWeek.status).label}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mt-3">
+                      <span className="text-gray-700">Total Hours:</span>
+                      <span className="font-bold text-amber-700">
+                        {busyWeek.totalHours}h
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500">
+                      {hasReminder ? (
+                        <span className="text-amber-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Alert active
+                        </span>
+                      ) : (
+                        <span>Click to view details</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* WORKLOAD CALENDAR */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <WorkloadCalendar
+            workload={weeklyWorkload}
+            onDayClick={handleDayClick}
+            currentWeekStart={currentWeekStart}
+            onWeekChange={handleWeekChange}
+            showWeekNavigation={true}
+            semesterStartDate={SEMESTER_START_DATE}
+          />
+        </div>
+
+        {/* SELECTED WEEK DETAILS */}
+        {selectedDate && selectedDate.week && (
+          <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-lg">
+                Week {selectedDate.week} Details
+              </h3>
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const statusInfo = getStatusLabel(selectedDate.status);
+                  const StatusIcon = statusInfo.icon;
+                  return (
+                    <>
+                      {StatusIcon && <StatusIcon className="w-5 h-5" />}
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium">
+                      {new Date(
+                        selectedDate.weekStart._seconds * 1000,
+                      ).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
                     <p className="text-sm text-gray-600">
-                      {todoStats.completed} of {todoStats.total} tasks completed
+                      Week {selectedDate.week} • Semester Week{" "}
+                      {calculateAcademicWeek(
+                        SEMESTER_START_DATE,
+                        new Date(selectedDate.weekStart._seconds * 1000),
+                      )}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {progressPercentage === 100 && todoStats.total > 0 && (
-                    <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-full text-sm">
-                      <Trophy className="w-4 h-4" />
-                      <span>All Done!</span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setShowTodoForm(!showTodoForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow hover:shadow-lg"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Task
-                  </button>
-                </div>
-              </div>
 
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Progress</span>
-                  <span className="font-semibold">{progressPercentage}%</span>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 ${progressPercentage === 100 ? "bg-gradient-to-r from-emerald-500 to-green-500" : "bg-gradient-to-r from-blue-500 to-indigo-500"}`}
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Todo Filter Tabs */}
-              <div className="flex gap-2 mb-6">
-                {["ALL", "ACTIVE", "COMPLETED", "TODAY", "UPCOMING"].map(
-                  (filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setTodoFilter(filter)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        todoFilter === filter
-                          ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {filter}{" "}
-                      {filter === "TODAY" &&
-                        todoStats.today > 0 &&
-                        `(${todoStats.today})`}
-                    </button>
-                  ),
-                )}
-              </div>
-
-              {/* Todo Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {todoStats.total}
-                  </div>
-                  <div className="text-sm text-blue-700">Total Tasks</div>
-                </div>
-                <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-3 rounded-lg border border-emerald-200">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {todoStats.completed}
-                  </div>
-                  <div className="text-sm text-emerald-700">Completed</div>
-                </div>
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-3 rounded-lg border border-amber-200">
-                  <div className="text-2xl font-bold text-amber-600">
-                    {todoStats.pending}
-                  </div>
-                  <div className="text-sm text-amber-700">Pending</div>
-                </div>
-                <div className="bg-gradient-to-r from-red-50 to-rose-50 p-3 rounded-lg border border-red-200">
-                  <div className="text-2xl font-bold text-red-600">
-                    {todoStats.overdue}
-                  </div>
-                  <div className="text-sm text-red-700">Overdue</div>
-                </div>
-              </div>
-
-              {/* Add Todo Form */}
-              {showTodoForm && (
-                <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-gray-900">
-                      {editingTodoId ? "Edit Task" : "Add New Task"}
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setShowTodoForm(false);
-                        setEditingTodoId(null);
-                        setNewTodo({
-                          title: "",
-                          description: "",
-                          dueDate: "",
-                          priority: "MEDIUM",
-                          category: "study",
-                          subjectId: "",
-                        });
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Task Title *
-                      </label>
-                      <input
-                        type="text"
-                        value={newTodo.title}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, title: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="What needs to be done?"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Category
-                      </label>
-                      <select
-                        value={newTodo.category}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, category: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="study">Study</option>
-                        <option value="assignment">Assignment</option>
-                        <option value="exam">Exam</option>
-                        <option value="internship">Internship</option>
-                        <option value="personal">Personal</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Priority
-                      </label>
-                      <select
-                        value={newTodo.priority}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, priority: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Due Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newTodo.dueDate}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, dueDate: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description (Optional)
-                    </label>
-                    <textarea
-                      value={newTodo.description}
-                      onChange={(e) =>
-                        setNewTodo({ ...newTodo, description: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      rows="3"
-                      placeholder="Add details about this task..."
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Related Subject (Optional)
-                    </label>
-                    <select
-                      value={newTodo.subjectId}
-                      onChange={(e) =>
-                        setNewTodo({ ...newTodo, subjectId: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">None</option>
-                      {subjects.map((s) => (
-                        <option key={s.subjectId} value={s.subjectId}>
-                          {s.subjectName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => {
-                        setShowTodoForm(false);
-                        setEditingTodoId(null);
-                        setNewTodo({
-                          title: "",
-                          description: "",
-                          dueDate: "",
-                          priority: "MEDIUM",
-                          category: "study",
-                          subjectId: "",
-                        });
-                      }}
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={editingTodoId ? saveTodoEdit : addTodo}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-colors"
-                    >
-                      {editingTodoId ? "Save Changes" : "Add Task"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Todo List */}
-              {filteredTodos.length === 0 ? (
-                <div className="text-center py-12">
-                  <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">
-                    {todoFilter === "COMPLETED"
-                      ? "No completed tasks yet"
-                      : todoFilter === "TODAY"
-                        ? "No tasks for today"
-                        : "No tasks found"}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {todoFilter === "ALL" &&
-                      "Add your first task to get started!"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                  {filteredTodos.map((todo) => (
-                    <div
-                      key={todo.id}
-                      className={`group p-4 rounded-lg border transition-all hover:shadow ${
-                        todo.completed
-                          ? "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200"
-                          : todo.priority === "HIGH"
-                            ? "bg-gradient-to-r from-red-50 to-rose-50 border-red-200"
-                            : todo.priority === "MEDIUM"
-                              ? "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200"
-                              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => toggleTodo(todo.id)}
-                          className={`mt-1 flex-shrink-0 ${
-                            todo.completed
-                              ? "text-emerald-500"
-                              : "text-gray-400 hover:text-blue-500"
-                          }`}
-                        >
-                          {todo.completed ? (
-                            <CheckSquare className="w-5 h-5" />
-                          ) : (
-                            <Square className="w-5 h-5" />
-                          )}
-                        </button>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p
-                                className={`font-medium truncate ${
-                                  todo.completed
-                                    ? "text-emerald-800 line-through"
-                                    : "text-gray-900"
-                                }`}
-                              >
-                                {todo.title}
-                              </p>
-                              {todo.description && (
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {todo.description}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {todo.dueDate && (
-                                <div
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                                    todo.completed
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : new Date(todo.dueDate) < new Date()
-                                        ? "bg-red-100 text-red-700"
-                                        : "bg-blue-100 text-blue-700"
-                                  }`}
-                                >
-                                  <CalendarDays className="w-3 h-3" />
-                                  <span>
-                                    {format(new Date(todo.dueDate), "MMM dd")}
-                                  </span>
-                                </div>
-                              )}
-
-                              <div
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityTextColor(todo.priority)} ${todo.completed ? "bg-emerald-100" : getPriorityColor(todo.priority).replace("bg-gradient-to-r", "bg")}`}
-                              >
-                                {todo.priority}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-200 border-opacity-50">
-                            <div
-                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getCategoryColor(todo.category)}`}
-                            >
-                              {getCategoryIcon(todo.category)}
-                              <span className="capitalize">
-                                {todo.category}
-                              </span>
-                            </div>
-
-                            {todo.subjectName && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                                <BookOpen className="w-3 h-3" />
-                                <span>{todo.subjectName}</span>
-                              </div>
-                            )}
-
-                            {todo.isAutoGenerated && (
-                              <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                                Auto-generated
-                              </div>
-                            )}
-
-                            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => editTodo(todo.id)}
-                                className="p-1 text-gray-500 hover:text-blue-500 rounded"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteTodo(todo.id)}
-                                className="p-1 text-gray-500 hover:text-red-500 rounded"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Add Manual Reminder */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Add Reminder
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowReminderForm(!showReminderForm)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Reminder
-                </button>
-              </div>
-
-              {showReminderForm && (
-                <div className="border border-gray-200 rounded-lg p-4 mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Reminder Title
-                      </label>
-                      <input
-                        type="text"
-                        value={newReminder.title}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            title: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g., Get supervisor signature"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newReminder.date}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            date: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Time (Optional)
-                      </label>
-                      <input
-                        type="time"
-                        value={newReminder.time}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            time: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <button
-                      onClick={() => setShowReminderForm(false)}
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addManualReminder}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                      Add Reminder
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {manualReminders.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Your Reminders</h4>
-                  {manualReminders.map((reminder) => (
-                    <div
-                      key={reminder.id}
-                      className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {reminder.title}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {format(reminder.date, "MMM dd, yyyy")}
-                          {reminder.time && ` at ${reminder.time}`}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => removeManualReminder(reminder.id)}
-                        className="p-1 hover:bg-green-100 rounded"
-                      >
-                        <X className="w-4 h-4 text-gray-500" />
-                      </button>
-                    </div>
-                  ))}
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Total Hours</span>
+                    <span className="font-bold text-lg">
+                      {selectedDate.totalHours || 0}h
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Workload Level</span>
+                    <span className="text-gray-700 font-medium">
+                      {selectedDate.status === "BUSY"
+                        ? "High Intensity"
+                        : "Normal"}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {examInTwoWeeks && <StudyTimetable subjects={subjects} />}
-          </div>
-
-          <div className="space-y-6">
-            {/* Upcoming Tasks Summary */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Upcoming Tasks
-                </h3>
               </div>
 
-              {todos.filter(
-                (t) =>
-                  !t.completed &&
-                  t.dueDate &&
-                  new Date(t.dueDate) <= addDays(new Date(), 7),
-              ).length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                  <p className="text-gray-600">No urgent tasks</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    You're all caught up!
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {todos
-                    .filter(
-                      (t) =>
-                        !t.completed &&
-                        t.dueDate &&
-                        new Date(t.dueDate) <= addDays(new Date(), 7),
-                    )
-                    .slice(0, 5)
-                    .map((t, i) => (
+              <div>
+                <h4 className="font-medium mb-3">Work Breakdown</h4>
+                {selectedDate.breakdown && selectedDate.breakdown.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedDate.breakdown.map((item, index) => (
                       <div
-                        key={i}
-                        className={`p-4 rounded-lg border-l-4 ${
-                          t.priority === "HIGH"
-                            ? "bg-red-50 border-red-500"
-                            : "bg-amber-50 border-amber-500"
-                        }`}
+                        key={index}
+                        className="p-3 border rounded-lg hover:bg-gray-50"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2">
-                            <button
-                              onClick={() => toggleTodo(t.id)}
-                              className="mt-1"
-                            >
-                              {t.completed ? (
-                                <CheckSquare className="w-4 h-4 text-emerald-500" />
-                              ) : (
-                                <Square className="w-4 h-4 text-gray-400" />
-                              )}
-                            </button>
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {t.title}
-                              </p>
-                              {t.dueDate && (
-                                <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
-                                  <Clock className="w-4 h-4" />
-                                  <span>
-                                    {format(t.dueDate, "MMM dd")} •{" "}
-                                    {differenceInDays(t.dueDate, new Date())}d
-                                    left
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">{item.subjectName}</p>
+                            <p className="text-sm text-gray-600">
+                              {item.type} • {item.hours}h
+                            </p>
                           </div>
-                        </div>
-                        <div className="mt-2">
-                          <span
-                            className={`inline-block px-2 py-1 text-xs rounded-full ${
-                              t.category === "exam"
-                                ? "bg-red-100 text-red-800"
-                                : t.category === "assignment"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : t.category === "internship"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {t.category}
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                            {item.subjectId}
                           </span>
                         </div>
                       </div>
                     ))}
-                </div>
-              )}
-            </div>
-
-            {/* Subjects with Syllabus */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <GraduationCap className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  My Subjects
-                </h3>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">
+                    No workload items for this week
+                  </p>
+                )}
               </div>
-              <div className="space-y-4">
-                {subjects.map((sub) => (
-                  <div
-                    key={sub.subjectId}
-                    className="p-4 bg-blue-50 rounded-lg border border-blue-200"
+            </div>
+          </div>
+        )}
+
+        {/* SUBJECTS SUMMARY */}
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold">My Subjects</h3>
+            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+              {subjects.length} subjects
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subjects.map((subject) => (
+              <div
+                key={subject.subjectId}
+                className="border rounded-lg p-4 hover:shadow-md transition"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className="font-semibold text-lg">
+                      {subject.subjectName}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {subject.subjectCode}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs rounded-full ${
+                      subject.type === "CORE"
+                        ? "bg-purple-100 text-purple-800"
+                        : subject.type === "INTERNSHIP_SUBMISSION"
+                          ? "bg-orange-100 text-orange-800"
+                          : "bg-green-100 text-green-800"
+                    }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-blue-900">
-                          {sub.subjectName} ({sub.subjectId})
-                        </p>
-                        <p className="text-sm text-blue-700 mt-1">
-                          Final: Week{" "}
-                          {sub.assessmentTimeline?.finalExamWeek || "TBA"}
-                        </p>
-                      </div>
-                      <button className="text-blue-600 hover:text-blue-800">
-                        <BookOpen className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {sub.syllabus && (
-                      <div className="mt-3 pt-3 border-t border-blue-200">
-                        <p className="text-xs font-medium text-blue-800 mb-2">
-                          Syllabus:
-                        </p>
-                        <ul className="text-xs text-blue-700 space-y-1">
-                          {sub.syllabus.slice(0, 3).map((topic, idx) => (
-                            <li key={idx} className="flex items-start">
-                              <div className="w-1 h-1 bg-blue-500 rounded-full mt-1 mr-2"></div>
-                              {topic}
-                            </li>
-                          ))}
-                          {sub.syllabus.length > 3 && (
-                            <li className="text-blue-600">
-                              +{sub.syllabus.length - 3} more topics
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+                    {subject.type?.replace(/_/g, " ")}
+                  </span>
+                </div>
 
-            {/* Internship */}
-            {internship && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Briefcase className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Internship
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-gray-700">
-                      <span className="font-semibold">
-                        {internship.companyName}
-                      </span>
-                    </p>
-                    <p className="text-sm text-gray-600">{internship.role}</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <BookOpen className="w-4 h-4 text-gray-500" />
+                    <span>Credits: {subject.credits || 3}</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      Working Days:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.workingDays?.join(", ") || "Monday - Friday"}
-                    </p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span>Delivery: {subject.deliveryMode}</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      Office Hours:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.officeHoursPerDay} hours per day
-                    </p>
-                  </div>
-                  {internship.submissionWeeks && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        Submission Weeks:
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Weeks {internship.submissionWeeks.join(", ")}
-                      </p>
-                    </div>
-                  )}
-                  <div className="pt-3 border-t border-gray-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      Supervisor:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.supervisorName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {internship.supervisorEmail}
-                    </p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4 text-gray-500" />
+                    <span>Instructor: {subject.instructor || "TBA"}</span>
                   </div>
                 </div>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </div>
-
-      {selectedDay && (
-        <DayBreakdown day={selectedDay} onClose={() => setSelectedDay(null)} />
-      )}
     </div>
   );
 };
