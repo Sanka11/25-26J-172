@@ -2,7 +2,8 @@ const functions = require("firebase-functions");
 const admin = require("../firebase");
 
 const db = admin.firestore();
-
+const { GoogleGenAI } = require("@google/genai");
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 /**
  * Generate Weekly Workload purely from SUBJECT data
  * Method: POST
@@ -308,7 +309,108 @@ const generateOverloadReminders = functions.https.onRequest(
     }
   },
 );
-// Add this new function to your backend
+
+// const generateBusyWeekReminders = functions.https.onRequest(
+//   async (req, res) => {
+//     try {
+//       const { studentId } = req.body;
+
+//       if (!studentId) {
+//         return res.status(400).json({ error: "Missing studentId" });
+//       }
+
+//       const snap = await db
+//         .collection("weekly_workload")
+//         .where("studentId", "==", studentId)
+//         .where("status", "in", ["BUSY", "HEAVY", "OVERLOADED"])
+//         .get();
+
+//       if (snap.empty) {
+//         return res.json({
+//           message: "No busy weeks detected",
+//           remindersCreated: 0,
+//         });
+//       }
+
+//       const batch = db.batch();
+//       let reminderCount = 0;
+//       const today = new Date();
+
+//       // 3️⃣ Switched to a for...of loop to handle async await properly!
+//       for (const doc of snap.docs) {
+//         const data = doc.data();
+//         const busyWeek = Number(data.week);
+//         const weekStart = data.weekStart.toDate();
+
+//         if (weekStart <= today) continue;
+
+//         const reminderWeeks = [busyWeek - 2, busyWeek - 1];
+
+//         for (const week of reminderWeeks) {
+//           if (week <= 0) continue;
+
+//           // 4️⃣ Extract the subject names from the breakdown to give the AI context
+//           const subjectNames = data.breakdown
+//             .map((b) => b.subjectName)
+//             .join(" and ");
+
+//           // 5️⃣ Create a prompt for the LLM
+//           const prompt = `
+//           Act as an encouraging academic advisor.
+//           A student has an upcoming week labeled as "${data.status}".
+//           They have ${data.totalHours} hours of expected work mostly involving: ${subjectNames}.
+//           Write a short, empathetic 1 to 2 sentence push notification reminding them to start preparing in advance.
+//           Keep it supportive, conversational, and actionable. Do not use hashtags.
+//         `;
+
+//           let aiMessage = `Week ${busyWeek} will be ${data.status.toLowerCase()}. Start preparation early.`; // Fallback message
+
+//           try {
+//             // 6️⃣ Call the LLM to generate the dynamic message
+//             const response = await ai.models.generateContent({
+//               model: "gemini-2.5-flash",
+//               contents: prompt,
+//             });
+//             aiMessage = response.text.trim();
+//           } catch (aiError) {
+//             console.error("LLM failed, using fallback message:", aiError);
+//           }
+
+//           const reminderId = `${studentId}_${data.status}_W${busyWeek}_REM_W${week}`;
+//           const ref = db.collection("busy_week_reminders").doc(reminderId);
+
+//           batch.set(ref, {
+//             studentId,
+//             reminderWeek: week,
+//             targetBusyWeek: busyWeek,
+//             targetWeekStart: weekStart,
+//             targetStatus: data.status,
+//             targetTotalHours: data.totalHours,
+//             targetBreakdown: data.breakdown,
+//             type: "BUSY_WEEK_WARNING",
+//             message: aiMessage, // 🌟 Save the AI-generated message here!
+//             createdAt: new Date(),
+//             isActive: true,
+//             isDismissed: false,
+//             dismissedAt: null,
+//           });
+
+//           reminderCount++;
+//         }
+//       }
+
+//       await batch.commit();
+
+//       return res.json({
+//         message: "Dynamic AI busy week reminders generated",
+//         remindersCreated: reminderCount,
+//       });
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ error: "Failed to generate dynamic reminders" });
+//     }
+//   },
+// );
 const generateBusyWeekReminders = functions.https.onRequest(
   async (req, res) => {
     try {
@@ -318,7 +420,6 @@ const generateBusyWeekReminders = functions.https.onRequest(
         return res.status(400).json({ error: "Missing studentId" });
       }
 
-      // 1️⃣ Fetch all busy weeks (BUSY, HEAVY, OVERLOADED)
       const snap = await db
         .collection("weekly_workload")
         .where("studentId", "==", studentId)
@@ -336,34 +437,76 @@ const generateBusyWeekReminders = functions.https.onRequest(
       let reminderCount = 0;
       const today = new Date();
 
-      snap.docs.forEach((doc) => {
+      for (const doc of snap.docs) {
         const data = doc.data();
         const busyWeek = Number(data.week);
         const weekStart = data.weekStart.toDate();
 
-        // Skip if week has already started
-        if (weekStart <= today) return;
+        if (weekStart <= today) continue;
 
-        // 2️⃣ Calculate weeks before busy week (1-2 weeks before)
         const reminderWeeks = [busyWeek - 2, busyWeek - 1];
 
-        reminderWeeks.forEach((week) => {
-          if (week <= 0) return;
+        for (const week of reminderWeeks) {
+          if (week <= 0) continue;
 
-          // Create a unique reminder ID
+          // 1️⃣ Extract subject names, hours, and types for accurate AI context
+          const subjectDetails = data.breakdown
+            .map((b) => `${b.hours} hours of ${b.subjectName} (${b.type})`)
+            .join(", ");
+
+          // 2️⃣ Create the prompt specifically asking for a JSON array
+          const prompt = `
+            You are an expert academic advisor. 
+            A student has an upcoming week labeled as "${data.status}".
+            They have a heavy workload of ${data.totalHours} hours.
+            
+            Here is the exact breakdown of their tasks:
+            ${subjectDetails}
+
+            Your job is to create a realistic 5-day study timetable (Day 1 to Day 5) to help them manage this specific workload.
+            Distribute the total hours logically across the 5 days.
+            Make the tasks highly specific to the subject names provided.
+            
+            You MUST return ONLY a valid JSON array. Do not include markdown formatting or extra text.
+            
+            Use this exact JSON format:
+            [
+              { "day": 1, "subject": "Name of Subject", "hours": 2, "task": "Specific actionable study task based on the subject" },
+              { "day": 2, "subject": "Name of Subject", "hours": 3, "task": "Another specific task" }
+            ]
+          `;
+
+          let aiTimetable = []; // Fallback empty array
+
+          try {
+            // 3️⃣ Call the LLM and FORCE the response to be application/json
+            const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+              },
+            });
+
+            // 4️⃣ Parse the JSON string into a JavaScript array
+            aiTimetable = JSON.parse(response.text.trim());
+          } catch (aiError) {
+            console.error("LLM failed or returned invalid JSON:", aiError);
+            // Optional fallback if the AI fails
+            aiTimetable = [
+              {
+                day: 1,
+                subject: "Preparation",
+                hours: 2,
+                task: `Start preparing early for your ${data.status} week.`,
+              },
+            ];
+          }
+
           const reminderId = `${studentId}_${data.status}_W${busyWeek}_REM_W${week}`;
           const ref = db.collection("busy_week_reminders").doc(reminderId);
 
-          // Check if reminder already exists
-          const reminderExists = false; // You might want to check this
-
-          // Generate message based on status
-          const statusMessages = {
-            BUSY: "busy",
-            HEAVY: "heavy",
-            OVERLOADED: "overloaded",
-          };
-
+          // 5️⃣ Save the array to Firestore
           batch.set(ref, {
             studentId,
             reminderWeek: week,
@@ -373,7 +516,7 @@ const generateBusyWeekReminders = functions.https.onRequest(
             targetTotalHours: data.totalHours,
             targetBreakdown: data.breakdown,
             type: "BUSY_WEEK_WARNING",
-            message: `Week ${busyWeek} will be ${statusMessages[data.status]}. Start preparation early.`,
+            timetable: aiTimetable, // 🌟 Save the structured JSON here!
             createdAt: new Date(),
             isActive: true,
             isDismissed: false,
@@ -381,23 +524,70 @@ const generateBusyWeekReminders = functions.https.onRequest(
           });
 
           reminderCount++;
-        });
-      });
+        }
+      }
 
       await batch.commit();
 
       return res.json({
-        message: "Busy week reminders generated",
+        message: "Dynamic AI busy week timetables generated",
         remindersCreated: reminderCount,
       });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: "Failed to generate busy week reminders" });
+      res.status(500).json({ error: "Failed to generate dynamic reminders" });
     }
   },
 );
 
+
 // Add this function to get active reminders
+// const getActiveReminders = functions.https.onRequest(async (req, res) => {
+//   try {
+//     if (req.method !== "GET") {
+//       return res.status(405).send("Method Not Allowed");
+//     }
+
+//     const { studentId } = req.query;
+//     if (!studentId) {
+//       return res.status(400).json({ error: "Missing studentId" });
+//     }
+
+//     const today = new Date();
+//     const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+//     // SIMPLIFIED QUERY - Remove multiple where conditions temporarily
+//     const snap = await db
+//       .collection("busy_week_reminders")
+//       .where("studentId", "==", studentId)
+//       .get();
+
+//     // Filter in JavaScript instead of Firestore query
+//     const reminders = snap.docs
+//       .map((doc) => ({
+//         id: doc.id,
+//         ...doc.data(),
+//         targetWeekStart: doc.data().targetWeekStart.toDate(),
+//         createdAt: doc.data().createdAt.toDate(),
+//       }))
+//       .filter(
+//         (reminder) =>
+//           reminder.isActive === true &&
+//           reminder.isDismissed === false &&
+//           reminder.targetWeekStart > today &&
+//           reminder.targetWeekStart <= oneWeekFromNow,
+//       );
+
+//     return res.json({
+//       studentId,
+//       count: reminders.length,
+//       reminders,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to fetch reminders" });
+//   }
+// });
 const getActiveReminders = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "GET") {
@@ -410,16 +600,18 @@ const getActiveReminders = functions.https.onRequest(async (req, res) => {
     }
 
     const today = new Date();
-    const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // Look ahead 14 days so we can catch upcoming weeks properly
+    const twoWeeksFromNow = new Date(
+      today.getTime() + 14 * 24 * 60 * 60 * 1000,
+    );
 
-    // SIMPLIFIED QUERY - Remove multiple where conditions temporarily
     const snap = await db
       .collection("busy_week_reminders")
       .where("studentId", "==", studentId)
       .get();
 
-    // Filter in JavaScript instead of Firestore query
-    const reminders = snap.docs
+    // 1️⃣ Filter the active reminders
+    const allActiveReminders = snap.docs
       .map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -431,13 +623,34 @@ const getActiveReminders = functions.https.onRequest(async (req, res) => {
           reminder.isActive === true &&
           reminder.isDismissed === false &&
           reminder.targetWeekStart > today &&
-          reminder.targetWeekStart <= oneWeekFromNow,
+          reminder.targetWeekStart <= twoWeeksFromNow,
       );
+
+    // 2️⃣ DEDUPLICATE: Only keep ONE reminder per target busy week
+    const uniqueRemindersMap = new Map();
+
+    allActiveReminders.forEach((reminder) => {
+      const targetWeek = reminder.targetBusyWeek;
+
+      if (!uniqueRemindersMap.has(targetWeek)) {
+        uniqueRemindersMap.set(targetWeek, reminder);
+      } else {
+        // If we already have a reminder for this week, keep the latest one
+        // (e.g., keep the W3 reminder instead of the W2 reminder for a Week 4 target)
+        const existingReminder = uniqueRemindersMap.get(targetWeek);
+        if (reminder.reminderWeek > existingReminder.reminderWeek) {
+          uniqueRemindersMap.set(targetWeek, reminder);
+        }
+      }
+    });
+
+    // Convert the Map back into an array
+    const finalReminders = Array.from(uniqueRemindersMap.values());
 
     return res.json({
       studentId,
-      count: reminders.length,
-      reminders,
+      count: finalReminders.length,
+      reminders: finalReminders, // 🌟 Now it only returns 1 alert per busy week!
     });
   } catch (err) {
     console.error(err);
@@ -445,6 +658,67 @@ const getActiveReminders = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * Get Enrolled Subjects for a student
+ * Method: GET
+ * Query: ?studentId=UID
+ */
+const getEnrolledSubjects = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const { studentId } = req.query;
+
+    if (!studentId) {
+      return res.status(400).json({ error: "Missing studentId" });
+    }
+
+    // 1️⃣ Get enrollment document
+    const enrollSnap = await db
+      .collection("student_enrollments")
+      .doc(studentId)
+      .get();
+
+    if (!enrollSnap.exists) {
+      return res.status(404).json({ error: "Student not enrolled" });
+    }
+
+    const subjectIds = enrollSnap.data().subjects || [];
+
+    // 2️⃣ Load subject details
+    const subjects = await Promise.all(
+      subjectIds.map(async (id) => {
+        const snap = await db.collection("subjects").doc(id).get();
+        if (!snap.exists) return null;
+
+        const data = snap.data();
+
+        return {
+          subjectId: data.subjectId,
+          subjectName: data.subjectName, // ✅ display name
+          type: data.type,
+          deliveryMode: data.deliveryMode || "PHYSICAL",
+          lectureDays: data.lectureDays || [],
+          lectureStartTime: data.lectureStartTime || null,
+          lectureEndTime: data.lectureEndTime || null,
+
+          // ✅ ADD THIS
+          onlinePlatform: data.onlinePlatform || null,
+        };
+      }),
+    );
+
+    return res.json({
+      studentId,
+      subjects: subjects.filter(Boolean),
+    });
+  } catch (err) {
+    console.error("getEnrolledSubjects error:", err);
+    res.status(500).json({ error: "Failed to fetch enrolled subjects" });
+  }
+});
 // Add this function to dismiss a reminder
 const dismissReminder = functions.https.onRequest(async (req, res) => {
   try {
@@ -490,4 +764,6 @@ module.exports = {
   dismissReminder,
   getActiveReminders,
   generateBusyWeekReminders,
+  getEnrolledSubjects,
 };
+
