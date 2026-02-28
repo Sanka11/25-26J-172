@@ -1,83 +1,79 @@
-import os
-import numpy as np
-import joblib
-import tensorflow as tf
+# app/disengagement/gru_inference.py
 
-# --------------------------------------------------
-# Paths
-# --------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+import numpy as np
+import tensorflow as tf
+import joblib
+import os
+
+BASE_DIR = os.path.dirname(__file__)
 
 MODEL_PATH = os.path.join(BASE_DIR, "gru_autoencoder.keras")
 SCALER_PATH = os.path.join(BASE_DIR, "gru_scaler.joblib")
-THRESHOLDS_PATH = os.path.join(BASE_DIR, "gru_thresholds.pkl")
+THRESHOLD_PATH = os.path.join(BASE_DIR, "gru_thresholds.joblib")
+
+# Load once (important for performance)
+gru_model = tf.keras.models.load_model(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
+thresholds = joblib.load(THRESHOLD_PATH)
+
+FEATURE_ORDER = [
+    "login_freq",
+    "session_duration",
+    "inactivity_days",
+    "assignment_completion",
+    "quiz_score",
+    "forum_posts",
+    "video_watch_ratio",
+    "late_submissions",
+    "alert_interactions",
+    "help_requests"
+]
 
 SEQ_LEN = 10
-NUM_FEATURES = 10
 
-# --------------------------------------------------
-# Load artifacts (loaded once)
-# --------------------------------------------------
-model = tf.keras.models.load_model(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
-thresholds = joblib.load(THRESHOLDS_PATH)
 
-P95 = thresholds["p95"]
-P97 = thresholds["p97"]
+def compute_gru_risk(last_10_weeks: list):
+    """
+    last_10_weeks: list of WeeklyActivity dicts (can be < 10)
+    """
 
-# --------------------------------------------------
-# Risk mapping
-# --------------------------------------------------
-def map_risk(reconstruction_error: float) -> str:
-    if reconstruction_error < P95:
-        return "LOW"
-    elif reconstruction_error < P97:
-        return "NORMAL"
+    # Convert to numpy
+    X = np.array(
+        [[getattr(w, f) for f in FEATURE_ORDER] for w in last_10_weeks],
+        dtype=np.float32
+    )
+
+    # ❗ PAD IF LESS THAN 10 WEEKS
+    if X.shape[0] < SEQ_LEN:
+        pad_len = SEQ_LEN - X.shape[0]
+        pad = np.zeros((pad_len, X.shape[1]), dtype=np.float32)
+        X = np.vstack([pad, X])
+
+    # Safety check
+    if X.shape != (10, 10):
+        raise ValueError(f"Invalid GRU input shape after padding: {X.shape}")
+
+    # Scale
+    X_scaled = scaler.transform(X)
+
+    # Add batch dimension
+    X_scaled = np.expand_dims(X_scaled, axis=0)
+
+    # Predict
+    recon = gru_model.predict(X_scaled, verbose=0)
+
+    # Reconstruction error
+    recon_error = float(np.mean(np.square(X_scaled - recon)))
+
+    # Risk label
+    if recon_error >= thresholds["p99"]:
+        risk = "HIGH"
+    elif recon_error >= thresholds["p97"]:
+        risk = "NORMAL"
     else:
-        return "HIGH"
-
-# --------------------------------------------------
-# GRU inference function
-# --------------------------------------------------
-def predict_gru_risk(last_10_weeks_features: np.ndarray):
-    """
-    last_10_weeks_features:
-        shape = (10, 10)
-        order must match training feature order
-    """
-
-    if last_10_weeks_features.shape != (SEQ_LEN, NUM_FEATURES):
-        raise ValueError(
-            f"Expected shape (10, 10), got {last_10_weeks_features.shape}"
-        )
-
-    # scale
-    scaled = scaler.transform(last_10_weeks_features)
-
-    # reshape for GRU: (1, 10, 10)
-    x = np.expand_dims(scaled, axis=0)
-
-    # reconstruction
-    reconstructed = model.predict(x, verbose=0)
-
-    # reconstruction error (MSE)
-    error = np.mean(np.square(x - reconstructed))
-
-    risk = map_risk(error)
+        risk = "LOW"
 
     return {
         "risk_level": risk,
-        "reconstruction_error": float(error),
+        "reconstruction_error": recon_error
     }
-
-# --------------------------------------------------
-# Local test (sanity check)
-# --------------------------------------------------
-if __name__ == "__main__":
-    # Dummy example input (replace later with real student data)
-    dummy_input = np.random.rand(SEQ_LEN, NUM_FEATURES)
-
-    result = predict_gru_risk(dummy_input)
-
-    print("GRU inference result:")
-    print(result)
