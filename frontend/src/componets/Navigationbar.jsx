@@ -1,3 +1,188 @@
+// import React from "react";
+// import { Link, useLocation, useNavigate } from "react-router-dom";
+// import { useAuth } from "../context/AuthContext";
+
+// import {
+//   AppBar,
+//   Toolbar,
+//   Container,
+//   Typography,
+//   Box,
+//   Button,
+//   IconButton,
+//   Tooltip,
+//   Chip,
+// } from "@mui/material";
+
+// import {
+//   School as SchoolIcon,
+//   TrendingUp as RiskIcon,
+//   Recommend as RecommendIcon,
+//   AddCircle as CreateIcon,
+//   Dashboard as DashboardIcon,
+//   Home as HomeIcon,
+//   Person as ProfileIcon,
+//   ExitToApp as LogoutIcon,
+// } from "@mui/icons-material";
+
+// const NavigationBar = () => {
+//   const location = useLocation();
+//   const navigate = useNavigate();
+
+//   // ✅ IMPORTANT: remembers login state
+//   const { currentUser, userData, logout } = useAuth();
+
+//   const theme = {
+//     primary: "#1A237E",
+//     primaryLight: "#E8EAF6",
+//     secondary: "#283593",
+//   };
+
+//   const navItems = [
+//     { path: "/", label: "Home", icon: <HomeIcon />, exact: true },
+//     { path: "/risk", label: "Risk Dashboard", icon: <RiskIcon /> },
+//     {
+//       path: "/recommendation",
+//       label: "Recommendation",
+//       icon: <RecommendIcon />,
+//     },
+//     {
+//       path: "/announcements",
+//       label: "Announcements",
+//       icon: <span>🔔</span>,
+//       iconOnly: true,
+//     },
+//     { path: "/create-quiz", label: "Create Quiz", icon: <CreateIcon /> },
+//     { path: "/levels", label: "Quizzes", icon: <DashboardIcon /> },
+//   ];
+
+//   const isActive = (path, exact = false) =>
+//     exact ? location.pathname === path : location.pathname.startsWith(path);
+
+//   // ✅ Logout handler
+//   const handleLogout = async () => {
+//     try {
+//       await logout();
+//       localStorage.clear();
+//       sessionStorage.clear();
+//       navigate("/login", { replace: true });
+//     } catch (err) {
+//       console.error("Logout failed:", err);
+//     }
+//   };
+
+//   return (
+//     <AppBar
+//       position="static"
+//       elevation={0}
+//       sx={{
+//         background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+//         borderBottom: `2px solid ${theme.primaryLight}`,
+//         boxShadow: "0 4px 20px rgba(26,35,126,0.3)",
+//       }}
+//     >
+//       <Container maxWidth="xl">
+//         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+//           {/* LEFT SIDE */}
+//           <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+//             {/* LOGO */}
+//             <Box
+//               component={Link}
+//               to="/"
+//               sx={{
+//                 display: "flex",
+//                 alignItems: "center",
+//                 textDecoration: "none",
+//                 color: "white",
+//               }}
+//             >
+//               <SchoolIcon sx={{ fontSize: 36, mr: 1 }} />
+//               <Box>
+//                 <Typography fontWeight={800} variant="h6">
+//                   AcademiGuard
+//                 </Typography>
+//                 <Typography variant="caption" sx={{ opacity: 0.8 }}>
+//                   LEARNING PLATFORM
+//                 </Typography>
+//               </Box>
+//             </Box>
+
+//             {/* NAV LINKS */}
+//             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
+//               {navItems.map((item) => (
+//                 <Tooltip key={item.path} title={item.label}>
+//                   <Button
+//                     component={Link}
+//                     to={item.path}
+//                     startIcon={item.icon}
+//                     sx={{
+//                       color: isActive(item.path, item.exact)
+//                         ? "#FFD700"
+//                         : "white",
+//                       fontWeight: isActive(item.path, item.exact) ? 700 : 500,
+//                       backgroundColor: isActive(item.path, item.exact)
+//                         ? "rgba(255,215,0,0.12)"
+//                         : "transparent",
+//                     }}
+//                   >
+//                     {!item.iconOnly && item.label}
+//                   </Button>
+//                 </Tooltip>
+//               ))}
+//             </Box>
+//           </Box>
+
+//           {/* RIGHT SIDE */}
+//           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+//             {/* USER BADGE */}
+//             {currentUser && (
+//               <Chip
+//                 icon={<ProfileIcon />}
+//                 label={`${userData?.role?.toUpperCase() || "USER"} • ${currentUser?.uid || ""}`}
+//                 sx={{
+//                   backgroundColor: "rgba(255,255,255,0.2)",
+//                   color: "white",
+//                   fontWeight: 600,
+//                 }}
+//               />
+//             )}
+
+//             {/* LOGIN / LOGOUT BUTTON */}
+//             {!currentUser ? (
+//               <Button
+//                 component={Link}
+//                 to="/login"
+//                 variant="outlined"
+//                 sx={{
+//                   color: "white",
+//                   borderColor: "white",
+//                   "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" },
+//                 }}
+//               >
+//                 Login
+//               </Button>
+//             ) : (
+//               <Tooltip title="Logout">
+//                 <IconButton
+//                   onClick={handleLogout}
+//                   sx={{
+//                     color: "white",
+//                     backgroundColor: "rgba(255,255,255,0.15)",
+//                     "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" },
+//                   }}
+//                 >
+//                   <LogoutIcon />
+//                 </IconButton>
+//               </Tooltip>
+//             )}
+//           </Box>
+//         </Toolbar>
+//       </Container>
+//     </AppBar>
+//   );
+// };
+
+// export default NavigationBar;
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -23,6 +208,7 @@ import {
   Home as HomeIcon,
   Person as ProfileIcon,
   ExitToApp as LogoutIcon,
+  NotificationsActive as AlertIcon,
 } from "@mui/icons-material";
 
 const NavigationBar = () => {
@@ -36,6 +222,7 @@ const NavigationBar = () => {
     primary: "#1A237E",
     primaryLight: "#E8EAF6",
     secondary: "#283593",
+    accent: "#FFD700",
   };
 
   const navItems = [
@@ -49,11 +236,16 @@ const NavigationBar = () => {
     {
       path: "/announcements",
       label: "Announcements",
-      icon: <span>🔔</span>,
+      icon: <AlertIcon />,
       iconOnly: true,
     },
-    { path: "/create-quiz", label: "Create Quiz", icon: <CreateIcon /> },
+    // { path: "/create-quiz", label: "Create Quiz", icon: <CreateIcon /> },
     { path: "/levels", label: "Quizzes", icon: <DashboardIcon /> },
+    {
+      path: "/WorkloadDashboard",
+      label: "WorkloadDashboard",
+      icon: <DashboardIcon />,
+    },
   ];
 
   const isActive = (path, exact = false) =>
@@ -72,113 +264,254 @@ const NavigationBar = () => {
   };
 
   return (
-    <AppBar
-      position="static"
-      elevation={0}
-      sx={{
-        background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
-        borderBottom: `2px solid ${theme.primaryLight}`,
-        boxShadow: "0 4px 20px rgba(26,35,126,0.3)",
-      }}
-    >
-      <Container maxWidth="xl">
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          {/* LEFT SIDE */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-            {/* LOGO */}
+    <>
+      {/* Custom Keyframes for smooth entry and pulses */}
+      <style>{`
+        @keyframes slideDownFade {
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-3px); }
+          100% { transform: translateY(0px); }
+        }
+        .nav-animate-in {
+          animation: slideDownFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
+      <AppBar
+        position="sticky"
+        elevation={0}
+        className="nav-animate-in"
+        sx={{
+          background: `linear-gradient(135deg, rgba(26, 35, 126, 0.95), rgba(40, 53, 147, 0.95))`,
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)", // Safari support
+          borderBottom: `1px solid rgba(255, 255, 255, 0.1)`,
+          boxShadow: "0 10px 30px -10px rgba(26,35,126,0.5)",
+          zIndex: 1100,
+        }}
+      >
+        <Container maxWidth="xl">
+          <Toolbar
+            sx={{ display: "flex", justifyContent: "space-between", py: 0.5 }}
+          >
+            {/* LEFT SIDE */}
             <Box
-              component={Link}
-              to="/"
               sx={{
                 display: "flex",
                 alignItems: "center",
-                textDecoration: "none",
-                color: "white",
+                gap: { xs: 2, lg: 4 },
               }}
             >
-              <SchoolIcon sx={{ fontSize: 36, mr: 1 }} />
-              <Box>
-                <Typography fontWeight={800} variant="h6">
-                  AcademiGuard
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  LEARNING PLATFORM
-                </Typography>
+              {/* LOGO */}
+              <Box
+                component={Link}
+                to="/"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  textDecoration: "none",
+                  color: "white",
+                  transition: "transform 0.3s ease",
+                  "&:hover": {
+                    transform: "scale(1.02)",
+                  },
+                  "&:hover .logo-icon": {
+                    animation: "float 2s ease-in-out infinite",
+                    color: theme.accent,
+                  },
+                }}
+              >
+                <SchoolIcon
+                  className="logo-icon"
+                  sx={{
+                    fontSize: 40,
+                    mr: 1.5,
+                    transition: "color 0.3s ease",
+                    filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))",
+                  }}
+                />
+                <Box>
+                  <Typography
+                    fontWeight={800}
+                    variant="h6"
+                    sx={{ letterSpacing: 0.5, lineHeight: 1.2 }}
+                  >
+                    AcademiGuard
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      opacity: 0.7,
+                      fontWeight: 700,
+                      letterSpacing: 1.5,
+                      fontSize: "0.65rem",
+                    }}
+                  >
+                    LEARNING PLATFORM
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* NAV LINKS */}
+              <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
+                {navItems.map((item, index) => {
+                  const active = isActive(item.path, item.exact);
+                  return (
+                    <Tooltip key={item.path} title={item.label} arrow>
+                      <Button
+                        component={Link}
+                        to={item.path}
+                        startIcon={
+                          <Box
+                            sx={{
+                              display: "flex",
+                              transform: active ? "scale(1.1)" : "scale(1)",
+                              transition: "transform 0.2s ease",
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                        }
+                        sx={{
+                          color: active
+                            ? theme.accent
+                            : "rgba(255, 255, 255, 0.75)",
+                          fontWeight: active ? 700 : 500,
+                          textTransform: "none",
+                          fontSize: "0.9rem",
+                          letterSpacing: 0.5,
+                          borderRadius: "10px",
+                          padding: item.iconOnly ? "8px" : "6px 16px",
+                          minWidth: item.iconOnly ? "auto" : "auto",
+                          position: "relative",
+                          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                          background: active
+                            ? "rgba(255,215,0,0.1)"
+                            : "transparent",
+                          "&:hover": {
+                            background: active
+                              ? "rgba(255,215,0,0.15)"
+                              : "rgba(255,255,255,0.08)",
+                            color: active ? theme.accent : "white",
+                            transform: "translateY(-2px)",
+                          },
+                          // Animated underline for active state
+                          "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            bottom: 0,
+                            left: "50%",
+                            transform: active
+                              ? "translateX(-50%) scaleX(1)"
+                              : "translateX(-50%) scaleX(0)",
+                            width: "20px",
+                            height: "3px",
+                            backgroundColor: theme.accent,
+                            borderRadius: "4px 4px 0 0",
+                            transition: "transform 0.3s ease",
+                          },
+                        }}
+                      >
+                        {!item.iconOnly && item.label}
+                      </Button>
+                    </Tooltip>
+                  );
+                })}
               </Box>
             </Box>
 
-            {/* NAV LINKS */}
-            <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
-              {navItems.map((item) => (
-                <Tooltip key={item.path} title={item.label}>
-                  <Button
-                    component={Link}
-                    to={item.path}
-                    startIcon={item.icon}
-                    sx={{
-                      color: isActive(item.path, item.exact)
-                        ? "#FFD700"
-                        : "white",
-                      fontWeight: isActive(item.path, item.exact) ? 700 : 500,
-                      backgroundColor: isActive(item.path, item.exact)
-                        ? "rgba(255,215,0,0.12)"
-                        : "transparent",
-                    }}
-                  >
-                    {!item.iconOnly && item.label}
-                  </Button>
-                </Tooltip>
-              ))}
-            </Box>
-          </Box>
+            {/* RIGHT SIDE */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* USER BADGE */}
+              {currentUser && (
+                <Chip
+                  icon={
+                    <ProfileIcon
+                      sx={{
+                        fontSize: "1.1rem !important",
+                        color: "rgba(255,255,255,0.9) !important",
+                      }}
+                    />
+                  }
+                  label={`${userData?.role?.toUpperCase() || "USER"} • ${currentUser?.uid?.substring(0, 5) || ""}...`}
+                  sx={{
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "white",
+                    fontWeight: 600,
+                    letterSpacing: 0.5,
+                    backdropFilter: "blur(4px)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      background: "rgba(255, 255, 255, 0.2)",
+                      transform: "translateY(-1px)",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    },
+                    display: { xs: "none", sm: "flex" },
+                  }}
+                />
+              )}
 
-          {/* RIGHT SIDE */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {/* USER BADGE */}
-            {currentUser && (
-              <Chip
-                icon={<ProfileIcon />}
-                label={`${userData?.role?.toUpperCase() || "USER"} • ${currentUser?.uid || ""}`}
-                sx={{
-                  backgroundColor: "rgba(255,255,255,0.2)",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              />
-            )}
-
-            {/* LOGIN / LOGOUT BUTTON */}
-            {!currentUser ? (
-              <Button
-                component={Link}
-                to="/login"
-                variant="outlined"
-                sx={{
-                  color: "white",
-                  borderColor: "white",
-                  "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" },
-                }}
-              >
-                Login
-              </Button>
-            ) : (
-              <Tooltip title="Logout">
-                <IconButton
-                  onClick={handleLogout}
+              {/* LOGIN / LOGOUT BUTTON */}
+              {!currentUser ? (
+                <Button
+                  component={Link}
+                  to="/login"
+                  variant="outlined"
                   sx={{
                     color: "white",
-                    backgroundColor: "rgba(255,255,255,0.15)",
-                    "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" },
+                    borderColor: "rgba(255,255,255,0.5)",
+                    borderRadius: "10px",
+                    fontWeight: 600,
+                    textTransform: "none",
+                    px: 3,
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      backgroundColor: "white",
+                      color: theme.primary,
+                      borderColor: "white",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 6px 15px rgba(0,0,0,0.2)",
+                    },
                   }}
                 >
-                  <LogoutIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
-        </Toolbar>
-      </Container>
-    </AppBar>
+                  Login
+                </Button>
+              ) : (
+                <Tooltip title="Secure Logout" arrow>
+                  <IconButton
+                    onClick={handleLogout}
+                    sx={{
+                      color: "white",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "12px",
+                      transition:
+                        "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                      "&:hover": {
+                        backgroundColor: "rgba(244, 67, 54, 0.2)", // Subtle red tint on hover
+                        color: "#ffcdd2",
+                        borderColor: "rgba(244, 67, 54, 0.3)",
+                        transform: "scale(1.1) rotate(5deg)",
+                      },
+                      "&:active": {
+                        transform: "scale(0.95)",
+                      },
+                    }}
+                  >
+                    <LogoutIcon sx={{ fontSize: "1.3rem" }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
+    </>
   );
 };
 
