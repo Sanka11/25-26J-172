@@ -13,22 +13,22 @@ import { ROLES } from "./context/AuthContext";
 
 /* ================= Pages ================= */
 import RiskDemo from "./pages/RiskDemo";
-import CareerRecommendation from "./pages/CareerRecommendation";
+
+//savindi
+import WorkloadDashboard from "./pages/StudentDashboard";
+import Recommendation from "./componets/RecommendationDashboard";
 import CreateQuiz from "./pages/CreateQuiz";
 import TakeQuiz from "./pages/TakeQuiz";
 import Levels from "./pages/Levels";
+import CareerReadiness from "./pages/CareerReadiness";
+//
+
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
 import LiveRiskDashboard from "./pages/LiveRiskDashboard";
 import StudentRiskTimeline from "./pages/StudentRiskTimeline";
 import UserAnnouncements from "./pages/UserAnnouncements";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
-import WorkloadDashboard from "./pages/StudentDashboard";
-import AddSubject from "./pages/AddSubject";
-import EnrollCourses from "./pages/EnrollCourses";
-import EnrollInternship from "./pages/EnrollInternship";
-import CareerReadiness from "./pages/CareerReadiness";
-import CognitiveLoad from "./pages/CognitiveLoad";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
@@ -149,15 +149,14 @@ function MainShell() {
 
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
-        <Route path="/recommendation" element={<CareerRecommendation />} />
+
         <Route path="/create-quiz" element={<CreateQuiz />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
         <Route path="/WorkloadDashboard" element={<WorkloadDashboard />} />
-        <Route path="/enroll-subject" element={<EnrollCourses />} />
-        <Route path="/enroll-internship" element={<EnrollInternship />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
-        <Route path="/cognitiveLoad" element={<CognitiveLoad />} />
+        <Route path="/recommendation" element={<Recommendation />} />
+
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />
 

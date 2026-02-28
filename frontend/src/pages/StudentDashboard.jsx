@@ -1,1463 +1,1199 @@
 import { useEffect, useState } from "react";
 import {
-  startOfWeek,
-  addDays,
-  format,
-  differenceInDays,
-  parseISO,
-  addWeeks,
-  startOfDay,
-  endOfDay,
-} from "date-fns";
-import {
   GraduationCap,
-  Briefcase,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  AlertCircle,
   Bell,
-  CheckCircle2,
-  Clock,
   Calendar,
+  Users,
   BookOpen,
-  Plus,
-  X,
-  CheckSquare,
-  Square,
-  Trash2,
-  Edit2,
-  CalendarDays,
-  Target,
+  Clock,
+  Grid,
+  AlertTriangle,
+  CheckCircle,
   TrendingUp,
-  ListTodo,
-  Filter as FilterIcon,
+  BarChart3,
+  Lightbulb,
+  X,
+  Loader,
+  ChevronRight,
   Sparkles,
-  Trophy,
+  Target,
+  Award,
 } from "lucide-react";
-
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import WorkloadCalendar from "../componets/WorkloadCalendar";
-import WorkloadSummary from "../componets/WorkloadSummary";
-import DayBreakdown from "../componets/DayBreakdown";
-import StudyTimetable from "../componets/StudyTimetable";
 
-import { fetchDailyWorkload } from "../services/api/workloadService";
-import { fetchStudentEnrollment } from "../services/api/studentService";
+import {
+  fetchWeeklyWorkload,
+  fetchLectureAlerts,
+  fetchStudentEnrollment,
+  generateWorkloadIfNeeded,
+  fetchActiveReminders,
+  dismissReminder,
+  generateBusyWeekReminders,
+} from "../services/api/workloadService";
+
+/* ---------------- HELPERS ---------------- */
+
+function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
+  const start = new Date(semesterStartDate);
+  const today = new Date(targetDate);
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.floor(
+    (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+function getAcademicPeriod(semesterStartDate) {
+  const start = new Date(semesterStartDate);
+  const today = new Date();
+
+  return {
+    month: today.toLocaleDateString("en-US", { month: "long" }),
+    year: today.getFullYear(),
+    semester: `${start.getMonth() < 6 ? "Spring" : "Fall"} ${start.getFullYear()}`,
+  };
+}
+
+// Enhanced status helper function with user-friendly labels
+const getStatusLabel = (status = "NORMAL") => {
+  const statusMap = {
+    NORMAL: {
+      label: "Easy Week",
+      description: "Light workload - perfect for catching up",
+      color: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+      icon: CheckCircle,
+      iconColor: "text-emerald-500",
+      bgLight: "bg-emerald-50",
+      emoji: "🌿",
+    },
+    BUSY: {
+      label: "Packed Week",
+      description: "Full schedule - plan ahead",
+      color: "bg-amber-50 text-amber-700 border border-amber-200",
+      icon: AlertTriangle,
+      iconColor: "text-amber-500",
+      bgLight: "bg-amber-50",
+      emoji: "📚",
+    },
+    LIGHT: {
+      label: "Easy Week",
+      description: "Light workload - perfect for catching up",
+      color: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+      icon: CheckCircle,
+      iconColor: "text-emerald-500",
+      bgLight: "bg-emerald-50",
+      emoji: "🌿",
+    },
+    MODERATE: {
+      label: "Steady Pace",
+      description: "Consistent workload",
+      color: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+      icon: TrendingUp,
+      iconColor: "text-indigo-500",
+      bgLight: "bg-indigo-50",
+      emoji: "⚖️",
+    },
+    HEAVY: {
+      label: "Intense Week",
+      description: "Lots to do - stay focused",
+      color: "bg-orange-50 text-orange-700 border border-orange-200",
+      icon: AlertTriangle,
+      iconColor: "text-orange-500",
+      bgLight: "bg-orange-50",
+      emoji: "🔥",
+    },
+    OVERLOADED: {
+      label: "Full Plate",
+      description: "Maximum capacity - prioritize",
+      color: "bg-red-50 text-red-700 border border-red-200",
+      icon: AlertTriangle,
+      iconColor: "text-red-500",
+      bgLight: "bg-red-50",
+      emoji: "⚡",
+    },
+  };
+
+  return (
+    statusMap[status] || {
+      label: status.charAt(0) + status.slice(1).toLowerCase(),
+      description: "Week with activities",
+      color: "bg-gray-50 text-gray-700 border border-gray-200",
+      icon: CheckCircle,
+      iconColor: "text-gray-500",
+      bgLight: "bg-gray-50",
+      emoji: "📌",
+    }
+  );
+};
+
+// Generate weeks for week selector
+function generateWeekOptions(semesterStart) {
+  const totalWeeks = 16; // Typical semester length
+  const weeks = [];
+
+  for (let i = 1; i <= totalWeeks; i++) {
+    const weekStart = new Date(semesterStart);
+    weekStart.setDate(weekStart.getDate() + (i - 1) * 7);
+
+    weeks.push({
+      weekNumber: i,
+      startDate: weekStart,
+      label: `Week ${i}`,
+      fullLabel: `Week ${i} (${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`,
+    });
+  }
+
+  return weeks;
+}
+
+// Calculate workload statistics from API response
+function calculateWorkloadStats(weeklyWorkload) {
+  const stats = {
+    totalWeeks: weeklyWorkload.length,
+    flaggedWeeks: 0,
+    easyWeeks: 0,
+    totalHours: 0,
+    maxHours: 0,
+    averageHours: 0,
+    statusDistribution: {},
+    upcomingPackedWeeks: [],
+  };
+
+  if (!Array.isArray(weeklyWorkload)) return stats;
+
+  weeklyWorkload.forEach((week) => {
+    stats.statusDistribution[week.status] =
+      (stats.statusDistribution[week.status] || 0) + 1;
+
+    if (week.status !== "NORMAL" && week.status !== "LIGHT") {
+      stats.flaggedWeeks++;
+
+      const weekStart = new Date(week.weekStart._seconds * 1000);
+      const today = new Date();
+      if (weekStart > today) {
+        stats.upcomingPackedWeeks.push({
+          week: week.week,
+          weekStart: weekStart,
+          status: week.status,
+          totalHours: week.totalHours,
+        });
+      }
+    } else {
+      stats.easyWeeks++;
+    }
+
+    stats.totalHours += week.totalHours || 0;
+    stats.maxHours = Math.max(stats.maxHours, week.totalHours || 0);
+  });
+
+  stats.averageHours =
+    stats.totalWeeks > 0 ? (stats.totalHours / stats.totalWeeks).toFixed(1) : 0;
+
+  stats.upcomingPackedWeeks.sort((a, b) => a.weekStart - b.weekStart);
+
+  return stats;
+}
+
+// Generate tips based on workload (Fallback if AI timetable fails)
+function generateWorkloadTips(status, totalHours, breakdown = []) {
+  const tips = [];
+
+  if (status === "OVERLOADED" || totalHours > 20) {
+    tips.push("Break tasks into smaller chunks and take regular breaks");
+    tips.push("Consider speaking with your academic advisor");
+    tips.push("Use the Pomodoro technique: 25 min work, 5 min rest");
+  } else if (status === "HEAVY" || totalHours > 15) {
+    tips.push("Start preparing materials early this week");
+    tips.push("Prioritize tasks based on deadlines");
+    tips.push("Use time-blocking to stay focused");
+  } else if (status === "BUSY" || totalHours > 10) {
+    tips.push("Create a schedule to track all assignments");
+    tips.push("Review materials in advance");
+    tips.push("Group similar tasks together for efficiency");
+  }
+
+  if (breakdown.some((item) => item.type && item.type.includes("EXAM"))) {
+    tips.push("Schedule dedicated study sessions for exams");
+    tips.push("Create study guides or flashcards");
+  }
+
+  if (breakdown.some((item) => item.type && item.type.includes("ASSIGNMENT"))) {
+    tips.push("Start research early to gather resources");
+    tips.push("Break assignments into smaller milestones");
+  }
+
+  return tips;
+}
+
+// Timetable Table Component
+const TimetableTable = ({ timetable }) => {
+  if (!timetable || timetable.length === 0) return null;
+
+  // Group by day for better organization
+  const groupedByDay = timetable.reduce((acc, item) => {
+    if (!acc[item.day]) {
+      acc[item.day] = [];
+    }
+    acc[item.day].push(item);
+    return acc;
+  }, {});
+
+  const days = Object.keys(groupedByDay).sort(
+    (a, b) => parseInt(a) - parseInt(b),
+  );
+
+  return (
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <div className="inline-block min-w-full align-middle">
+        <div className="overflow-hidden border border-amber-200 rounded-xl">
+          <table className="min-w-full divide-y divide-amber-200">
+            <thead className="bg-amber-100">
+              <tr>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-medium text-amber-800 uppercase tracking-wider"
+                >
+                  Day
+                </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-medium text-amber-800 uppercase tracking-wider"
+                >
+                  Subject
+                </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-medium text-amber-800 uppercase tracking-wider"
+                >
+                  Task
+                </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-medium text-amber-800 uppercase tracking-wider"
+                >
+                  Duration
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-amber-100">
+              {days.map((day) =>
+                groupedByDay[day].map((item, idx) => (
+                  <tr
+                    key={`${day}-${idx}`}
+                    className="hover:bg-amber-50 transition-colors"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span className="font-medium text-gray-900">
+                          Day {item.day}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-sm text-gray-900 font-medium">
+                        {item.subject}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-gray-600 line-clamp-2">
+                        {item.task}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">
+                        {item.hours} {item.hours === 1 ? "hour" : "hours"}
+                      </span>
+                    </td>
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ---------------- COMPONENT ---------------- */
 
 const StudentDashboard = () => {
-  const studentId = "S001";
-  const [loading, setLoading] = useState(true);
-
+  const SEMESTER_START_DATE = "2026-02-10";
+  const [studentId, setStudentId] = useState(null);
+  const [weeklyWorkload, setWeeklyWorkload] = useState([]);
+  const [lectureAlerts, setLectureAlerts] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [internship, setInternship] = useState(null);
-
-  const [workload, setWorkload] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null);
-
-  const [todos, setTodos] = useState([]);
-  const [manualReminders, setManualReminders] = useState([]);
-  const [showReminderForm, setShowReminderForm] = useState(false);
-  const [showTodoForm, setShowTodoForm] = useState(false);
-
-  const [newReminder, setNewReminder] = useState({
-    title: "",
-    date: "",
-    time: "",
-  });
-
-  const [newTodo, setNewTodo] = useState({
-    title: "",
-    description: "",
-    dueDate: "",
-    priority: "MEDIUM",
-    category: "study",
-    subjectId: "",
-  });
-
-  const [selectedSubject, setSelectedSubject] = useState("ALL");
-  const [todoFilter, setTodoFilter] = useState("ALL"); // ALL, ACTIVE, COMPLETED, TODAY
-  const [editingTodoId, setEditingTodoId] = useState(null);
-
-  const [weekStart, setWeekStart] = useState(
-    startOfWeek(new Date(), { weekStartsOn: 1 }),
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
+  const [calendarView, setCalendarView] = useState("week");
+  const [loading, setLoading] = useState(true);
+  const [weekOptions, setWeekOptions] = useState([]);
+  const [workloadStats, setWorkloadStats] = useState(null);
+  const [backendReminders, setBackendReminders] = useState([]);
+  const [loadingReminders, setLoadingReminders] = useState(false);
+  const [hasLoadedReminders, setHasLoadedReminders] = useState(false);
+  const currentWeek = calculateAcademicWeek(
+    SEMESTER_START_DATE,
+    currentWeekStart,
   );
-  const weekEnd = addDays(weekStart, 6);
+  const academicPeriod = getAcademicPeriod(SEMESTER_START_DATE);
 
-  // Semester configuration
-  const semesterStartDate = new Date("2024-02-24");
-  const semesterDurationWeeks = 26; // 6 months ≈ 26 weeks
-  const [currentWeek, setCurrentWeek] = useState(1);
-
-  // Load existing todos from localStorage on mount
+  // Initialize week options
   useEffect(() => {
-    const savedTodos = localStorage.getItem(`todos_${studentId}`);
-    if (savedTodos) {
-      try {
-        const parsedTodos = JSON.parse(savedTodos);
-        parsedTodos.forEach((todo) => {
-          todo.dueDate = new Date(todo.dueDate);
-          todo.createdAt = new Date(todo.createdAt);
-          if (todo.completedAt) todo.completedAt = new Date(todo.completedAt);
-        });
-        setTodos(parsedTodos);
-      } catch (error) {
-        console.error("Error loading todos:", error);
-      }
-    }
+    setWeekOptions(generateWeekOptions(SEMESTER_START_DATE));
   }, []);
 
+  // Update workload stats when data changes
   useEffect(() => {
+    if (weeklyWorkload.length > 0) {
+      setWorkloadStats(calculateWorkloadStats(weeklyWorkload));
+    }
+  }, [weeklyWorkload]);
+
+  // Load backend reminders
+  const loadBackendReminders = async () => {
+    if (!studentId) return;
+
+    try {
+      setLoadingReminders(true);
+      const reminderData = await fetchActiveReminders(studentId);
+
+      if (reminderData.reminders && reminderData.reminders.length > 0) {
+        const parsedReminders = reminderData.reminders.map((reminder) => ({
+          ...reminder,
+          targetWeekStart: new Date(reminder.targetWeekStart),
+          createdAt: new Date(reminder.createdAt),
+        }));
+        setBackendReminders(parsedReminders);
+      } else if (weeklyWorkload.length > 0) {
+        // Check if there are upcoming packed weeks
+        const today = new Date();
+        const twoWeeksFromNow = new Date(
+          today.getTime() + 14 * 24 * 60 * 60 * 1000,
+        );
+
+        const upcomingPackedWeeks = weeklyWorkload.filter((week) => {
+          if (!week.weekStart?._seconds) return false;
+          const weekStart = new Date(week.weekStart._seconds * 1000);
+          return (
+            (week.status === "BUSY" ||
+              week.status === "HEAVY" ||
+              week.status === "OVERLOADED") &&
+            weekStart > today &&
+            weekStart <= twoWeeksFromNow
+          );
+        });
+
+        if (upcomingPackedWeeks.length > 0) {
+          await generateBusyWeekReminders(studentId);
+          const newReminderData = await fetchActiveReminders(studentId);
+          if (newReminderData.reminders) {
+            const parsedReminders = newReminderData.reminders.map(
+              (reminder) => ({
+                ...reminder,
+                targetWeekStart: new Date(reminder.targetWeekStart),
+                createdAt: new Date(reminder.createdAt),
+              }),
+            );
+            setBackendReminders(parsedReminders);
+          }
+        }
+      }
+
+      setHasLoadedReminders(true);
+    } catch (error) {
+      console.error("Error loading reminders:", error);
+      setBackendReminders([]);
+      setHasLoadedReminders(true);
+    } finally {
+      setLoadingReminders(false);
+    }
+  };
+
+  // Dismiss a reminder
+  const handleDismissReminder = async (reminderId) => {
+    try {
+      await dismissReminder(reminderId, studentId);
+      setBackendReminders((prev) => prev.filter((r) => r.id !== reminderId));
+    } catch (err) {
+      console.error("Error dismissing reminder:", err);
+    }
+  };
+
+  // Auth effect
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setStudentId(user.uid);
+      } else {
+        setStudentId(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Load dashboard data
+  useEffect(() => {
+    if (!studentId) return;
+
     async function loadDashboard() {
       try {
+        setLoading(true);
         const enrollment = await fetchStudentEnrollment(studentId);
-        setSubjects(enrollment.subjects || []);
-        setInternship(enrollment.internship || null);
+        setSubjects(enrollment?.subjects || []);
 
-        const workloadData = await fetchDailyWorkload(studentId);
-        setWorkload(workloadData);
+        await generateWorkloadIfNeeded(studentId, SEMESTER_START_DATE);
 
-        generateTodos(enrollment.subjects || [], enrollment.internship);
-        generateWeeklySchedule(
-          enrollment.subjects || [],
-          enrollment.internship,
-        );
+        const [weeklyResponse, alertRes] = await Promise.all([
+          fetchWeeklyWorkload(studentId),
+          fetchLectureAlerts(),
+        ]);
+
+        const weeks = Array.isArray(weeklyResponse?.weeks)
+          ? weeklyResponse.weeks
+          : [];
+
+        setWeeklyWorkload(weeks);
+        setLectureAlerts(alertRes?.alerts || []);
       } catch (err) {
-        console.error("Dashboard load error:", err);
+        console.error("Dashboard error:", err);
       } finally {
         setLoading(false);
       }
     }
 
     loadDashboard();
-  }, []);
+  }, [studentId]);
 
-  // Save todos to localStorage whenever they change
+  // Load reminders when workload is available
   useEffect(() => {
-    localStorage.setItem(`todos_${studentId}`, JSON.stringify(todos));
-  }, [todos]);
+    if (!loading && weeklyWorkload.length > 0 && !hasLoadedReminders) {
+      loadBackendReminders();
+    }
+  }, [loading, weeklyWorkload, hasLoadedReminders]);
 
-  // Calculate current week based on semester start
+  // Periodic reminder refresh
   useEffect(() => {
-    const today = new Date();
-    const weekDiff =
-      Math.floor(differenceInDays(today, semesterStartDate) / 7) + 1;
-    setCurrentWeek(Math.min(Math.max(weekDiff, 1), semesterDurationWeeks));
-  }, []);
-
-  const generateTodos = (subjects, internship) => {
-    const today = new Date();
-    const list = [];
-
-    subjects.forEach((sub) => {
-      const base = new Date(sub.semesterStartDate || semesterStartDate);
-
-      const getDateByWeek = (week) =>
-        new Date(base.getTime() + (week - 1) * 7 * 86400000);
-
-      // Process all assessment types
-      const assessments = [
-        { key: "assignmentWeek", label: "Assignment" },
-        { key: "midExamWeek", label: "Mid Exam" },
-        { key: "finalExamWeek", label: "Final Exam" },
-        { key: "quizWeeks", label: "Quiz" },
-        { key: "projectSubmissionWeek", label: "Project" },
-      ];
-
-      assessments.forEach(({ key, label }) => {
-        if (sub.assessmentTimeline?.[key]) {
-          const weeks = Array.isArray(sub.assessmentTimeline[key])
-            ? sub.assessmentTimeline[key]
-            : [sub.assessmentTimeline[key]];
-
-          weeks.forEach((week) => {
-            const dueDate = getDateByWeek(week);
-            const daysLeft = differenceInDays(dueDate, today);
-
-            if (daysLeft >= 0 && daysLeft <= 14) {
-              list.push({
-                id: `auto_${Date.now()}_${Math.random()}`,
-                title: `${sub.subjectName} – ${label}`,
-                description: `Complete ${label.toLowerCase()} for ${sub.subjectName}`,
-                dueDate,
-                daysLeft,
-                priority: daysLeft <= 7 ? "HIGH" : "MEDIUM",
-                category: label.toLowerCase(),
-                subjectId: sub.subjectId,
-                subjectName: sub.subjectName,
-                type: "AUTO_GENERATED",
-                completed: false,
-                createdAt: new Date(),
-                isAutoGenerated: true,
-              });
-            }
-          });
+    const intervalId = setInterval(
+      () => {
+        if (hasLoadedReminders) {
+          loadBackendReminders();
         }
-      });
-    });
-
-    if (internship?.submissionWeeks) {
-      internship.submissionWeeks.forEach((week) => {
-        const dueDate = new Date(
-          semesterStartDate.getTime() + (week - 1) * 7 * 86400000,
-        );
-        const daysLeft = differenceInDays(dueDate, today);
-
-        if (daysLeft >= 0 && daysLeft <= 14) {
-          list.push({
-            id: `internship_${Date.now()}_${Math.random()}`,
-            title: "Internship Weekly Submission",
-            description: "Submit weekly internship report",
-            dueDate,
-            daysLeft,
-            priority: "HIGH",
-            category: "internship",
-            type: "INTERNSHIP",
-            completed: false,
-            createdAt: new Date(),
-            isAutoGenerated: true,
-          });
-        }
-      });
-    }
-
-    // Merge with existing todos, avoiding duplicates
-    setTodos((prevTodos) => {
-      const existingAutoIds = new Set(
-        prevTodos
-          .filter((t) => t.isAutoGenerated)
-          .map((t) => t.id.split("_")[1]),
-      );
-
-      const newAutoTodos = list.filter((todo) => {
-        const baseId = todo.id.split("_")[1];
-        return !existingAutoIds.has(baseId);
-      });
-
-      return [...prevTodos, ...newAutoTodos].sort(
-        (a, b) => a.dueDate - b.dueDate,
-      );
-    });
-  };
-
-  const generateWeeklySchedule = (subjects, internship) => {
-    console.log("Generating weekly schedule...");
-  };
-
-  // To-Do Functions
-  const addTodo = () => {
-    if (!newTodo.title.trim()) return;
-
-    const todo = {
-      id: `manual_${Date.now()}_${Math.random()}`,
-      ...newTodo,
-      dueDate: newTodo.dueDate ? new Date(newTodo.dueDate) : null,
-      completed: false,
-      createdAt: new Date(),
-      isAutoGenerated: false,
-    };
-
-    setTodos([...todos, todo]);
-    setNewTodo({
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "MEDIUM",
-      category: "study",
-      subjectId: "",
-    });
-    setShowTodoForm(false);
-  };
-
-  const toggleTodo = (id) => {
-    setTodos(
-      todos.map((todo) => {
-        if (todo.id === id) {
-          const updatedTodo = {
-            ...todo,
-            completed: !todo.completed,
-            completedAt: !todo.completed ? new Date() : null,
-          };
-
-          // Show celebration for completing a high priority todo
-          if (updatedTodo.completed && todo.priority === "HIGH") {
-            showTemporaryNotification(
-              "🎉 Great job completing a high priority task!",
-              "success",
-            );
-          }
-
-          return updatedTodo;
-        }
-        return todo;
-      }),
-    );
-  };
-
-  const deleteTodo = (id) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
-  };
-
-  const editTodo = (id) => {
-    const todoToEdit = todos.find((todo) => todo.id === id);
-    if (todoToEdit) {
-      setNewTodo({
-        title: todoToEdit.title,
-        description: todoToEdit.description || "",
-        dueDate: todoToEdit.dueDate
-          ? format(todoToEdit.dueDate, "yyyy-MM-dd")
-          : "",
-        priority: todoToEdit.priority,
-        category: todoToEdit.category,
-        subjectId: todoToEdit.subjectId || "",
-      });
-      setEditingTodoId(id);
-      setShowTodoForm(true);
-    }
-  };
-
-  const saveTodoEdit = () => {
-    if (!newTodo.title.trim()) return;
-
-    setTodos(
-      todos.map((todo) => {
-        if (todo.id === editingTodoId) {
-          return {
-            ...todo,
-            ...newTodo,
-            dueDate: newTodo.dueDate ? new Date(newTodo.dueDate) : null,
-          };
-        }
-        return todo;
-      }),
+      },
+      5 * 60 * 1000,
     );
 
-    setNewTodo({
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "MEDIUM",
-      category: "study",
-      subjectId: "",
-    });
-    setEditingTodoId(null);
-    setShowTodoForm(false);
+    return () => clearInterval(intervalId);
+  }, [hasLoadedReminders]);
+
+  const handleDayClick = (week) => setSelectedDate(week);
+
+  const handleWeekChange = (newWeekStart) => {
+    setCurrentWeekStart(newWeekStart);
   };
 
-  const addManualReminder = () => {
-    if (!newReminder.title || !newReminder.date) return;
-
-    const reminder = {
-      id: Date.now(),
-      ...newReminder,
-      date: parseISO(newReminder.date),
-      type: "manual",
-      priority: "MEDIUM",
-    };
-
-    setManualReminders([...manualReminders, reminder]);
-    setNewReminder({ title: "", date: "", time: "" });
-    setShowReminderForm(false);
-  };
-
-  const removeManualReminder = (id) => {
-    setManualReminders(manualReminders.filter((r) => r.id !== id));
-  };
-
-  const showTemporaryNotification = (message, type = "success") => {
-    // Create a temporary notification element
-    const notification = document.createElement("div");
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-500 ${
-      type === "success"
-        ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white"
-        : "bg-gradient-to-r from-red-500 to-rose-500 text-white"
-    }`;
-    notification.textContent = message;
-
-    document.body.appendChild(notification);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-      notification.style.opacity = "0";
-      notification.style.transform = "translateX(100%)";
-      setTimeout(() => {
-        document.body.removeChild(notification);
-      }, 500);
-    }, 3000);
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "HIGH":
-        return "bg-gradient-to-r from-red-500 to-rose-500";
-      case "MEDIUM":
-        return "bg-gradient-to-r from-amber-500 to-orange-500";
-      case "LOW":
-        return "bg-gradient-to-r from-blue-500 to-cyan-500";
-      default:
-        return "bg-gradient-to-r from-gray-500 to-slate-500";
+  const handleWeekSelect = (weekNumber) => {
+    const weekOption = weekOptions.find((w) => w.weekNumber === weekNumber);
+    if (weekOption) {
+      setCurrentWeekStart(weekOption.startDate);
+      const selectedWeek = weeklyWorkload.find((w) => w.week === weekNumber);
+      if (selectedWeek) {
+        setSelectedDate(selectedWeek);
+      }
     }
   };
 
-  const getPriorityTextColor = (priority) => {
-    switch (priority) {
-      case "HIGH":
-        return "text-red-700";
-      case "MEDIUM":
-        return "text-amber-700";
-      case "LOW":
-        return "text-blue-700";
-      default:
-        return "text-gray-700";
-    }
+  const getWeekStatus = (weekNumber) => {
+    const weekData = weeklyWorkload.find((w) => w.week === weekNumber);
+    return weekData ? weekData.status : "NORMAL";
   };
 
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case "study":
-        return "bg-gradient-to-r from-indigo-100 to-purple-100";
-      case "assignment":
-        return "bg-gradient-to-r from-amber-100 to-yellow-100";
-      case "exam":
-        return "bg-gradient-to-r from-red-100 to-pink-100";
-      case "internship":
-        return "bg-gradient-to-r from-emerald-100 to-green-100";
-      case "personal":
-        return "bg-gradient-to-r from-sky-100 to-cyan-100";
-      default:
-        return "bg-gradient-to-r from-gray-100 to-slate-100";
-    }
-  };
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case "study":
-        return <BookOpen className="w-4 h-4" />;
-      case "assignment":
-        return <ListTodo className="w-4 h-4" />;
-      case "exam":
-        return <Target className="w-4 h-4" />;
-      case "internship":
-        return <Briefcase className="w-4 h-4" />;
-      case "personal":
-        return <Sparkles className="w-4 h-4" />;
-      default:
-        return <ListTodo className="w-4 h-4" />;
-    }
-  };
-
-  // Filter todos based on selected filter
-  const filteredTodos = todos.filter((todo) => {
-    const today = startOfDay(new Date());
-
-    switch (todoFilter) {
-      case "COMPLETED":
-        return todo.completed;
-      case "ACTIVE":
-        return !todo.completed;
-      case "TODAY":
-        if (!todo.dueDate) return false;
-        const todoDate = startOfDay(new Date(todo.dueDate));
-        return !todo.completed && todoDate.getTime() === today.getTime();
-      case "UPCOMING":
-        if (!todo.dueDate) return false;
-        const dueDate = startOfDay(new Date(todo.dueDate));
-        return (
-          !todo.completed &&
-          dueDate > today &&
-          dueDate <= endOfDay(addDays(today, 7))
-        );
-      default:
-        return true;
-    }
-  });
-
-  // Calculate statistics
-  const todoStats = {
-    total: todos.length,
-    completed: todos.filter((t) => t.completed).length,
-    pending: todos.filter((t) => !t.completed).length,
-    overdue: todos.filter((t) => {
-      if (!t.dueDate || t.completed) return false;
-      return new Date(t.dueDate) < new Date();
-    }).length,
-    today: todos.filter((t) => {
-      if (!t.dueDate || t.completed) return false;
-      const today = startOfDay(new Date());
-      const todoDate = startOfDay(new Date(t.dueDate));
-      return todoDate.getTime() === today.getTime();
-    }).length,
-  };
-
-  const progressPercentage =
-    todoStats.total > 0
-      ? Math.round((todoStats.completed / todoStats.total) * 100)
-      : 0;
-
-  const subjectOptions = ["ALL", ...subjects.map((s) => s.subjectId)];
-
-  const weeklyWorkload = workload.filter((day) => {
-    const date = new Date(day.date);
-    if (date < weekStart || date > weekEnd) return false;
-    if (selectedSubject === "ALL") return true;
-    return day.subjectId === selectedSubject;
-  });
-
-  const nextWeekOverloaded = workload.some((day) => {
-    const date = new Date(day.date);
-    return (
-      date >= addDays(weekStart, 7) &&
-      date <= addDays(weekStart, 13) &&
-      day.loadStatus === "OVERLOADED"
-    );
-  });
-
-  const examInTwoWeeks = todos.some(
-    (t) => t.title.toLowerCase().includes("exam") && !t.completed,
-  );
-
-  const goPrevWeek = () => {
-    setSelectedDay(null);
-    setWeekStart(addDays(weekStart, -7));
-  };
-
-  const goNextWeek = () => {
-    setSelectedDay(null);
-    setWeekStart(addDays(weekStart, 7));
-  };
-
-  const getDayEvents = (date) => {
-    const dayStr = format(date, "yyyy-MM-dd");
-    const events = [];
-
-    // Add todos for this day
-    todos.forEach((todo) => {
-      if (todo.dueDate && format(todo.dueDate, "yyyy-MM-dd") === dayStr) {
-        events.push({
-          ...todo,
-          isTodo: true,
+  // Helper to format date safely
+  const formatDateSafe = (date) => {
+    if (!date) return "Date not available";
+    try {
+      if (typeof date === "string") {
+        return new Date(date).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      } else if (date instanceof Date) {
+        return date.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
         });
       }
-    });
-
-    // Add manual reminders for this day
-    manualReminders.forEach((reminder) => {
-      if (format(reminder.date, "yyyy-MM-dd") === dayStr) {
-        events.push({
-          ...reminder,
-          isReminder: true,
-        });
-      }
-    });
-
-    // Add lectures based on subject schedule
-    subjects.forEach((sub) => {
-      if (sub.schedule?.includes(format(date, "EEEE"))) {
-        events.push({
-          title: `${sub.subjectName} Lecture`,
-          type: "lecture",
-          priority: "LOW",
-        });
-      }
-    });
-
-    return events;
+      return "Invalid date";
+    } catch (error) {
+      return "Date error";
+    }
   };
-
-  // Generate week days with dates
-  const weekDays = Array.from({ length: 7 }).map((_, i) => {
-    const date = addDays(weekStart, i);
-    return {
-      name: format(date, "EEEE"),
-      date: format(date, "yyyy-MM-dd"),
-      displayDate: format(date, "MMM dd"),
-      events: getDayEvents(date),
-    };
-  });
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading dashboard...</p>
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            <GraduationCap className="w-8 h-8 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-gray-600 mt-4 font-medium">
+            Loading your dashboard...
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Preparing your personalized overview
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <GraduationCap className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">
-              Student Dashboard
-            </h1>
-            <div className="ml-auto bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-              Semester Week: {currentWeek}
-            </div>
-          </div>
-          <p className="text-gray-600">
-            Manage your workload and track your progress
-          </p>
-        </div>
-
-        {nextWeekOverloaded && (
-          <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <Bell className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-amber-900">
-                Next week is overloaded
-              </p>
-              <p className="text-sm text-amber-700">
-                Consider planning ahead and distributing your workload
-              </p>
-            </div>
-          </div>
-        )}
-
-        {examInTwoWeeks && (
-          <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-900">
-                Upcoming exams within 2 weeks
-              </p>
-              <p className="text-sm text-red-700">
-                Check your to-do list and start preparing
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Weekly Calendar View */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Week Overview
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={goPrevWeek}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <div className="px-4 py-2 bg-gray-50 rounded-lg">
-                    <span className="font-semibold text-gray-900">
-                      {format(weekStart, "MMM dd")} -{" "}
-                      {format(weekEnd, "MMM dd")}
-                    </span>
-                  </div>
-                  <button
-                    onClick={goNextWeek}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                  </button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+        {/* HEADER */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 sm:p-3 rounded-xl shadow-lg shadow-blue-200 flex-shrink-0">
+                <GraduationCap className="text-white w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div className="flex-1 sm:flex-none">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+                  Student Dashboard
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <span className="px-2 sm:px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
+                    Week {currentWeek}
+                  </span>
+                  <span className="text-xs sm:text-sm text-gray-500">•</span>
+                  <span className="text-xs sm:text-sm text-gray-600">
+                    {academicPeriod.semester}
+                  </span>
                 </div>
               </div>
-
-              {/* Weekly Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 mb-6">
-                {weekDays.map((day, index) => (
-                  <div key={index} className="text-center">
-                    <div className="text-sm font-semibold text-gray-600 mb-1">
-                      {day.name.substring(0, 3)}
-                    </div>
-                    <div
-                      className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
-                        format(new Date(), "yyyy-MM-dd") === day.date
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-100 text-gray-900"
-                      }`}
-                    >
-                      {format(parseISO(day.date), "d")}
-                    </div>
-                    {day.events.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {day.events.slice(0, 2).map((event, idx) => (
-                          <div
-                            key={idx}
-                            className={`text-xs px-2 py-1 rounded truncate ${
-                              event.type === "exam"
-                                ? "bg-red-100 text-red-800"
-                                : event.type === "assignment"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : event.type === "lecture"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : event.type === "internship"
-                                      ? "bg-purple-100 text-purple-800"
-                                      : "bg-green-100 text-green-800"
-                            }`}
-                            title={event.title}
-                          >
-                            {event.title.split(" – ")[0]}
-                          </div>
-                        ))}
-                        {day.events.length > 2 && (
-                          <div className="text-xs text-gray-500">
-                            +{day.events.length - 2} more
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Subject Filter */}
-              <div className="mb-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Filter className="w-4 h-4" />
-                  Filter by Subject
-                </label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => {
-                    setSelectedDay(null);
-                    setSelectedSubject(e.target.value);
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="ALL">All Subjects</option>
-                  <option value="INTERNSHIP">Internship</option>
-                  {subjects.map((s) => (
-                    <option key={s.subjectId} value={s.subjectId}>
-                      {s.subjectName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <WorkloadSummary workload={weeklyWorkload} />
-              <WorkloadCalendar
-                workload={weeklyWorkload}
-                onDayClick={setSelectedDay}
-              />
             </div>
 
-            {/* To-Do List Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg">
-                    <ListTodo className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      To-Do List
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {todoStats.completed} of {todoStats.total} tasks completed
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {progressPercentage === 100 && todoStats.total > 0 && (
-                    <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-full text-sm">
-                      <Trophy className="w-4 h-4" />
-                      <span>All Done!</span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setShowTodoForm(!showTodoForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow hover:shadow-lg"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Task
-                  </button>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Progress</span>
-                  <span className="font-semibold">{progressPercentage}%</span>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 ${progressPercentage === 100 ? "bg-gradient-to-r from-emerald-500 to-green-500" : "bg-gradient-to-r from-blue-500 to-indigo-500"}`}
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Todo Filter Tabs */}
-              <div className="flex gap-2 mb-6">
-                {["ALL", "ACTIVE", "COMPLETED", "TODAY", "UPCOMING"].map(
-                  (filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setTodoFilter(filter)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        todoFilter === filter
-                          ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {filter}{" "}
-                      {filter === "TODAY" &&
-                        todoStats.today > 0 &&
-                        `(${todoStats.today})`}
-                    </button>
-                  ),
-                )}
-              </div>
-
-              {/* Todo Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {todoStats.total}
-                  </div>
-                  <div className="text-sm text-blue-700">Total Tasks</div>
-                </div>
-                <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-3 rounded-lg border border-emerald-200">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {todoStats.completed}
-                  </div>
-                  <div className="text-sm text-emerald-700">Completed</div>
-                </div>
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-3 rounded-lg border border-amber-200">
-                  <div className="text-2xl font-bold text-amber-600">
-                    {todoStats.pending}
-                  </div>
-                  <div className="text-sm text-amber-700">Pending</div>
-                </div>
-                <div className="bg-gradient-to-r from-red-50 to-rose-50 p-3 rounded-lg border border-red-200">
-                  <div className="text-2xl font-bold text-red-600">
-                    {todoStats.overdue}
-                  </div>
-                  <div className="text-sm text-red-700">Overdue</div>
-                </div>
-              </div>
-
-              {/* Add Todo Form */}
-              {showTodoForm && (
-                <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-gray-900">
-                      {editingTodoId ? "Edit Task" : "Add New Task"}
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setShowTodoForm(false);
-                        setEditingTodoId(null);
-                        setNewTodo({
-                          title: "",
-                          description: "",
-                          dueDate: "",
-                          priority: "MEDIUM",
-                          category: "study",
-                          subjectId: "",
-                        });
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Task Title *
-                      </label>
-                      <input
-                        type="text"
-                        value={newTodo.title}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, title: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="What needs to be done?"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Category
-                      </label>
-                      <select
-                        value={newTodo.category}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, category: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="study">Study</option>
-                        <option value="assignment">Assignment</option>
-                        <option value="exam">Exam</option>
-                        <option value="internship">Internship</option>
-                        <option value="personal">Personal</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Priority
-                      </label>
-                      <select
-                        value={newTodo.priority}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, priority: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Due Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newTodo.dueDate}
-                        onChange={(e) =>
-                          setNewTodo({ ...newTodo, dueDate: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description (Optional)
-                    </label>
-                    <textarea
-                      value={newTodo.description}
-                      onChange={(e) =>
-                        setNewTodo({ ...newTodo, description: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      rows="3"
-                      placeholder="Add details about this task..."
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Related Subject (Optional)
-                    </label>
-                    <select
-                      value={newTodo.subjectId}
-                      onChange={(e) =>
-                        setNewTodo({ ...newTodo, subjectId: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">None</option>
-                      {subjects.map((s) => (
-                        <option key={s.subjectId} value={s.subjectId}>
-                          {s.subjectName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => {
-                        setShowTodoForm(false);
-                        setEditingTodoId(null);
-                        setNewTodo({
-                          title: "",
-                          description: "",
-                          dueDate: "",
-                          priority: "MEDIUM",
-                          category: "study",
-                          subjectId: "",
-                        });
-                      }}
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={editingTodoId ? saveTodoEdit : addTodo}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-colors"
-                    >
-                      {editingTodoId ? "Save Changes" : "Add Task"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Todo List */}
-              {filteredTodos.length === 0 ? (
-                <div className="text-center py-12">
-                  <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">
-                    {todoFilter === "COMPLETED"
-                      ? "No completed tasks yet"
-                      : todoFilter === "TODAY"
-                        ? "No tasks for today"
-                        : "No tasks found"}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {todoFilter === "ALL" &&
-                      "Add your first task to get started!"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                  {filteredTodos.map((todo) => (
-                    <div
-                      key={todo.id}
-                      className={`group p-4 rounded-lg border transition-all hover:shadow ${
-                        todo.completed
-                          ? "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200"
-                          : todo.priority === "HIGH"
-                            ? "bg-gradient-to-r from-red-50 to-rose-50 border-red-200"
-                            : todo.priority === "MEDIUM"
-                              ? "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200"
-                              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => toggleTodo(todo.id)}
-                          className={`mt-1 flex-shrink-0 ${
-                            todo.completed
-                              ? "text-emerald-500"
-                              : "text-gray-400 hover:text-blue-500"
-                          }`}
-                        >
-                          {todo.completed ? (
-                            <CheckSquare className="w-5 h-5" />
-                          ) : (
-                            <Square className="w-5 h-5" />
-                          )}
-                        </button>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p
-                                className={`font-medium truncate ${
-                                  todo.completed
-                                    ? "text-emerald-800 line-through"
-                                    : "text-gray-900"
-                                }`}
-                              >
-                                {todo.title}
-                              </p>
-                              {todo.description && (
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {todo.description}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {todo.dueDate && (
-                                <div
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                                    todo.completed
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : new Date(todo.dueDate) < new Date()
-                                        ? "bg-red-100 text-red-700"
-                                        : "bg-blue-100 text-blue-700"
-                                  }`}
-                                >
-                                  <CalendarDays className="w-3 h-3" />
-                                  <span>
-                                    {format(new Date(todo.dueDate), "MMM dd")}
-                                  </span>
-                                </div>
-                              )}
-
-                              <div
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityTextColor(todo.priority)} ${todo.completed ? "bg-emerald-100" : getPriorityColor(todo.priority).replace("bg-gradient-to-r", "bg")}`}
-                              >
-                                {todo.priority}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-200 border-opacity-50">
-                            <div
-                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getCategoryColor(todo.category)}`}
-                            >
-                              {getCategoryIcon(todo.category)}
-                              <span className="capitalize">
-                                {todo.category}
-                              </span>
-                            </div>
-
-                            {todo.subjectName && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                                <BookOpen className="w-3 h-3" />
-                                <span>{todo.subjectName}</span>
-                              </div>
-                            )}
-
-                            {todo.isAutoGenerated && (
-                              <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                                Auto-generated
-                              </div>
-                            )}
-
-                            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => editTodo(todo.id)}
-                                className="p-1 text-gray-500 hover:text-blue-500 rounded"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteTodo(todo.id)}
-                                className="p-1 text-gray-500 hover:text-red-500 rounded"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Add Manual Reminder */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Add Reminder
-                  </h3>
-                </div>
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+              {/* View Toggle */}
+              <div className="flex items-center bg-blue-50 rounded-xl p-1">
                 <button
-                  onClick={() => setShowReminderForm(!showReminderForm)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  onClick={() => setCalendarView("week")}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 ${
+                    calendarView === "week"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-gray-600 hover:text-blue-700"
+                  }`}
                 >
-                  <Plus className="w-4 h-4" />
-                  Add Reminder
+                  <Grid className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Week</span>
+                </button>
+                <button
+                  onClick={() => setCalendarView("month")}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 ${
+                    calendarView === "month"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-gray-600 hover:text-blue-700"
+                  }`}
+                >
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Month</span>
                 </button>
               </div>
 
-              {showReminderForm && (
-                <div className="border border-gray-200 rounded-lg p-4 mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Reminder Title
-                      </label>
-                      <input
-                        type="text"
-                        value={newReminder.title}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            title: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g., Get supervisor signature"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newReminder.date}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            date: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Time (Optional)
-                      </label>
-                      <input
-                        type="time"
-                        value={newReminder.time}
-                        onChange={(e) =>
-                          setNewReminder({
-                            ...newReminder,
-                            time: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <button
-                      onClick={() => setShowReminderForm(false)}
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addManualReminder}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                      Add Reminder
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Notifications */}
+              <div className="relative">
+                <button className="p-1.5 sm:p-2 hover:bg-blue-50 rounded-xl transition-colors relative">
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                  {(lectureAlerts.length > 0 ||
+                    backendReminders.length > 0) && (
+                    <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              {manualReminders.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Your Reminders</h4>
-                  {manualReminders.map((reminder) => (
-                    <div
-                      key={reminder.id}
-                      className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {reminder.title}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {format(reminder.date, "MMM dd, yyyy")}
-                          {reminder.time && ` at ${reminder.time}`}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => removeManualReminder(reminder.id)}
-                        className="p-1 hover:bg-green-100 rounded"
-                      >
-                        <X className="w-4 h-4 text-gray-500" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* BACKEND PACKED WEEK REMINDERS */}
+        {loadingReminders ? (
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-6 sm:p-8">
+            <div className="flex items-center justify-center gap-3">
+              <Loader className="w-5 h-5 text-blue-600 animate-spin" />
+              <span className="text-sm sm:text-base text-gray-600">
+                Checking for upcoming packed weeks...
+              </span>
+            </div>
+          </div>
+        ) : backendReminders.length > 0 ? (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-base sm:text-lg">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                Upcoming Week Alerts ({backendReminders.length})
+              </h3>
+              <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full border">
+                Updated{" "}
+                {new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
 
-            {examInTwoWeeks && <StudyTimetable subjects={subjects} />}
+            {backendReminders.map((reminder) => {
+              const statusInfo = getStatusLabel(reminder.targetStatus);
+              const StatusIcon = statusInfo.icon;
+              const tips = generateWorkloadTips(
+                reminder.targetStatus,
+                reminder.targetTotalHours,
+                reminder.targetBreakdown || [],
+              );
+
+              const daysUntil = Math.floor(
+                (reminder.targetWeekStart - new Date()) / (1000 * 60 * 60 * 24),
+              );
+
+              return (
+                <div
+                  key={reminder.id}
+                  className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl sm:rounded-2xl border-l-4 border-amber-500 p-4 sm:p-6 relative group"
+                >
+                  <button
+                    onClick={() => handleDismissReminder(reminder.id)}
+                    className="absolute top-3 right-3 p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-100 rounded-lg transition-all"
+                    aria-label="Dismiss reminder"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="bg-amber-100 p-2 sm:p-3 rounded-xl flex-shrink-0">
+                        <StatusIcon
+                          className={`w-5 h-5 sm:w-6 sm:h-6 ${statusInfo.iconColor}`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h4 className="font-bold text-gray-800 text-base sm:text-lg">
+                            Week {reminder.targetBusyWeek} • {statusInfo.label}
+                          </h4>
+                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium whitespace-nowrap">
+                            {daysUntil > 0
+                              ? `${daysUntil} ${daysUntil === 1 ? "day" : "days"} away`
+                              : daysUntil === 0
+                                ? "Starting today!"
+                                : "This week!"}
+                          </span>
+                        </div>
+
+                        <p className="text-sm sm:text-base text-gray-600 mb-4">
+                          {reminder.message ||
+                            `You have ${reminder.targetTotalHours} hours of work scheduled.`}
+                        </p>
+
+                        {/* AI TIMETABLE AS TABLE */}
+                        {reminder.timetable && reminder.timetable.length > 0 ? (
+                          <div className="mb-4">
+                            <p className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-1">
+                              <Sparkles className="w-4 h-4 text-amber-500" />
+                              Your Personalized Study Plan
+                            </p>
+                            <TimetableTable timetable={reminder.timetable} />
+                          </div>
+                        ) : (
+                          /* Fallback to Standard Tips if AI timetable isn't present */
+                          tips.length > 0 && (
+                            <div className="bg-white/60 rounded-xl p-3 sm:p-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                                <Lightbulb className="w-4 h-4 text-amber-500" />
+                                Quick Tips:
+                              </p>
+                              <ul className="space-y-1">
+                                {tips.slice(0, 3).map((tip, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="flex items-start gap-2 text-xs sm:text-sm text-gray-600"
+                                  >
+                                    <span className="text-amber-500 mt-1">
+                                      •
+                                    </span>
+                                    <span>{tip}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
+                        )}
+
+                        {/* Week start info - subtle */}
+                        <p className="text-xs text-gray-400 mt-2">
+                          Week starts {formatDateSafe(reminder.targetWeekStart)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div className="space-y-6">
-            {/* Upcoming Tasks Summary */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Upcoming Tasks
-                </h3>
-              </div>
-
-              {todos.filter(
-                (t) =>
-                  !t.completed &&
-                  t.dueDate &&
-                  new Date(t.dueDate) <= addDays(new Date(), 7),
-              ).length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                  <p className="text-gray-600">No urgent tasks</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    You're all caught up!
+        ) : (
+          hasLoadedReminders && (
+            <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl sm:rounded-2xl border border-emerald-200 p-4 sm:p-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-emerald-100 p-2 sm:p-3 rounded-xl flex-shrink-0">
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-800 text-sm sm:text-base">
+                    All caught up!
+                  </p>
+                  <p className="text-xs sm:text-sm text-emerald-700 mt-1">
+                    No packed weeks detected in the next 2 weeks. Keep up the
+                    good work!
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {todos
-                    .filter(
-                      (t) =>
-                        !t.completed &&
-                        t.dueDate &&
-                        new Date(t.dueDate) <= addDays(new Date(), 7),
-                    )
-                    .slice(0, 5)
-                    .map((t, i) => (
-                      <div
-                        key={i}
-                        className={`p-4 rounded-lg border-l-4 ${
-                          t.priority === "HIGH"
-                            ? "bg-red-50 border-red-500"
-                            : "bg-amber-50 border-amber-500"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2">
-                            <button
-                              onClick={() => toggleTodo(t.id)}
-                              className="mt-1"
-                            >
-                              {t.completed ? (
-                                <CheckSquare className="w-4 h-4 text-emerald-500" />
-                              ) : (
-                                <Square className="w-4 h-4 text-gray-400" />
-                              )}
-                            </button>
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {t.title}
-                              </p>
-                              {t.dueDate && (
-                                <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
-                                  <Clock className="w-4 h-4" />
-                                  <span>
-                                    {format(t.dueDate, "MMM dd")} •{" "}
-                                    {differenceInDays(t.dueDate, new Date())}d
-                                    left
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* WORKLOAD STATISTICS */}
+        {workloadStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-3 sm:p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="bg-amber-100 p-1.5 sm:p-2 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+                </div>
+                <span className="text-xl sm:text-2xl font-bold text-gray-800">
+                  {workloadStats.flaggedWeeks}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-medium text-gray-600">
+                Packed Weeks
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Out of {workloadStats.totalWeeks} weeks
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-3 sm:p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="bg-blue-100 p-1.5 sm:p-2 rounded-lg">
+                  <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                </div>
+                <span className="text-xl sm:text-2xl font-bold text-gray-800">
+                  {workloadStats.averageHours}h
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-medium text-gray-600">
+                Avg Weekly Hours
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Peak: {workloadStats.maxHours}h
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-3 sm:p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="bg-emerald-100 p-1.5 sm:p-2 rounded-lg">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                </div>
+                <span className="text-xl sm:text-2xl font-bold text-gray-800">
+                  {workloadStats.easyWeeks}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-medium text-gray-600">
+                Easy Weeks
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Light workload</p>
+            </div>
+
+            <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-3 sm:p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="bg-purple-100 p-1.5 sm:p-2 rounded-lg">
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                </div>
+                <span className="text-xl sm:text-2xl font-bold text-gray-800">
+                  {backendReminders.length}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm font-medium text-gray-600">
+                Active Alerts
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Upcoming packed weeks
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* LECTURE ALERTS */}
+        {lectureAlerts.length > 0 && (
+          <div className="space-y-3">
+            {lectureAlerts.map((alert, i) => (
+              <div
+                key={i}
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl sm:rounded-2xl border-l-4 border-blue-500 p-3 sm:p-4"
+              >
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                  <div className="flex items-start gap-3 w-full sm:w-auto">
+                    <div className="bg-blue-100 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
+                      <BookOpen className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800 text-sm sm:text-base">
+                        {alert.subjectName}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                        {alert.message}
+                      </p>
+                    </div>
+                  </div>
+                  {alert.joinLink && (
+                    <a
+                      href={alert.joinLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm rounded-xl hover:bg-blue-700 transition-all shadow-sm flex items-center justify-center gap-2"
+                    >
+                      Join Now
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* WEEK SELECTOR */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+              Semester Overview
+            </h3>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-emerald-500"></div>
+                  <span className="text-gray-600">Easy</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-amber-500"></div>
+                  <span className="text-gray-600">Packed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+            {weekOptions.map((week) => {
+              const status = getWeekStatus(week.weekNumber);
+              const isCurrentWeek = week.weekNumber === currentWeek;
+              const statusInfo = getStatusLabel(status);
+              const Icon = statusInfo.icon;
+
+              return (
+                <button
+                  key={week.weekNumber}
+                  onClick={() => handleWeekSelect(week.weekNumber)}
+                  className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 border ${
+                    isCurrentWeek
+                      ? "ring-1 sm:ring-2 ring-blue-500 ring-offset-1 sm:ring-offset-2"
+                      : ""
+                  } ${
+                    status === "NORMAL" || status === "LIGHT"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                      : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  <Icon
+                    className={`w-3 h-3 sm:w-4 sm:h-4 ${statusInfo.iconColor}`}
+                  />
+                  <span className="hidden xs:inline">{week.label}</span>
+                  <span className="xs:hidden">W{week.weekNumber}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* UPCOMING PACKED WEEKS */}
+        {workloadStats?.upcomingPackedWeeks.length > 0 && (
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6">
+            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 text-sm sm:text-base">
+              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+              Upcoming Packed Weeks
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {workloadStats.upcomingPackedWeeks
+                .slice(0, 3)
+                .map((packedWeek, index) => {
+                  const statusInfo = getStatusLabel(packedWeek.status);
+                  const StatusIcon = statusInfo.icon;
+
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleWeekSelect(packedWeek.week)}
+                      className={`text-left p-3 sm:p-4 rounded-xl border-2 transition-all hover:shadow-md ${statusInfo.bgLight} border-amber-200`}
+                    >
+                      <div className="flex items-start justify-between mb-2 sm:mb-3">
+                        <div>
+                          <p className="font-bold text-gray-800 text-sm sm:text-base">
+                            Week {packedWeek.week}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {packedWeek.weekStart.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
                         </div>
-                        <div className="mt-2">
-                          <span
-                            className={`inline-block px-2 py-1 text-xs rounded-full ${
-                              t.category === "exam"
-                                ? "bg-red-100 text-red-800"
-                                : t.category === "assignment"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : t.category === "internship"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {t.category}
+                        <div
+                          className={`p-1.5 sm:p-2 rounded-lg ${statusInfo.color.split(" ")[0]}`}
+                        >
+                          <StatusIcon
+                            className={`w-3 h-3 sm:w-4 sm:h-4 ${statusInfo.iconColor}`}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
+                        <span className="text-gray-600">Total hours:</span>
+                        <span className="font-bold text-amber-700">
+                          {packedWeek.totalHours}h
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {statusInfo.description}
+                      </p>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* WORKLOAD CALENDAR */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 overflow-hidden">
+          <WorkloadCalendar
+            workload={weeklyWorkload}
+            onDayClick={handleDayClick}
+            currentWeekStart={currentWeekStart}
+            onWeekChange={handleWeekChange}
+            showWeekNavigation={true}
+            semesterStartDate={SEMESTER_START_DATE}
+          />
+        </div>
+
+        {/* SELECTED WEEK DETAILS */}
+        {selectedDate && selectedDate.week && (
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                Week {selectedDate.week} Details
+              </h3>
+              {(() => {
+                const statusInfo = getStatusLabel(selectedDate.status);
+                const StatusIcon = statusInfo.icon;
+                return (
+                  <div
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl ${statusInfo.color} text-xs sm:text-sm`}
+                  >
+                    <StatusIcon
+                      className={`w-3 h-3 sm:w-4 sm:h-4 ${statusInfo.iconColor}`}
+                    />
+                    <span className="font-medium">{statusInfo.label}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <Clock className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="text-sm sm:text-base">
+                      <p className="font-medium text-gray-800">
+                        {new Date(
+                          selectedDate.weekStart._seconds * 1000,
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Semester Week{" "}
+                        {calculateAcademicWeek(
+                          SEMESTER_START_DATE,
+                          new Date(selectedDate.weekStart._seconds * 1000),
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 mb-1">Total Hours</p>
+                      <p className="text-lg sm:text-xl font-bold text-blue-600">
+                        {selectedDate.totalHours || 0}h
+                      </p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg">
+                      <p className="text-xs text-gray-500 mb-1">Work Items</p>
+                      <p className="text-lg sm:text-xl font-bold text-gray-800">
+                        {selectedDate.breakdown?.length || 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-800 mb-3 text-sm sm:text-base">
+                  Work Breakdown
+                </h4>
+                {selectedDate.breakdown && selectedDate.breakdown.length > 0 ? (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                    {selectedDate.breakdown.map((item, index) => (
+                      <div
+                        key={index}
+                        className="p-3 border border-blue-100 rounded-xl hover:bg-blue-50 transition-all"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-800 text-sm sm:text-base truncate">
+                              {item.subjectName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {item.type}
+                            </p>
+                          </div>
+                          <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs sm:text-sm font-medium ml-2 flex-shrink-0">
+                            {item.hours}h
                           </span>
                         </div>
                       </div>
                     ))}
-                </div>
-              )}
-            </div>
-
-            {/* Subjects with Syllabus */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <GraduationCap className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  My Subjects
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {subjects.map((sub) => (
-                  <div
-                    key={sub.subjectId}
-                    className="p-4 bg-blue-50 rounded-lg border border-blue-200"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-blue-900">
-                          {sub.subjectName} ({sub.subjectId})
-                        </p>
-                        <p className="text-sm text-blue-700 mt-1">
-                          Final: Week{" "}
-                          {sub.assessmentTimeline?.finalExamWeek || "TBA"}
-                        </p>
-                      </div>
-                      <button className="text-blue-600 hover:text-blue-800">
-                        <BookOpen className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {sub.syllabus && (
-                      <div className="mt-3 pt-3 border-t border-blue-200">
-                        <p className="text-xs font-medium text-blue-800 mb-2">
-                          Syllabus:
-                        </p>
-                        <ul className="text-xs text-blue-700 space-y-1">
-                          {sub.syllabus.slice(0, 3).map((topic, idx) => (
-                            <li key={idx} className="flex items-start">
-                              <div className="w-1 h-1 bg-blue-500 rounded-full mt-1 mr-2"></div>
-                              {topic}
-                            </li>
-                          ))}
-                          {sub.syllabus.length > 3 && (
-                            <li className="text-blue-600">
-                              +{sub.syllabus.length - 3} more topics
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed">
+                    <BookOpen className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">
+                      No workload items for this week
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Internship */}
-            {internship && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Briefcase className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Internship
-                  </h3>
+        {/* SUBJECTS SUMMARY */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+              My Subjects
+            </h3>
+            <span className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs sm:text-sm font-medium shadow-sm">
+              {subjects.length} enrolled
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {subjects.map((subject) => (
+              <div
+                key={subject.subjectId}
+                className="border border-blue-100 rounded-xl p-4 sm:p-5 hover:shadow-md transition-all hover:border-blue-300 group"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="bg-gradient-to-br from-blue-600 to-indigo-600 w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-sm">
+                    {subject.subjectName?.charAt(0) || "?"}
+                  </div>
+                  <span
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs font-medium ${
+                      subject.type === "CORE"
+                        ? "bg-purple-100 text-purple-700"
+                        : subject.type === "INTERNSHIP_SUBMISSION"
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    {subject.type?.replace(/_/g, " ") || "ELECTIVE"}
+                  </span>
                 </div>
+
                 <div className="space-y-3">
                   <div>
-                    <p className="text-gray-700">
-                      <span className="font-semibold">
-                        {internship.companyName}
+                    <p className="font-semibold text-gray-800 group-hover:text-blue-600 transition-colors text-sm sm:text-base">
+                      {subject.subjectName}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {subject.subjectCode}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-blue-50">
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="text-gray-500">Credits</span>
+                      <span className="font-medium text-gray-800">
+                        {subject.credits || 3}
                       </span>
-                    </p>
-                    <p className="text-sm text-gray-600">{internship.role}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      Working Days:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.workingDays?.join(", ") || "Monday - Friday"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">
-                      Office Hours:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.officeHoursPerDay} hours per day
-                    </p>
-                  </div>
-                  {internship.submissionWeeks && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        Submission Weeks:
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Weeks {internship.submissionWeeks.join(", ")}
-                      </p>
                     </div>
-                  )}
-                  <div className="pt-3 border-t border-gray-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      Supervisor:
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {internship.supervisorName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {internship.supervisorEmail}
-                    </p>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="text-gray-500">Delivery</span>
+                      <span className="font-medium text-gray-800">
+                        {subject.deliveryMode || "On Campus"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="text-gray-500">Instructor</span>
+                      <span className="font-medium text-gray-800 truncate max-w-[100px] sm:max-w-[120px]">
+                        {subject.instructor || "TBA"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+
+        {/* MOTIVATIONAL FOOTER */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="bg-white/20 p-2 sm:p-3 rounded-xl backdrop-blur-sm flex-shrink-0">
+              <Award className="w-5 h-5 sm:w-8 sm:h-8" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm sm:text-lg">
+                Keep up the great work!
+              </p>
+              <p className="text-blue-100 text-xs sm:text-sm mt-1">
+                You're on track with {subjects.length} subjects this semester.
+                Stay organized and succeed!
+              </p>
+            </div>
           </div>
         </div>
       </div>
-
-      {selectedDay && (
-        <DayBreakdown day={selectedDay} onClose={() => setSelectedDay(null)} />
-      )}
     </div>
   );
 };
