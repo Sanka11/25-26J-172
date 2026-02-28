@@ -13,6 +13,8 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: true }));
 
+const router = express.Router();
+app.use("/", router);
 // -------------------------------
 // Health check
 // -------------------------------
@@ -57,6 +59,32 @@ const { updateStudentMetrics } = require("./src/http/realtimeRiskController");
 
 app.post("/api/student/update-metrics", updateStudentMetrics);
 
+const { testWeeklyPipeline } = require("./src/http/testWeeklyController");
+router.get("/api/test-weekly/:studentId", testWeeklyPipeline);
+
+const { runWeeklyBatch } = require("./src/http/weeklyBatchController");
+app.post("/api/run-weekly-batch", runWeeklyBatch);
+
+const weeklyUploadRoutes = require("./src/http/weeklyUploadRoutes");
+app.use("/api", weeklyUploadRoutes);
+
+
+
+// ----------------------------------------------------
+// CSV Upload – Student Weekly Activity (NEW)
+// ----------------------------------------------------
+const multer = require("multer");
+const upload = multer();
+
+const {
+  uploadWeeklyCsv,
+} = require("./src/http/uploadWeeklyCsvController");
+
+app.post(
+  "/api/upload-weekly-csv",
+  upload.single("file"),
+  uploadWeeklyCsv
+);
 // ----------------------------------------------------
 // Export Firebase HTTPS function
 // ----------------------------------------------------
