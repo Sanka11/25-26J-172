@@ -15,13 +15,13 @@ const {
   dismissReminder,
   getActiveReminders,
   generateBusyWeekReminders,
+  getEnrolledSubjects,
 } = require("./src/http/workloadController");
 // recommendation savindi
 const { getRecommendations } = require("./src/http/recommendationProxy");
 
 // ML controllers
 const { predictRisk } = require("./src/http/mlProxy");
-
 
 // Student risk explainability controller
 const {
@@ -30,7 +30,6 @@ const {
 
 // Student risk history (temporal tracking)
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
-
 
 // Announcement controllers
 const {
@@ -50,18 +49,21 @@ const {
 
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
+// -------------------------------
+// Recommendation savindi
+// -------------------------------
 exports.getRecommendations = getRecommendations;
 // -------------------------------
-// Quiz exports savindi 
+// Quiz exports savindi
 // -------------------------------
 exports.createQuiz = createQuiz;
 exports.submitQuiz = submitQuiz;
 exports.getAllQuizzes = getAllQuizzes;
 exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
-exports.generateWorkload = generateWorkload;
+
 // -------------------------------
-// workload savindi 
+// workload savindi
 // -------------------------------
 exports.generateLectureAlerts = generateLectureAlerts;
 exports.getWeeklyWorkload = getWeeklyWorkload;
@@ -69,13 +71,13 @@ exports.generateOverloadReminders = generateOverloadReminders;
 exports.dismissReminder = dismissReminder;
 exports.getActiveReminders = getActiveReminders;
 exports.generateBusyWeekReminders = generateBusyWeekReminders;
-
+exports.getEnrolledSubjects = getEnrolledSubjects;
+exports.generateWorkload = generateWorkload;
 
 // -------------------------------
 // ML exports
 // -------------------------------
 exports.predictRisk = predictRisk;
-
 
 // -------------------------------
 // Student risk APIs
