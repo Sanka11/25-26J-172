@@ -146,16 +146,36 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/create-quiz"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <CreateQuiz />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recommendation"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT]}>
+              <Recommendation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/WorkloadDashboard"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT]}>
+              <WorkloadDashboard />
+            </ProtectedRoute>
+          }
+        />
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
 
-        <Route path="/create-quiz" element={<CreateQuiz />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
-        <Route path="/WorkloadDashboard" element={<WorkloadDashboard />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
-        <Route path="/recommendation" element={<Recommendation />} />
 
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />

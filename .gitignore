@@ -49,13 +49,28 @@ ml-service/venv/
 *.pyo
 *.pyd
 
-# ML model files (optional)
-
+# ML model files
 *.joblib
+*.pth
+*.npy
+*.save
+*.npz
+
+# -------------------------------
 # Chroma / Vector DB files
+# -------------------------------
 ml-service/chroma_db/
-# RL generated data
+ml-service/chroma_db_v2/
+ml-service/*.sqlite3
+*.bin
+
+# -------------------------------
+# RL / ML generated data
+# -------------------------------
 ml-service/app/rl/*.csv
+ml-service/app/data/
+ml-service/app/New Text Document.txt
+ml-service/app/test_*.py
 
 # -------------------------------
 # Environment Variables
@@ -66,22 +81,6 @@ frontend/.env
 backend/.env
 ml-service/.env
 
-
-# -------------------------------
-# ML Artifacts (DO NOT COMMIT)
-# -------------------------------
-*.pth
-*.npy
-*.save
-*.npz
-
-# ML data folders
-ml-service/app/data/
-
-# Temporary / test files
-ml-service/app/New Text Document.txt
-ml-service/app/test_*.py
-
 # -------------------------------
 # Firebase / Google Cloud Security
 # -------------------------------
@@ -89,6 +88,7 @@ ml-service/app/test_*.py
 firebase-adminsdk-*.json
 .firebase/
 .gcloud/
+backend/functions/serviceAccountKey.json
 
 # -------------------------------
 # Frontend caches
