@@ -106,3 +106,5 @@ coverage/
 # Firebase Admin Key
 # -------------------------------
 backend/functions/serviceAccountKey.json
+
+backend/funtions/.env
