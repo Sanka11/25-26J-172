@@ -19,6 +19,7 @@ const GENERATE_LECTURE_ALERTS_URL = `${BASE_URL}/generateLectureAlerts`;
 const GENERATE_BUSY_WEEK_REMINDERS_URL = `${BASE_URL}/generateBusyWeekReminders`;
 const GET_ACTIVE_REMINDERS_URL = `${BASE_URL}/getActiveReminders`;
 const DISMISS_REMINDER_URL = `${BASE_URL}/dismissReminder`;
+const GET_STUDENT_ENROLLMENT_URL = `${BASE_URL}/getEnrolledSubjects`;
 ///
 
 // Announcements
@@ -76,6 +77,7 @@ export const appConfig = {
   GET_RECOMMENDATIONS_URL,
   CAREER_READINESS_URL,
   PREDICT_STRUGGLE_URL,
+  GET_STUDENT_ENROLLMENT_URL,
   
 
   // Announcements
