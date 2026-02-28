@@ -3,7 +3,18 @@ const admin = require("../firebase");
 
 const db = admin.firestore();
 const { GoogleGenAI } = require("@google/genai");
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+const apiKey = process.env.GEMINI_API_KEY;
+
+let ai = null;
+
+if (apiKey) {
+  ai = new GoogleGenAI({ apiKey });
+  console.log("✅ Gemini AI initialized");
+} else {
+  console.error("❌ GEMINI_API_KEY missing — AI disabled");
+}
 /**
  * Generate Weekly Workload purely from SUBJECT data
  * Method: POST
