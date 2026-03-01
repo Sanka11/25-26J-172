@@ -1,19 +1,35 @@
+# # ml-service/app/config.py
+# ML_HOST = "0.0.0.0"
+# ML_PORT = 8000
+
+# # Chroma directory
+# # Use a fresh directory to avoid schema conflicts with older ChromaDB versions
+# CHROMA_PERSIST_DIR = "./chroma_db_v2"
+
+# # Sentence Transformer model
+# EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
+# # Ollama model name (replace with your pulled model)
+# OLLAMA_MODEL = "llama3.1"
+# # Local models (especially large ones on CPU) can take a while
+# # to generate, so give them a generous timeout.
+# OLLAMA_TIMEOUT = 300
+
+# OLLAMA_MODEL = "llama3.2:1b"  # or another small model you actually have
+# OLLAMA_TIMEOUT = 60           # optional: don’t wait 5 minutes
 # ml-service/app/config.py
+
 ML_HOST = "0.0.0.0"
 ML_PORT = 8000
 
 # Chroma directory
-# Use a fresh directory to avoid schema conflicts with older ChromaDB versions
 CHROMA_PERSIST_DIR = "./chroma_db_v2"
 
 # Sentence Transformer model
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-# Ollama model name (replace with your pulled model)
-OLLAMA_MODEL = "llama3.1"
-# Local models (especially large ones on CPU) can take a while
-# to generate, so give them a generous timeout.
-OLLAMA_TIMEOUT = 300
+# Ollama model (must match ollama list)
+OLLAMA_MODEL = "llama3.2:1b"
 
-OLLAMA_MODEL = "llama3.2:1b"  # or another small model you actually have
-OLLAMA_TIMEOUT = 60           # optional: don’t wait 5 minutes
+# generation timeout (seconds)
+OLLAMA_TIMEOUT = 120
