@@ -79,6 +79,9 @@ export default function Chat({ onClose }) {
           sender: "assistant",
           text: "",
           createdAt: new Date().toISOString(),
+          downloadable_pdf: data.downloadable_pdf || null,
+          download_url: data.download_url || null,
+          is_pdf_request: data.is_pdf_request || false,
         },
       ]);
       setTypingState({
@@ -464,6 +467,22 @@ export default function Chat({ onClose }) {
               }`}
             >
               <p className="whitespace-pre-line">{msg.text}</p>
+
+              {/* Show download button for PDF requests */}
+              {msg.sender === "assistant" &&
+                msg.download_url &&
+                msg.downloadable_pdf && (
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <a
+                      href={msg.download_url}
+                      download
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      📥 Download {msg.downloadable_pdf}
+                    </a>
+                  </div>
+                )}
+
               {msg.createdAt && (
                 <p
                   className={`mt-1 text-[10px] opacity-70 ${
