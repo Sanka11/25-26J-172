@@ -20,6 +20,7 @@ const {
 } = require("./src/http/workloadController");
 // recommendation savindi
 const { getRecommendations } = require("./src/http/recommendationProxy");
+const { dailyWorkloadEmailScheduler } = require("./src/http/emailScheduler");
 
 // ML controllers
 const { predictRisk } = require("./src/http/mlProxy");
@@ -48,12 +49,14 @@ const {
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
 
+
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
 // -------------------------------
 // Recommendation savindi
 // -------------------------------
 exports.getRecommendations = getRecommendations;
+
 // -------------------------------
 // Quiz exports savindi
 // -------------------------------
@@ -74,6 +77,7 @@ exports.getActiveReminders = getActiveReminders;
 exports.generateBusyWeekReminders = generateBusyWeekReminders;
 exports.getEnrolledSubjects = getEnrolledSubjects;
 exports.generateWorkload = generateWorkload;
+exports.dailyWorkloadEmailScheduler = dailyWorkloadEmailScheduler;
 
 // -------------------------------
 // ML exports
