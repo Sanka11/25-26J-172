@@ -58,7 +58,7 @@ TYPO_CORRECTIONS = {
 # don't have to call the embedding model or LLM for these.
 SMALL_TALK_PATTERNS = [
     ("greeting", ["hi", "hello", "hey"],
-     "Hello! I'm Arlo, How can I help you today?"),
+    "Hi!I'm AcademiGuard, How can I help you today?"),
     ("thanks", ["thank you", "thankyou", "thanks"],
      "You're welcome! If you have more questions about the LMS or academic integrity, feel free to ask."),
 ]
