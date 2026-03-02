@@ -227,6 +227,28 @@ def chat(question: str = Form(...)):
         raise HTTPException(status_code=400, detail="Question is empty")
     return answer_question(question)
 
+
+@app.get("/list_pdfs")
+def list_pdfs():
+    """
+    List all uploaded PDF documents with their metadata.
+    Helps users know what documents are available.
+    """
+    from app.vector_store import list_documents
+    try:
+        documents = list_documents()
+        return {
+            "status": "ok",
+            "count": len(documents),
+            "documents": documents
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "documents": []
+        }
+
 # -----------------------------------------------------------
 # NEW ENDPOINT: FEEDBACK
 # -----------------------------------------------------------
