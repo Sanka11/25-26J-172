@@ -50,7 +50,7 @@ ml-service/venv/
 *.pyd
 
 # ML model files
-*.joblib
+#*.joblib
 *.pth
 *.npy
 *.save

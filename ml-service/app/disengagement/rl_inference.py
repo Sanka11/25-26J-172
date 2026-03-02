@@ -39,6 +39,10 @@ def rl_decide_action(
     no_response_streak: int,
     fatigue_level: int
 ) -> dict:
+    
+    # 🔒 SAFETY NET (ADD THIS)
+    if risk_trend not in TREND_MAP:
+        risk_trend = "STABLE"
 
     # 1️⃣ Guardrails first
     forced, reason = forced_action(last_action, no_response_streak)
