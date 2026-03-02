@@ -40,6 +40,7 @@ import RLDecision from "./pages/RLDecision";
 import RLDemo from "./pages/RLDemo";
 import PeerStudentDashboard from "./pages/PeerDashBoard";
 import HighRiskInterventionDashboard from "./pages/HumanSupport";
+import DisengagementPage from "./pages/DisengagementPage";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -167,6 +168,14 @@ function MainShell() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.STUDENT]}>
               <WorkloadDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/disengagement"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <DisengagementPage />
             </ProtectedRoute>
           }
         />

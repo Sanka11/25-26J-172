@@ -48,3 +48,25 @@ def predict_disengagement(request: DisengagementRequest):
         recommended_action=rl_out["action"],
         decision_reason=rl_out["reason"]
     )
+
+@router.post("/gru-only")
+def predict_gru_only(request: DisengagementRequest):
+    """
+    GRU-only endpoint
+    Returns exact GRU output without RL
+    """
+    return compute_gru_risk(request.last_10_weeks)
+
+@router.post("/rl-only")
+def predict_rl_only(request: DisengagementRequest):
+    """
+    RL-only endpoint
+    Returns exact RL decision output
+    """
+    return rl_decide_action(
+        current_risk=request.current_risk,
+        risk_trend=request.risk_trend,
+        last_action=request.last_action,
+        no_response_streak=request.no_response_streak,
+        fatigue_level=request.fatigue_level
+    )
