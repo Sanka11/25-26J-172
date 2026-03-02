@@ -259,11 +259,36 @@ export default function Chat({ onClose }) {
   const loadFeedbackStats = async () => {
     try {
       setStatsLoading(true);
-      const res = await fetch(appConfig.GET_CHAT_FEEDBACK_STATS_URL);
-      if (!res.ok) {
-        throw new Error(`Stats request failed with status ${res.status}`);
+
+      const statsUrls = [
+        appConfig.GET_CHAT_FEEDBACK_STATS_URL,
+        appConfig.ML_FEEDBACK_STATS_URL,
+      ].filter(Boolean);
+
+      let bestStats = null;
+
+      for (const statsUrl of statsUrls) {
+        try {
+          const res = await fetch(statsUrl);
+          if (!res.ok) {
+            continue;
+          }
+
+          const data = await res.json();
+          const total =
+            typeof data.total_ratings === "number" ? data.total_ratings : 0;
+          const average =
+            typeof data.average_rating === "number" ? data.average_rating : 0;
+
+          if (!bestStats || total > bestStats.total_ratings) {
+            bestStats = { average_rating: average, total_ratings: total };
+          }
+        } catch {
+          // try next source
+        }
       }
-      const data = await res.json();
+
+      const data = bestStats || { average_rating: 0, total_ratings: 0 };
       setAvgRating(
         typeof data.average_rating === "number" ? data.average_rating : null,
       );
@@ -314,16 +339,40 @@ export default function Chat({ onClose }) {
 
     try {
       setFeedbackLoading(true);
-      const res = await fetch(appConfig.SUBMIT_CHAT_FEEDBACK_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const submitUrls = [
+        appConfig.SUBMIT_CHAT_FEEDBACK_URL,
+        appConfig.ML_FEEDBACK_URL,
+      ].filter(Boolean);
 
-      if (!res.ok) {
-        throw new Error(`Feedback request failed with status ${res.status}`);
+      let submitted = false;
+      let lastError = null;
+
+      for (const submitUrl of submitUrls) {
+        try {
+          const res = await fetch(submitUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            lastError = new Error(
+              `Feedback request failed with status ${res.status}`,
+            );
+            continue;
+          }
+
+          submitted = true;
+          break;
+        } catch (submitErr) {
+          lastError = submitErr;
+        }
+      }
+
+      if (!submitted) {
+        throw lastError || new Error("Feedback request failed");
       }
 
       setFeedbackStatus("Thank you, your feedback has been recorded.");

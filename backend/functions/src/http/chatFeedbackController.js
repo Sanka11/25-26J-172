@@ -3,6 +3,19 @@ const admin = require("../firebase");
 
 const db = admin.firestore();
 
+function applyCors(req, res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Submit chatbot feedback
  * Method: POST
@@ -10,6 +23,8 @@ const db = admin.firestore();
  */
 const submitChatFeedback = functions.https.onRequest(async (req, res) => {
   try {
+    if (applyCors(req, res)) return;
+
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
     }
@@ -58,6 +73,8 @@ const submitChatFeedback = functions.https.onRequest(async (req, res) => {
  */
 const getChatFeedbackStats = functions.https.onRequest(async (req, res) => {
   try {
+    if (applyCors(req, res)) return;
+
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
     }
@@ -101,6 +118,8 @@ const getChatFeedbackStats = functions.https.onRequest(async (req, res) => {
  */
 const listChatFeedback = functions.https.onRequest(async (req, res) => {
   try {
+    if (applyCors(req, res)) return;
+
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
     }
@@ -128,6 +147,8 @@ const listChatFeedback = functions.https.onRequest(async (req, res) => {
  */
 const deleteChatFeedback = functions.https.onRequest(async (req, res) => {
   try {
+    if (applyCors(req, res)) return;
+
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
     }
