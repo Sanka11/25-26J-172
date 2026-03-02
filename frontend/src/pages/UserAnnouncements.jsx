@@ -20,7 +20,10 @@ export default function UserAnnouncements() {
         setAnnouncements(data);
       } catch (err) {
         console.error(err);
-        setError("Failed to load announcements");
+        setError(
+          "Unable to load announcements at this moment. Please try again later.",
+        );
+        setAnnouncements([]); // Set empty array on error for graceful fallback
       } finally {
         setLoading(false);
       }

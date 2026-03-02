@@ -36,11 +36,12 @@ export default function GlobalReminders({ onReminderClick }) {
         if (!active) return;
         const dismissed = loadDismissed();
         const filtered = (data || []).filter(
-          (a) => isReminderActive(a) && !dismissed.has(a.id)
+          (a) => isReminderActive(a) && !dismissed.has(a.id),
         );
         setReminders(filtered);
       } catch (err) {
         console.error("GlobalReminders load error", err);
+        setReminders([]); // Clear reminders on error to show graceful fallback
       } finally {
         if (active) setLoading(false);
       }
