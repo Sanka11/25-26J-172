@@ -4,6 +4,7 @@ import base64
 import time
 import uuid
 import os
+import json
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -41,6 +42,32 @@ from app.embeddings import embed_texts
 from app.vector_store import add_documents
 
 app = FastAPI(title="AcademiGuard ML Service")
+
+
+def _feedback_file_path() -> str:
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    data_dir = os.path.join(base_dir, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "chat_feedback.json")
+
+
+def _load_feedback_items() -> list:
+    path = _feedback_file_path()
+    if not os.path.isfile(path):
+        return []
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _save_feedback_items(items: list) -> None:
+    path = _feedback_file_path()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
 
 # ----------------------------
 # CORS MIDDLEWARE
@@ -261,18 +288,56 @@ async def feedback(request: Request):
     """
     try:
         data = await request.json()
+        rating = data.get("rating")
+        comment = data.get("comment")
+        last_question = data.get("last_question")
+        last_answer = data.get("last_answer")
+        created_at = data.get("created_at")
+
+        numeric_rating = float(rating)
+        if numeric_rating < 1 or numeric_rating > 5:
+            raise ValueError("rating must be between 1 and 5")
+
+        feedback_doc = {
+            "rating": numeric_rating,
+            "comment": comment.strip() if isinstance(comment, str) else "",
+            "last_question": last_question.strip() if isinstance(last_question, str) else None,
+            "last_answer": last_answer.strip() if isinstance(last_answer, str) else None,
+            "created_at": float(created_at) if isinstance(created_at, (int, float)) else time.time(),
+        }
+
+        existing = _load_feedback_items()
+        existing.append(feedback_doc)
+        _save_feedback_items(existing)
+
         # Log feedback (in production, save to database)
         print("\n=== FEEDBACK RECEIVED ===")
-        print(f"Rating: {data.get('rating')}")
-        print(f"Comment: {data.get('comment')}")
-        print(f"Question: {data.get('last_question')}")
-        print(f"Answer: {data.get('last_answer')}")
-        print(f"Timestamp: {data.get('created_at')}")
+        print(f"Rating: {feedback_doc.get('rating')}")
+        print(f"Comment: {feedback_doc.get('comment')}")
+        print(f"Question: {feedback_doc.get('last_question')}")
+        print(f"Answer: {feedback_doc.get('last_answer')}")
+        print(f"Timestamp: {feedback_doc.get('created_at')}")
         print("========================\n")
         
         return {"status": "ok", "message": "Feedback received successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid feedback data: {str(e)}")
+
+
+@app.get("/feedback/stats")
+def feedback_stats():
+    """Return feedback rating statistics stored in ML service."""
+    items = _load_feedback_items()
+    ratings = [float(item.get("rating")) for item in items if isinstance(item, dict) and isinstance(item.get("rating"), (int, float))]
+
+    if not ratings:
+        return {"average_rating": 0, "total_ratings": 0}
+
+    average = sum(ratings) / len(ratings)
+    return {
+        "average_rating": round(average, 2),
+        "total_ratings": len(ratings),
+    }
 
 
 # -----------------------------------------------------------
