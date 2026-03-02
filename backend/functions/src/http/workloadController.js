@@ -1,20 +1,20 @@
 const functions = require("firebase-functions");
 const admin = require("../firebase");
-
+require("dotenv").config();
 const db = admin.firestore();
-const { GoogleGenAI } = require("@google/genai");
-// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const Groq = require("groq-sdk");
 
-const apiKey = process.env.GEMINI_API_KEY;
-
-let ai = null;
-
-if (apiKey) {
-  ai = new GoogleGenAI({ apiKey });
-  console.log("✅ Gemini AI initialized");
-} else {
-  console.error("❌ GEMINI_API_KEY missing — AI disabled");
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+  admin.initializeApp();
 }
+
+// Initialize Groq as a constant
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+
 /**
  * Generate Weekly Workload purely from SUBJECT data
  * Method: POST
@@ -320,108 +320,11 @@ const generateOverloadReminders = functions.https.onRequest(
     }
   },
 );
+/**
+ * Cloud Function to generate AI-powered study reminders for busy weeks.
+ * Uses Groq (Llama 3.3 70B) for high-speed, structured JSON output.
+ */
 
-// const generateBusyWeekReminders = functions.https.onRequest(
-//   async (req, res) => {
-//     try {
-//       const { studentId } = req.body;
-
-//       if (!studentId) {
-//         return res.status(400).json({ error: "Missing studentId" });
-//       }
-
-//       const snap = await db
-//         .collection("weekly_workload")
-//         .where("studentId", "==", studentId)
-//         .where("status", "in", ["BUSY", "HEAVY", "OVERLOADED"])
-//         .get();
-
-//       if (snap.empty) {
-//         return res.json({
-//           message: "No busy weeks detected",
-//           remindersCreated: 0,
-//         });
-//       }
-
-//       const batch = db.batch();
-//       let reminderCount = 0;
-//       const today = new Date();
-
-//       // 3️⃣ Switched to a for...of loop to handle async await properly!
-//       for (const doc of snap.docs) {
-//         const data = doc.data();
-//         const busyWeek = Number(data.week);
-//         const weekStart = data.weekStart.toDate();
-
-//         if (weekStart <= today) continue;
-
-//         const reminderWeeks = [busyWeek - 2, busyWeek - 1];
-
-//         for (const week of reminderWeeks) {
-//           if (week <= 0) continue;
-
-//           // 4️⃣ Extract the subject names from the breakdown to give the AI context
-//           const subjectNames = data.breakdown
-//             .map((b) => b.subjectName)
-//             .join(" and ");
-
-//           // 5️⃣ Create a prompt for the LLM
-//           const prompt = `
-//           Act as an encouraging academic advisor.
-//           A student has an upcoming week labeled as "${data.status}".
-//           They have ${data.totalHours} hours of expected work mostly involving: ${subjectNames}.
-//           Write a short, empathetic 1 to 2 sentence push notification reminding them to start preparing in advance.
-//           Keep it supportive, conversational, and actionable. Do not use hashtags.
-//         `;
-
-//           let aiMessage = `Week ${busyWeek} will be ${data.status.toLowerCase()}. Start preparation early.`; // Fallback message
-
-//           try {
-//             // 6️⃣ Call the LLM to generate the dynamic message
-//             const response = await ai.models.generateContent({
-//               model: "gemini-2.5-flash",
-//               contents: prompt,
-//             });
-//             aiMessage = response.text.trim();
-//           } catch (aiError) {
-//             console.error("LLM failed, using fallback message:", aiError);
-//           }
-
-//           const reminderId = `${studentId}_${data.status}_W${busyWeek}_REM_W${week}`;
-//           const ref = db.collection("busy_week_reminders").doc(reminderId);
-
-//           batch.set(ref, {
-//             studentId,
-//             reminderWeek: week,
-//             targetBusyWeek: busyWeek,
-//             targetWeekStart: weekStart,
-//             targetStatus: data.status,
-//             targetTotalHours: data.totalHours,
-//             targetBreakdown: data.breakdown,
-//             type: "BUSY_WEEK_WARNING",
-//             message: aiMessage, // 🌟 Save the AI-generated message here!
-//             createdAt: new Date(),
-//             isActive: true,
-//             isDismissed: false,
-//             dismissedAt: null,
-//           });
-
-//           reminderCount++;
-//         }
-//       }
-
-//       await batch.commit();
-
-//       return res.json({
-//         message: "Dynamic AI busy week reminders generated",
-//         remindersCreated: reminderCount,
-//       });
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ error: "Failed to generate dynamic reminders" });
-//     }
-//   },
-// );
 const generateBusyWeekReminders = functions.https.onRequest(
   async (req, res) => {
     try {
@@ -431,6 +334,7 @@ const generateBusyWeekReminders = functions.https.onRequest(
         return res.status(400).json({ error: "Missing studentId" });
       }
 
+      // Fetch upcoming workload that is flagged as high-intensity
       const snap = await db
         .collection("weekly_workload")
         .where("studentId", "==", studentId)
@@ -453,71 +357,82 @@ const generateBusyWeekReminders = functions.https.onRequest(
         const busyWeek = Number(data.week);
         const weekStart = data.weekStart.toDate();
 
+        // Only create reminders for future weeks
         if (weekStart <= today) continue;
 
+        // Create warnings for 2 weeks and 1 week before the busy period
         const reminderWeeks = [busyWeek - 2, busyWeek - 1];
 
         for (const week of reminderWeeks) {
           if (week <= 0) continue;
 
-          // 1️⃣ Extract subject names, hours, and types for accurate AI context
+          // Extract subject details for AI context
           const subjectDetails = data.breakdown
             .map((b) => `${b.hours} hours of ${b.subjectName} (${b.type})`)
             .join(", ");
 
-          // 2️⃣ Create the prompt specifically asking for a JSON array
+          // Enhanced Prompt for specific, unique distribution
           const prompt = `
             You are an expert academic advisor. 
-            A student has an upcoming week labeled as "${data.status}".
-            They have a heavy workload of ${data.totalHours} hours.
-            
-            Here is the exact breakdown of their tasks:
-            ${subjectDetails}
+            A student has an upcoming week labeled as "${data.status}" with ${data.totalHours} total hours.
+            Workload breakdown: ${subjectDetails}
 
-            Your job is to create a realistic 5-day study timetable (Day 1 to Day 5) to help them manage this specific workload.
-            Distribute the total hours logically across the 5 days.
-            Make the tasks highly specific to the subject names provided.
+            TASK: Create a realistic 5-day study timetable (Day 1 to Day 5).
             
-            You MUST return ONLY a valid JSON array. Do not include markdown formatting or extra text.
-            
-            Use this exact JSON format:
+            RULES:
+            1. Distribute the ${data.totalHours} hours logically across 5 days.
+            2. Be highly specific: Use tasks like "Draft intro for ${data.breakdown[0]?.subjectName || "Subject"}" instead of just "Study".
+            3. Ensure no single day is excessively overloaded.
+            4. You MUST return ONLY a valid JSON array of objects.
+
+            JSON format:
             [
-              { "day": 1, "subject": "Name of Subject", "hours": 2, "task": "Specific actionable study task based on the subject" },
-              { "day": 2, "subject": "Name of Subject", "hours": 3, "task": "Another specific task" }
+              { "day": 1, "subject": "Name", "hours": 2, "task": "Specific actionable task" },
+              { "day": 2, "subject": "Name", "hours": 3, "task": "Another task" }
             ]
           `;
 
-          let aiTimetable = []; // Fallback empty array
+          let aiTimetable = [];
 
           try {
-            // 3️⃣ Call the LLM and FORCE the response to be application/json
-            const response = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
-              contents: prompt,
-              config: {
-                responseMimeType: "application/json",
-              },
+            // Call Groq with Llama 3.3 and force JSON output
+            const chatCompletion = await groq.chat.completions.create({
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are a helpful academic assistant that outputs strictly JSON arrays.",
+                },
+                { role: "user", content: prompt },
+              ],
+              model: "llama-3.3-70b-versatile",
+              response_format: { type: "json_object" },
+              temperature: 0.7, // Adds uniqueness to tasks
             });
 
-            // 4️⃣ Parse the JSON string into a JavaScript array
-            aiTimetable = JSON.parse(response.text.trim());
+            const content = chatCompletion.choices[0].message.content;
+            const parsedData = JSON.parse(content);
+
+            // Handle cases where AI might wrap array in an object (e.g., { "timetable": [] })
+            aiTimetable = Array.isArray(parsedData)
+              ? parsedData
+              : parsedData.timetable || parsedData.schedule || [];
           } catch (aiError) {
-            console.error("LLM failed or returned invalid JSON:", aiError);
-            // Optional fallback if the AI fails
+            console.error("Groq AI failed:", aiError);
+            // Fallback content if AI fails
             aiTimetable = [
               {
                 day: 1,
                 subject: "Preparation",
                 hours: 2,
-                task: `Start preparing early for your ${data.status} week.`,
+                task: `Begin early prep for your upcoming ${data.status} week.`,
               },
             ];
           }
 
-          const reminderId = `${studentId}_${data.status}_W${busyWeek}_REM_W${week}`;
+          const reminderId = `${studentId}_W${busyWeek}_REM_W${week}`;
           const ref = db.collection("busy_week_reminders").doc(reminderId);
 
-          // 5️⃣ Save the array to Firestore
           batch.set(ref, {
             studentId,
             reminderWeek: week,
@@ -525,13 +440,11 @@ const generateBusyWeekReminders = functions.https.onRequest(
             targetWeekStart: weekStart,
             targetStatus: data.status,
             targetTotalHours: data.totalHours,
-            targetBreakdown: data.breakdown,
             type: "BUSY_WEEK_WARNING",
-            timetable: aiTimetable, // 🌟 Save the structured JSON here!
+            timetable: aiTimetable,
             createdAt: new Date(),
             isActive: true,
             isDismissed: false,
-            dismissedAt: null,
           });
 
           reminderCount++;
@@ -541,64 +454,18 @@ const generateBusyWeekReminders = functions.https.onRequest(
       await batch.commit();
 
       return res.json({
-        message: "Dynamic AI busy week timetables generated",
+        message: "Dynamic Groq-powered timetables generated",
         remindersCreated: reminderCount,
       });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to generate dynamic reminders" });
+      console.error("Main Function Error:", err);
+      res.status(500).json({ error: "Failed to generate reminders" });
     }
   },
 );
 
 
-// Add this function to get active reminders
-// const getActiveReminders = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "GET") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
 
-//     const { studentId } = req.query;
-//     if (!studentId) {
-//       return res.status(400).json({ error: "Missing studentId" });
-//     }
-
-//     const today = new Date();
-//     const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-//     // SIMPLIFIED QUERY - Remove multiple where conditions temporarily
-//     const snap = await db
-//       .collection("busy_week_reminders")
-//       .where("studentId", "==", studentId)
-//       .get();
-
-//     // Filter in JavaScript instead of Firestore query
-//     const reminders = snap.docs
-//       .map((doc) => ({
-//         id: doc.id,
-//         ...doc.data(),
-//         targetWeekStart: doc.data().targetWeekStart.toDate(),
-//         createdAt: doc.data().createdAt.toDate(),
-//       }))
-//       .filter(
-//         (reminder) =>
-//           reminder.isActive === true &&
-//           reminder.isDismissed === false &&
-//           reminder.targetWeekStart > today &&
-//           reminder.targetWeekStart <= oneWeekFromNow,
-//       );
-
-//     return res.json({
-//       studentId,
-//       count: reminders.length,
-//       reminders,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to fetch reminders" });
-//   }
-// });
 const getActiveReminders = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "GET") {

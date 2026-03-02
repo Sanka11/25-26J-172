@@ -1,24 +1,85 @@
+# import joblib
+# import pandas as pd
+# import json
+# import os
+# from dotenv import load_dotenv
+# from groq import Groq
+
+# from app.services.syllabus import get_syllabus_context
+
+# # ==========================================
+# # LOAD ENV VARIABLES
+# # ==========================================
+# load_dotenv()
+
+# GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# # Initialize Groq client
+# client = Groq(api_key=GROQ_API_KEY)
+
+# # Load ML model
+# model = joblib.load("app/models/recommendation_engine_model.pkl")
+
 import joblib
 import pandas as pd
 import json
 import os
+import sys
+import logging
 from dotenv import load_dotenv
 from groq import Groq
 
 from app.services.syllabus import get_syllabus_context
 
 # ==========================================
+# SETUP LOGGING & SILENCE HTTPX
+# ==========================================
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# Hide the "HTTP Request: POST..." logs from the Groq client
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# ==========================================
 # LOAD ENV VARIABLES
 # ==========================================
-load_dotenv()
+try:
+    load_dotenv()
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY is missing from the environment variables.")
+        
+except Exception as e:
+    logging.critical(f"App Startup Failed: {e}")
+    sys.exit(1)
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# ==========================================
+# INITIALIZE GROQ CLIENT
+# ==========================================
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+    logging.info("Groq client initialized successfully.")
+except Exception as e:
+    logging.error(f"Failed to initialize Groq client: {e}")
+    client = None
 
-# Initialize Groq client
-client = Groq(api_key=GROQ_API_KEY)
+# ==========================================
+# LOAD ML MODEL
+# ==========================================
+MODEL_PATH = "app/models/recommendation_engine_model.pkl"
 
-# Load ML model
-model = joblib.load("app/models/recommendation_engine_model.pkl")
+try:
+    model = joblib.load(MODEL_PATH)
+    logging.info("Recommendation engine model loaded successfully.")
+except FileNotFoundError:
+    logging.error(f"The model file was not found at '{MODEL_PATH}'. Check file paths.")
+    model = None
+except Exception as e:
+    logging.error(f"Unexpected error loading the model: {e}")
+    model = None
 
 # ==========================================
 # 2. GENERATIVE AI FUNCTION (Syllabus-Aware)
@@ -158,178 +219,6 @@ def predict_recommendations(data):
 
 
 
-# ///////////
-
-# import joblib
-# import pandas as pd
-# import json
-# import ollama
-
-# from app.services.syllabus import get_syllabus_context
-
-# # ==========================================
-# # LOAD ML MODEL
-# # ==========================================
-# model = joblib.load("app/models/recommendation_engine_model.pkl")
-
-
-# # ==========================================
-# # GENERATIVE AI FUNCTION (LOCAL OLLAMA)
-# # ==========================================
-# def generate_llm_advice(student_data, status_label, syllabus_context):
-
-#     prompt = f"""
-# You are a world-class, data-driven Academic Advisor.
-
-# Student Status: {status_label}
-
-# Attendance: {student_data['Attendance_pct']}%
-# Study Hours: {student_data['Study_Hours_per_Week']} hours/week
-# Stress Level: {student_data['Stress_Level_1-10']}
-# Sleep: {student_data.get('Sleep_Hours', 'Unknown')} hours/night
-# Midterm Score: {student_data['Midterm_Score']}
-# Assignments Avg: {student_data['Assignments_Avg']}
-# Quizzes Avg: {student_data['Quizzes_Avg']}
-
-# Course Context:
-# Current Module: {syllabus_context['module']}
-# Upcoming Assessment: {syllabus_context['assessment']}
-# Key Concepts: {syllabus_context['key_concepts']}
-
-# TASK:
-
-# 1️⃣ SUMMARY → 2 powerful sentences acknowledging status & weakest area  
-# 2️⃣ ACADEMIC TIP → Use a NAMED study technique and apply it to key concepts  
-# 3️⃣ WELLNESS TIP → Based on stress, sleep & study hours  
-# 4️⃣ ACTION ITEMS → EXACTLY 3 steps starting with Step 1, Step 2, Step 3  
-
-# Return ONLY valid JSON:
-
-# {{
-#   "summary": "",
-#   "academic_tip": "",
-#   "wellness_tip": "",
-#   "action_items": ["Step 1: ...", "Step 2: ...", "Step 3: ..."]
-# }}
-# """
-
-#     try:
-#         response = ollama.chat(
-#             model="llama3",  # or "llama3"
-#             messages=[
-#                 {"role": "system", "content": "You return ONLY valid JSON."},
-#                 {"role": "user", "content": prompt}
-#             ],
-#             options={"temperature": 0.7}
-#         )
-
-#         content = response["message"]["content"]
-
-#         # Attempt to parse JSON safely
-#         try:
-#             return json.loads(content)
-#         except:
-#             import re
-#             json_text = re.search(r'\{.*\}', content, re.S)
-#             if json_text:
-#                 return json.loads(json_text.group())
-#             else:
-#                 raise ValueError("JSON not found")
-
-#     except Exception as e:
-#         print("⚠️ Ollama AI Error:", e)
-
-#         return {
-#             "summary": "AI advice temporarily unavailable.",
-#             "academic_tip": f"Use Active Recall to review {syllabus_context['module']}.",
-#             "wellness_tip": "Take short breaks and maintain a consistent sleep schedule.",
-#             "action_items": [
-#                 "Step 1: Review key concepts",
-#                 "Step 2: Practice related problems",
-#                 "Step 3: Ensure at least 7 hours of sleep"
-#             ]
-#         }
-
-
-# # ==========================================
-# # MAIN RECOMMENDATION PIPELINE
-# # ==========================================
-# def predict_recommendations(data):
-
-#     student_results = []
-#     X_batch = []
-#     meta = []
-
-#     # -------- Build batch input --------
-#     for s in data.students:
-#         X_batch.append({
-#             "Attendance_pct": s.attendance_pct,
-#             "Midterm_Score": s.midterm_score,
-#             "Assignments_Avg": s.assignments_avg,
-#             "Quizzes_Avg": s.quizzes_avg,
-#             "Projects_Score": s.projects_score,
-#             "Study_Hours_per_Week": s.study_hours_per_week,
-#             "Stress_Level_1-10": s.stress_level
-#         })
-#         meta.append(s.student_id)
-
-#     df_batch = pd.DataFrame(X_batch)
-
-#     # Predict probability
-#     index_probabilities = model.predict_proba(df_batch)[:, 1]
-
-#     total_index = 0.0
-
-#     # -------- Process results --------
-#     for student_id, prob, s in zip(meta, index_probabilities, data.students):
-
-#         rec_index = float(max(0.0, min(prob, 1.0)))
-#         total_index += rec_index
-
-#         # 🚦 TRAFFIC LIGHT STATUS
-#         if rec_index < 0.40:
-#             status_label = "ON TRACK"
-#         elif rec_index < 0.60:
-#             status_label = "NEEDS ATTENTION"
-#         else:
-#             status_label = "PRIORITY SUPPORT NEEDED"
-
-#         rich_student_data = {
-#             "Attendance_pct": s.attendance_pct,
-#             "Midterm_Score": s.midterm_score,
-#             "Assignments_Avg": s.assignments_avg,
-#             "Quizzes_Avg": s.quizzes_avg,
-#             "Projects_Score": s.projects_score,
-#             "Study_Hours_per_Week": s.study_hours_per_week,
-#             "Stress_Level_1-10": s.stress_level,
-#             "Sleep_Hours": getattr(s, 'sleep_hours', 'Unknown')
-#         }
-
-#         # 📚 syllabus context (example: OOP week 4)
-#         syllabus = get_syllabus_context("OOP", 4)
-
-#         ai_advice = generate_llm_advice(
-#             rich_student_data,
-#             status_label,
-#             syllabus
-#         )
-
-#         student_results.append({
-#             "student_id": student_id,
-#             "status": status_label,
-#             "recommendation_index": round(rec_index, 4),
-#             "ai_insights": ai_advice
-#         })
-
-#     cohort_avg = (
-#         total_index / len(index_probabilities)
-#         if len(index_probabilities) > 0 else 0.0
-#     )
-
-#     return {
-#         "cohort_average_recommendation_index": round(cohort_avg, 4),
-#         "student_recommendations": student_results
-#     }
 
 
 
