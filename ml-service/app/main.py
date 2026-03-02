@@ -7,7 +7,9 @@ import os
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 # RECOMMENDATION SCHEMAS & SERVICES
 from app.schemas.recommendation_schema import (
     RecommendationRequest,
