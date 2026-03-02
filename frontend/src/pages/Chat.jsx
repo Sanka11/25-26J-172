@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
+import FeedbackModal from "./FeedbackModal";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -23,13 +24,6 @@ export default function Chat({ onClose }) {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackRating, setFeedbackRating] = useState(null);
-  const [feedbackComment, setFeedbackComment] = useState("");
-  const [feedbackStatus, setFeedbackStatus] = useState("");
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [avgRating, setAvgRating] = useState(null);
-  const [ratingCount, setRatingCount] = useState(0);
-  const [statsLoading, setStatsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -256,139 +250,6 @@ export default function Chat({ onClose }) {
     setTypingState(null);
   };
 
-  const loadFeedbackStats = async () => {
-    try {
-      setStatsLoading(true);
-
-      const statsUrls = [
-        appConfig.GET_CHAT_FEEDBACK_STATS_URL,
-        appConfig.ML_FEEDBACK_STATS_URL,
-      ].filter(Boolean);
-
-      let bestStats = null;
-
-      for (const statsUrl of statsUrls) {
-        try {
-          const res = await fetch(statsUrl);
-          if (!res.ok) {
-            continue;
-          }
-
-          const data = await res.json();
-          const total =
-            typeof data.total_ratings === "number" ? data.total_ratings : 0;
-          const average =
-            typeof data.average_rating === "number" ? data.average_rating : 0;
-
-          if (!bestStats || total > bestStats.total_ratings) {
-            bestStats = { average_rating: average, total_ratings: total };
-          }
-        } catch {
-          // try next source
-        }
-      }
-
-      const data = bestStats || { average_rating: 0, total_ratings: 0 };
-      setAvgRating(
-        typeof data.average_rating === "number" ? data.average_rating : null,
-      );
-      setRatingCount(
-        typeof data.total_ratings === "number" ? data.total_ratings : 0,
-      );
-    } catch (err) {
-      console.error("Failed to load feedback stats", err);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showFeedback) {
-      loadFeedbackStats();
-    }
-  }, [showFeedback]);
-
-  const handleSubmitFeedback = async (e) => {
-    e.preventDefault();
-    setFeedbackStatus("");
-
-    const trimmed = feedbackComment.trim();
-    if (!feedbackRating) {
-      setFeedbackStatus("Please select a rating between 1 and 5.");
-      return;
-    }
-
-    if (!trimmed) {
-      setFeedbackStatus("Please enter your feedback before submitting.");
-      return;
-    }
-
-    // get last user and assistant messages if available
-    const lastUser = [...messages].reverse().find((m) => m.sender === "user");
-    const lastAssistant = [...messages]
-      .reverse()
-      .find((m) => m.sender === "assistant" && m.id !== "welcome");
-
-    const payload = {
-      rating: feedbackRating,
-      comment: trimmed,
-      created_at: Date.now() / 1000,
-      last_question: lastUser?.text || null,
-      last_answer: lastAssistant?.text || null,
-    };
-
-    try {
-      setFeedbackLoading(true);
-      const submitUrls = [
-        appConfig.SUBMIT_CHAT_FEEDBACK_URL,
-        appConfig.ML_FEEDBACK_URL,
-      ].filter(Boolean);
-
-      let submitted = false;
-      let lastError = null;
-
-      for (const submitUrl of submitUrls) {
-        try {
-          const res = await fetch(submitUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-
-          if (!res.ok) {
-            lastError = new Error(
-              `Feedback request failed with status ${res.status}`,
-            );
-            continue;
-          }
-
-          submitted = true;
-          break;
-        } catch (submitErr) {
-          lastError = submitErr;
-        }
-      }
-
-      if (!submitted) {
-        throw lastError || new Error("Feedback request failed");
-      }
-
-      setFeedbackStatus("Thank you, your feedback has been recorded.");
-      setFeedbackComment("");
-      setFeedbackRating(null);
-      await loadFeedbackStats();
-    } catch (err) {
-      console.error(err);
-      setFeedbackStatus(
-        "Unable to send feedback right now. Please try again later.",
-      );
-    } finally {
-      setFeedbackLoading(false);
-    }
-  };
-
   return (
     <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
@@ -432,64 +293,12 @@ export default function Chat({ onClose }) {
         </div>
       </div>
 
-      {/* Feedback panel */}
-      {showFeedback && (
-        <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white text-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-slate-800">Rate this chatbot</p>
-            <p className="text-[10px] text-slate-500">
-              {statsLoading
-                ? "Loading rating…"
-                : ratingCount > 0 && avgRating != null
-                  ? `Average: ${avgRating.toFixed(
-                      1,
-                    )} / 5 (${ratingCount} ratings)`
-                  : "No ratings yet"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setFeedbackRating(star)}
-                className={`h-6 w-6 flex items-center justify-center rounded-full border text-[11px] ${
-                  feedbackRating && star <= feedbackRating
-                    ? "bg-yellow-400 border-yellow-400 text-white"
-                    : "bg-white border-slate-300 text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                {star}
-              </button>
-            ))}
-          </div>
-          <form onSubmit={handleSubmitFeedback} className="space-y-1">
-            <textarea
-              className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none h-16"
-              placeholder="Share what worked well or what should be improved…"
-              value={feedbackComment}
-              onChange={(e) => setFeedbackComment(e.target.value)}
-            />
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] text-slate-400">
-                Feedback helps us improve AcademiGuard.
-              </p>
-              <button
-                type="submit"
-                disabled={feedbackLoading}
-                className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {feedbackLoading ? "Sending…" : "Submit"}
-              </button>
-            </div>
-            {feedbackStatus && (
-              <p className="mt-1 text-[10px] text-slate-500">
-                {feedbackStatus}
-              </p>
-            )}
-          </form>
-        </div>
-      )}
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        messages={messages}
+      />
 
       {/* Conversation area */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
