@@ -1,7 +1,3 @@
-/**
- * Firebase Functions backend (common entry)
- */
-
 const { onRequest } = require("firebase-functions/v2/https");
 const express = require("express");
 const cors = require("cors");
@@ -10,11 +6,20 @@ const cors = require("cors");
 // Express app setup
 // -------------------------------
 const app = express();
-app.use(express.json());
 app.use(cors({ origin: true }));
 
-const router = express.Router();
-app.use("/", router);
+// IMPORTANT:
+// JSON for normal APIs
+app.use(express.json());
+
+// IMPORTANT:
+// RAW body ONLY for CSV upload (Firebase-compatible)
+app.use(
+  "/api/upload-weekly-csv",
+  express.raw({ type: "*/*", limit: "10mb" })
+);
+
+
 // -------------------------------
 // Health check
 // -------------------------------
@@ -49,7 +54,6 @@ app.use("/api/rl", rlRoutes);
 // ----------------------------------------------------
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 
-// ✅ FIXED PATH
 app.get("/api/students/:studentId/risk-history", getStudentRiskHistory);
 
 // ----------------------------------------------------
@@ -59,32 +63,28 @@ const { updateStudentMetrics } = require("./src/http/realtimeRiskController");
 
 app.post("/api/student/update-metrics", updateStudentMetrics);
 
+// ----------------------------------------------------
+// Test weekly single-student pipeline
+// ----------------------------------------------------
 const { testWeeklyPipeline } = require("./src/http/testWeeklyController");
-router.get("/api/test-weekly/:studentId", testWeeklyPipeline);
+app.get("/api/test-weekly/:studentId", testWeeklyPipeline);
 
+// ----------------------------------------------------
+// Weekly batch execution
+// ----------------------------------------------------
 const { runWeeklyBatch } = require("./src/http/weeklyBatchController");
 app.post("/api/run-weekly-batch", runWeeklyBatch);
 
-const weeklyUploadRoutes = require("./src/http/weeklyUploadRoutes");
-app.use("/api", weeklyUploadRoutes);
-
-
-
 // ----------------------------------------------------
-// CSV Upload – Student Weekly Activity (NEW)
+// CSV Upload – Student Weekly Activity
 // ----------------------------------------------------
-const multer = require("multer");
-const upload = multer();
-
 const {
   uploadWeeklyCsv,
 } = require("./src/http/uploadWeeklyCsvController");
 
-app.post(
-  "/api/upload-weekly-csv",
-  upload.single("file"),
-  uploadWeeklyCsv
-);
+app.post("/api/upload-weekly-csv", uploadWeeklyCsv);
+
+
 // ----------------------------------------------------
 // Export Firebase HTTPS function
 // ----------------------------------------------------
