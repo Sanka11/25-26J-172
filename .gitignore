@@ -50,7 +50,7 @@ ml-service/venv/
 *.pyd
 
 # ML model files
-*.joblib
+#*.joblib
 *.pth
 *.npy
 *.save
@@ -101,3 +101,10 @@ frontend/.cache/
 # -------------------------------
 coverage/
 *.lcov
+
+# -------------------------------
+# Firebase Admin Key
+# -------------------------------
+backend/functions/serviceAccountKey.json
+
+backend/funtions/.env

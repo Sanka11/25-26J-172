@@ -1,5 +1,6 @@
 const admin = require("../firebase");
 const csv = require("csv-parser");
+const Busboy = require("busboy");
 const { Readable } = require("stream");
 
 const db = admin.firestore();
@@ -21,51 +22,61 @@ const REQUIRED_FIELDS = [
 
 async function uploadWeeklyCsv(req, res) {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "CSV file is required" });
-    }
-
+    const busboy = Busboy({ headers: req.headers });
     const rows = [];
-    const stream = Readable.from(req.file.buffer);
 
-    stream
-      .pipe(csv())
-      .on("data", (data) => rows.push(data))
-      .on("end", async () => {
-        let processed = 0;
+    let fileFound = false;
 
-        for (const row of rows) {
-          // validate required fields
-          for (const field of REQUIRED_FIELDS) {
-            if (row[field] === undefined) {
-              throw new Error(`Missing required field: ${field}`);
-            }
+    busboy.on("file", (fieldname, file) => {
+      fileFound = true;
+
+      file
+        .pipe(csv({
+          mapHeaders: ({ header }) => header?.trim(),
+        }))
+        .on("data", (data) => rows.push(data));
+    });
+
+    busboy.on("finish", async () => {
+      if (!fileFound) {
+        return res.status(400).json({ error: "CSV file is required" });
+      }
+
+      let processed = 0;
+
+      for (const row of rows) {
+        for (const field of REQUIRED_FIELDS) {
+          if (row[field] === undefined || row[field] === "") {
+            return res.status(400).json({
+              error: `Missing required field '${field}' in row`,
+              row,
+            });
           }
-
-          // clean record (ignore extra fields)
-          const record = {};
-          REQUIRED_FIELDS.forEach((f) => {
-            record[f] =
-              f === "student_id" || f === "week"
-                ? row[f]
-                : Number(row[f]);
-          });
-
-          await db.collection("student_activity_weekly").add(record);
-          processed++;
         }
 
-        return res.json({
-          status: "CSV upload successful",
-          rows_processed: processed,
+        const record = {};
+        REQUIRED_FIELDS.forEach((f) => {
+          record[f] =
+            f === "student_id" || f === "week"
+              ? row[f]
+              : Number(row[f]);
         });
+
+        await db.collection("student_activity_weekly").add(record);
+        processed++;
+      }
+
+      return res.json({
+        status: "CSV upload successful",
+        rows_processed: processed,
       });
+    });
+
+    busboy.end(req.rawBody);
   } catch (err) {
     console.error("CSV upload error:", err);
     res.status(500).json({ error: err.message });
   }
 }
 
-module.exports = {
-  uploadWeeklyCsv,
-};
+module.exports = { uploadWeeklyCsv };
