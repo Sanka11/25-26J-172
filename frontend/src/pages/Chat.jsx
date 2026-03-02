@@ -12,7 +12,7 @@ export default function Chat({ onClose }) {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi!I'm Arlo, How can I help you today?",
+      text: "Hi!I'm AcademiGuard, How can I help you today?",
       createdAt: new Date().toISOString(),
     },
   ]);
@@ -247,7 +247,7 @@ export default function Chat({ onClose }) {
       {
         id: "welcome",
         sender: "assistant",
-        text: "Hi, I'm AcademiGuard. Ask me about plagiarism, assessments, or academic integrity based on the documents you've uploaded.",
+        text: "Hi, I'm AcademiGuard, How can I help today?",
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -390,18 +390,15 @@ export default function Chat({ onClose }) {
   };
 
   return (
-    <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[460px] overflow-hidden">
+    <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-2xl">
         <div>
-          <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
               AG
             </span>
             AcademiGuard chatbot
-          </p>
-          <p className="text-[11px] text-slate-500">
-            Ask about your uploaded academic documents.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -437,7 +434,7 @@ export default function Chat({ onClose }) {
 
       {/* Feedback panel */}
       {showFeedback && (
-        <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white text-[11px] space-y-2">
+        <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white text-xs space-y-2">
           <div className="flex items-center justify-between">
             <p className="font-semibold text-slate-800">Rate this chatbot</p>
             <p className="text-[10px] text-slate-500">
@@ -468,7 +465,7 @@ export default function Chat({ onClose }) {
           </div>
           <form onSubmit={handleSubmitFeedback} className="space-y-1">
             <textarea
-              className="w-full border border-slate-200 rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none h-14"
+              className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none h-16"
               placeholder="Share what worked well or what should be improved…"
               value={feedbackComment}
               onChange={(e) => setFeedbackComment(e.target.value)}
@@ -509,7 +506,7 @@ export default function Chat({ onClose }) {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm ${
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
                 msg.sender === "user"
                   ? "bg-blue-600 text-white rounded-br-sm"
                   : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
@@ -555,7 +552,7 @@ export default function Chat({ onClose }) {
             <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
               AG
             </div>
-            <div className="max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
+            <div className="max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
               <div className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.15s]" />
@@ -581,8 +578,8 @@ export default function Chat({ onClose }) {
         className="border-t border-slate-200 px-3 py-3 rounded-b-2xl bg-white space-y-2"
       >
         <textarea
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-16"
-          placeholder="Ask a question about plagiarism, assessments, or academic integrity..."
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20"
+          placeholder="Type your message..."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
@@ -600,29 +597,70 @@ export default function Chat({ onClose }) {
             <button
               type="button"
               onClick={handleVoiceInput}
+              aria-label="Voice input"
+              title="Voice input"
               className={`inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 text-[11px] font-semibold ${
                 voiceListening
                   ? "bg-red-50 text-red-600 border-red-200"
                   : "bg-white text-slate-500 hover:bg-slate-50"
               }`}
             >
-              🎤
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M6 11a6 6 0 0 0 12 0" />
+                <path d="M12 17v4" />
+                <path d="M9 21h6" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={() =>
                 fileInputRef.current && fileInputRef.current.click()
               }
+              aria-label="Upload image"
+              title="Upload image"
               className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
             >
-              📷
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="12" cy="12" r="3" />
+                <path d="M8 5l1.2-2h5.6L16 5" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+              aria-label="Upload PDF"
+              title="Upload PDF"
               className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
             >
-              📄
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <path d="M7 3h7l5 5v13H7z" />
+                <path d="M14 3v5h5" />
+                <path d="M9 14h6" />
+                <path d="M9 17h6" />
+              </svg>
             </button>
             <span className="ml-1 hidden md:inline">
               Powered by PDFs, voice, and images.
