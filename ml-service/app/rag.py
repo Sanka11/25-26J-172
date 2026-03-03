@@ -2,8 +2,9 @@ import re
 import os
 from urllib.parse import quote
 from .embeddings import embed_texts
-from .vector_store import query, list_documents
+from .vector_store import query, list_documents, keyword_search
 from .llm import call_ollama
+from .pdf_reader import extract_text_from_pdf_bytes
 from .services.academic_service import (
     get_academic_deadlines,
     get_module_details,
@@ -134,6 +135,110 @@ def _extract_pdf_sources(results: dict) -> list:
             if meta and "pdf_name" in meta:
                 pdfs.add(meta["pdf_name"])
     return sorted(list(pdfs))
+
+
+def _merge_retrieval_results(primary: dict, secondary: dict) -> dict:
+    """Merge two Chroma-style retrieval dicts and de-duplicate documents."""
+    merged_docs = []
+    merged_metas = []
+    seen = set()
+
+    for result in (primary or {}, secondary or {}):
+        docs = (result.get("documents") or [[]])[0] if result else []
+        metas = (result.get("metadatas") or [[]])[0] if result else []
+        for idx, doc in enumerate(docs):
+            if not doc:
+                continue
+            key = doc.strip()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged_docs.append(doc)
+            merged_metas.append(metas[idx] if idx < len(metas) else {})
+
+    return {"documents": [merged_docs], "metadatas": [merged_metas]}
+
+
+def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str, list]:
+    """Best-effort fallback: read uploaded PDFs and extract matching sentences."""
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    uploaded_pdfs_dir = os.path.join(base_dir, "uploaded_pdfs")
+
+    if not os.path.isdir(uploaded_pdfs_dir):
+        print(f"[PDF_LOCAL] uploaded_pdfs directory not found")
+        return "", []
+
+    candidate_files = _find_matching_pdf_files(question)
+    if not candidate_files:
+        candidate_files = [
+            name for name in os.listdir(uploaded_pdfs_dir)
+            if name.lower().endswith(".pdf")
+        ]
+    
+    print(f"[PDF_LOCAL] Candidate files: {candidate_files}")
+
+    if not candidate_files:
+        return "", []
+
+    stop_words = {
+        "the", "is", "are", "a", "an", "of", "to", "for", "in", "on", "and", "or",
+        "what", "define", "meaning", "explain", "please", "from", "with", "that", "this",
+        "about", "can", "you", "me", "tell", "pdf", "document", "uploaded"
+    }
+    terms = [
+        t for t in re.findall(r"\b[a-zA-Z0-9]{2,}\b", question.lower())
+        if t not in stop_words
+    ]
+
+    if not terms:
+        return "", []
+
+    scored_sentences = []
+    used_files = set()
+
+    for pdf_name in candidate_files[:5]:
+        path = os.path.join(uploaded_pdfs_dir, pdf_name)
+        if not os.path.isfile(path):
+            continue
+
+        try:
+            with open(path, "rb") as f:
+                pdf_bytes = f.read()
+            text = extract_text_from_pdf_bytes(pdf_bytes)
+        except Exception:
+            continue
+
+        if not text:
+            continue
+
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        for sent in sentences:
+            s = (sent or "").strip()
+            if len(s) < 30:
+                continue
+            s_lower = s.lower()
+            unique_hits = sum(1 for t in set(terms) if t in s_lower)
+            density_hits = sum(s_lower.count(t) for t in terms)
+            score = (unique_hits * 3) + density_hits
+            if score > 0:
+                scored_sentences.append((score, pdf_name, s))
+
+    if not scored_sentences:
+        return "", []
+
+    scored_sentences.sort(key=lambda item: item[0], reverse=True)
+
+    context_parts = []
+    total = 0
+    for _score, pdf_name, sentence in scored_sentences[:25]:
+        part = f"[{pdf_name}] {sentence}"
+        if total + len(part) > max_chars:
+            break
+        context_parts.append(part)
+        total += len(part)
+        used_files.add(pdf_name)
+
+    return "\n".join(context_parts), sorted(list(used_files))
 
 
 def _suggest_pdfs(question: str) -> list:
@@ -419,15 +524,19 @@ Your Lecturer in Charge can also provide guidance on specific policies."""
 def answer_question(question: str, top_k: int = 3):
     """Enhanced RAG with academic data integration"""
     
+    print(f"\n[RAG] Processing question: {question}")
+    
     # Correct common typos in the question
     corrected_question = _correct_typos(question)
     original_question = question
     if corrected_question != question.lower():
         question = corrected_question
+        print(f"[RAG] Typo corrected: {question}")
     
     # 1) Handle very common small-talk instantly.
     small_talk_answer = _check_small_talk(question)
     if small_talk_answer is not None:
+        print(f"[RAG] Matched small-talk pattern")
         return {"answer": small_talk_answer, "sources": None}
 
     # 2) Check if question is about deadlines, modules, or LIC
@@ -458,6 +567,8 @@ def answer_question(question: str, top_k: int = 3):
         for keyword in ["plagiarism", "academic integrity", "dishonesty", "cheating", 
                        "citation", "paraphrase", "copyright", "originality"]
     )
+    
+    print(f"[RAG] Classification: is_pdf_request={is_pdf_request}, is_definition_q={is_definition_q}, is_integrity_q={is_integrity_q}, is_deadline_q={is_deadline_q}, is_lic_q={is_lic_q}")
     
     if is_deadline_q:
         deadlines = get_academic_deadlines()
@@ -534,6 +645,13 @@ def answer_question(question: str, top_k: int = 3):
     
     emb = embed_texts([search_question])[0]
     results = query(emb, n_results=top_k)
+
+    # Lexical fallback retrieval for short/definition-style questions.
+    # This avoids false negatives when semantic search misses exact wording.
+    keyword_results = keyword_search(question, n_results=max(6, top_k * 2))
+    results = _merge_retrieval_results(results, keyword_results)
+    
+    print(f"[RAG] Primary retrieval found {len(results.get('documents', [[]])[0])} chunks")
     
     # 4) Build enhanced prompt with strict context filtering
     context_texts = []
@@ -542,6 +660,7 @@ def answer_question(question: str, top_k: int = 3):
             context_texts.append(f"{doc}\n")
     
     pdf_context = "\n---\n".join(context_texts) if context_texts else ""
+    print(f"[RAG] PDF context length: {len(pdf_context)} chars")
     has_module_code = bool(matches)
 
     # List suggested PDFs early (for all request types)
@@ -572,6 +691,80 @@ def answer_question(question: str, top_k: int = 3):
         full_context = academic_context + ("\n\n" + pdf_context if pdf_context else "")
     
     if not full_context.strip():
+        print(f"[RAG] No context found, attempting fallback retrieval...")
+        # Second-chance retrieval with an expanded phrase before giving up.
+        if is_definition_q or is_integrity_q or is_pdf_request:
+            concept_only = re.sub(r"\b(what is|define|meaning of|explain)\b", "", question_lower).strip()
+            if concept_only:
+                expanded_phrase = f"{concept_only} policy rules definition"
+                print(f"[RAG] Expanded phrase retry: {expanded_phrase}")
+                emb_retry = embed_texts([expanded_phrase])[0]
+                retry_semantic = query(emb_retry, n_results=max(6, top_k * 2))
+                retry_keyword = keyword_search(expanded_phrase, n_results=max(8, top_k * 3))
+                retry_results = _merge_retrieval_results(retry_semantic, retry_keyword)
+
+                retry_docs = []
+                if retry_results.get("documents") and retry_results["documents"][0]:
+                    retry_docs = retry_results["documents"][0]
+                
+                print(f"[RAG] Expanded retry found {len(retry_docs)} chunks")
+
+                if retry_docs:
+                    retry_context = "\n---\n".join([f"{doc}\n" for doc in retry_docs])
+                    prompt = (
+                        f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{retry_context}\n\n"
+                        f"Question: {question}\n\nProvide a brief, direct answer."
+                    )
+                    answer = call_ollama(prompt)
+                    retry_sources = _extract_pdf_sources(retry_results)
+                    pdf_reference = f"\n\n[From: {', '.join(retry_sources)}]" if retry_sources else ""
+                    return {
+                        "answer": answer + pdf_reference,
+                        "sources": retry_results,
+                        "source_pdfs": retry_sources,
+                        "suggested_pdfs": suggested_pdfs,
+                        "is_pdf_request": is_pdf_request
+                    }
+
+            # Final fallback: read uploaded PDFs directly and extract matching text.
+            # Try this for ANY question type, not just special ones
+            local_pdf_context, local_pdf_sources = _build_local_pdf_context(question)
+            print(f"[RAG] Local PDF context fallback: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
+            if local_pdf_context.strip():
+                prompt = (
+                    f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
+                    f"Question: {question}\n\nProvide a brief, direct answer."
+                )
+                answer = call_ollama(prompt)
+                pdf_reference = f"\n\n[From: {', '.join(local_pdf_sources)}]" if local_pdf_sources else ""
+                return {
+                    "answer": answer + pdf_reference,
+                    "sources": results,
+                    "source_pdfs": local_pdf_sources,
+                    "suggested_pdfs": suggested_pdfs,
+                    "is_pdf_request": is_pdf_request
+                }
+        
+        # Try local PDF fallback for ALL other questions too (not just special types)
+        else:
+            print(f"[RAG] Trying local PDF fallback for generic question...")
+            local_pdf_context, local_pdf_sources = _build_local_pdf_context(question)
+            print(f"[RAG] Local PDF context from fallback on generic Q: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
+            if local_pdf_context.strip():
+                prompt = (
+                    f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
+                    f"Question: {question}\n\nProvide a brief, direct answer."
+                )
+                answer = call_ollama(prompt)
+                pdf_reference = f"\n\n[From: {', '.join(local_pdf_sources)}]" if local_pdf_sources else ""
+                return {
+                    "answer": answer + pdf_reference,
+                    "sources": results,
+                    "source_pdfs": local_pdf_sources,
+                    "suggested_pdfs": suggested_pdfs,
+                    "is_pdf_request": is_pdf_request
+                }
+
         # Special handling for PDF requests without results
         if is_pdf_request:
             # Try to find matching actual PDF files first
@@ -607,10 +800,13 @@ def answer_question(question: str, top_k: int = 3):
         elif is_integrity_q:
             # Use corrected question for better detection of specific topics
             fallback = _get_integrity_fallback(question)
+            print(f"[RAG] Using integrity fallback")
         elif is_definition_q:
             fallback = "I couldn't find a definition for that in the available documents. Please try rephrasing your question or contact academic support."
+            print(f"[RAG] Using definition fallback")
         else:
             fallback = "I couldn't find that information in the documents or academic database. Please try asking about assignment deadlines, module details, or academic integrity policies."
+            print(f"[RAG] Using generic fallback")
         
         return {
             "answer": fallback,
