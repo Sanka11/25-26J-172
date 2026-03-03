@@ -106,11 +106,11 @@ function MainShell() {
       <Routes>
         <Route path="/" element={<AppLayout />} />
 
-        {/* STUDENT ONLY */}
+        {/* STUDENT + LECTURER */}
         <Route
           path="/student-risk"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.STUDENT]}>
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT, ROLES.LECTURER]}>
               <div className="p-6 bg-slate-100 min-h-screen">
                 <StudentRiskTimeline studentId="S1000" />
               </div>
@@ -118,11 +118,11 @@ function MainShell() {
           }
         />
 
-        {/* LECTURER ONLY */}
+        {/* STUDENT + LECTURER */}
         <Route
           path="/live-risk"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.LECTURER]}>
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT, ROLES.LECTURER]}>
               <LiveRiskDashboard />
             </ProtectedRoute>
           }
