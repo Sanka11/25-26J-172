@@ -223,8 +223,9 @@ async def upload_pdf(
 
     # ----------- Metadata -----------
     uploaded_at = time.time()
+    doc_id = f"{used_filename}_{str(uuid.uuid4())[:8]}"  # Add doc_id field
     metadatas = [
-        {"pdf_name": used_filename, "uploaded_at": uploaded_at, "chunk": i}
+        {"doc_id": doc_id, "pdf_name": used_filename, "uploaded_at": uploaded_at, "chunk": i}
         for i in range(len(chunks))
     ]
 
@@ -237,7 +238,7 @@ async def upload_pdf(
     print(f"Storing in vector database...")
     doc_prefix = f"{used_filename}_{str(uuid.uuid4())[:8]}"
     add_documents(doc_prefix, chunks, metadatas, embeddings)
-    print(f"Successfully stored with doc_prefix: {doc_prefix}")
+    print(f"Successfully stored with doc_prefix: {doc_prefix}, doc_id: {doc_id}")
 
     return {"status": "ok", "chunks": len(chunks), "doc_prefix": doc_prefix}
 
