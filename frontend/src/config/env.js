@@ -1,5 +1,4 @@
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
 // savindi
@@ -42,6 +41,7 @@ const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
 const ML_UPLOAD_URL = `${ML_BASE_URL}/upload_pdf`;
 const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
+const ML_FEEDBACK_STATS_URL = `${ML_BASE_URL}/feedback/stats`;
 const ML_LIST_DOCS_URL = `${ML_BASE_URL}/documents`;
 
 // Academic APIs
@@ -58,6 +58,7 @@ export const appConfig = {
   ML_UPLOAD_URL,
   ML_CHAT_URL,
   ML_FEEDBACK_URL,
+  ML_FEEDBACK_STATS_URL,
   ML_LIST_DOCS_URL,
 
   // Quiz savindi
@@ -78,7 +79,6 @@ export const appConfig = {
   CAREER_READINESS_URL,
   PREDICT_STRUGGLE_URL,
   GET_STUDENT_ENROLLMENT_URL,
-  
 
   // Announcements
   CREATE_ANNOUNCEMENT_URL,
