@@ -598,6 +598,39 @@ def add_exam_mark(user_id: str, mark: float):
         raise HTTPException(status_code=500, detail=f"Error adding exam mark: {str(e)}")
 
 
+@app.post("/student/profile/{user_id}/sync-from-firebase")
+def sync_student_from_firebase(user_id: str):
+    """
+    Sync student profile from team member's Firebase database (READ-ONLY).
+    
+    This endpoint fetches real student data (attendance, GPA, risk factors)
+    from the existing 'students' database without modifying it.
+    
+    Args:
+        user_id: Student ID (e.g., "S1001")
+    
+    Returns:
+        Student profile synced from Firebase with personalization status
+    """
+    try:
+        profile_manager = get_profile_manager()
+        profile = profile_manager.sync_from_firebase(user_id, create_if_missing=True)
+        
+        if profile:
+            return {
+                "status": "success",
+                "message": f"Synced student {user_id} from Firebase database (READ-ONLY)",
+                "profile": profile,
+                "personalization_ready": True,
+                "source": profile.get("source", "unknown")
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"Student {user_id} not found in Firebase database")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error syncing from Firebase: {str(e)}")
+
+
 # ========================================
 # PERSONALIZATION ANALYSIS ENDPOINTS
 # ========================================

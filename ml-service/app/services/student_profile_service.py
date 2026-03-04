@@ -6,6 +6,13 @@ import time
 from datetime import datetime
 from enum import Enum
 
+try:
+    from .firebase_student_adapter import get_firebase_adapter
+    FIREBASE_AVAILABLE = True
+except ImportError:
+    FIREBASE_AVAILABLE = False
+    print("[Student Profile] Firebase adapter not available - using manual profiles only")
+
 
 class StudentStatus(Enum):
     """Student academic status."""
@@ -133,11 +140,103 @@ class StudentProfileManager:
         return factors
 
     def get_profile(self, user_id: str) -> dict:
-        """Get student profile."""
+        """Get student profile.
+        
+        If Firebase adapter is available and student data exists in team member's database,
+        automatically sync from Firebase (READ-ONLY - never writes to Firebase).
+        Otherwise, returns local profile or creates default.
+        """
         if not user_id or not user_id.strip():
             raise ValueError("user_id cannot be empty")
         
-        return self._load_profile(str(user_id).strip())
+        user_id = str(user_id).strip()
+        
+        # Try to sync from Firebase first (READ-ONLY)
+        if FIREBASE_AVAILABLE:
+            try:
+                firebase_profile = self.sync_from_firebase(user_id, create_if_missing=False)
+                if firebase_profile:
+                    print(f"[Student Profile] Synced {user_id} from Firebase database")
+                    return firebase_profile
+            except Exception as e:
+                print(f"[Student Profile] Firebase sync failed for {user_id}: {e}")
+        
+        # Fall back to local profile
+        return self._load_profile(user_id)
+    
+    def sync_from_firebase(self, user_id: str, create_if_missing: bool = True) -> dict:
+        """
+        Sync student profile from team member's Firebase database (READ-ONLY).
+        
+        This function READS data from the existing 'students' database created by your
+        team member. It never writes or modifies the Firebase database.
+        
+        Args:
+            user_id: Student identifier (e.g., "S1001")
+            create_if_missing: If True, create local profile even if Firebase data not found
+        
+        Returns:
+            Student profile dictionary or None if not found
+        """
+        if not FIREBASE_AVAILABLE:
+            print("[Student Profile] Firebase adapter not available")
+            return None
+        
+        try:
+            firebase_adapter = get_firebase_adapter()
+            
+            # READ student data from Firebase (NO WRITE)
+            student_data = firebase_adapter.get_student_data(user_id)
+            
+            if not student_data:
+                print(f"[Firebase] No data found for {user_id}")
+                if create_if_missing:
+                    return self._load_profile(user_id)
+                return None
+            
+            # Convert Firebase data to our profile format
+            attendance_percent = student_data.get("attendance_rate", 0)
+            gpa = student_data.get("gpa", 0)
+            
+            # Convert GPA (0-4) to exam marks format (0-100)
+            # This simulates exam performance based on GPA
+            avg_exam_marks = (gpa / 4.0) * 100 if gpa else 0
+            exam_marks = [avg_exam_marks]  # Single mark representing GPA
+            
+            # Check for risk indicators (exams missed)
+            risk_prob = student_data.get("risk_probability", 0)
+            exams_missed = 1 if risk_prob > 0.7 else 0  # High risk suggests missed exams
+            
+            # Classify student
+            status = firebase_adapter.classify_student_status(student_data)
+            risk_factors = firebase_adapter.get_risk_factors(student_data)
+            
+            # Create profile with Firebase data
+            profile = {
+                "user_id": user_id,
+                "created_at": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),
+                "attendance_percent": attendance_percent,
+                "exam_marks": exam_marks,
+                "avg_exam_marks": avg_exam_marks,
+                "exams_missed": exams_missed,
+                "total_exams": len(exam_marks),
+                "status": status,
+                "risk_factors": risk_factors,
+                "source": "firebase_sync",  # Mark as synced from Firebase
+                "firebase_data": student_data,  # Keep original for reference
+            }
+            
+            # Save locally for caching (doesn't affect Firebase)
+            self._save_profile(user_id, profile)
+            
+            return profile
+            
+        except Exception as e:
+            print(f"[Firebase Sync] Error syncing {user_id}: {e}")
+            if create_if_missing:
+                return self._load_profile(user_id)
+            return None
 
     def update_attendance(self, user_id: str, new_attendance: float) -> dict:
         """Update student attendance."""

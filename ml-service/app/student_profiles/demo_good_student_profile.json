@@ -1,0 +1,16 @@
+{
+  "user_id": "demo_good_student",
+  "created_at": "2026-03-05T00:15:55.694293",
+  "last_updated": "2026-03-05T00:15:55.695085",
+  "attendance_percent": 90.0,
+  "exam_marks": [
+    75.0,
+    80.0,
+    85.0
+  ],
+  "avg_exam_marks": 80.0,
+  "exams_missed": 0,
+  "total_exams": 3,
+  "status": "excellent",
+  "risk_factors": []
+}
