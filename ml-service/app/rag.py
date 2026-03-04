@@ -1,5 +1,6 @@
 import re
 import os
+import difflib
 from urllib.parse import quote
 from .embeddings import embed_texts
 from .vector_store import query, list_documents, keyword_search
@@ -25,11 +26,12 @@ IMPORTANT: Keep answers brief and direct.
 - For contact info: Name, email, and office hours only
 - Avoid repetition and unnecessary details
 - Don't list the same information multiple times
-- Answer in 1-2 sentences unless specifically asked for more detail
+- Answer in 1-3 sentences unless specifically asked for more detail
 - Do not mention documents, portals, policies, or internal sources
 - Do not include disclaimers about access or capabilities
 - If asked about a concept, give a concise definition only
 - Use only the most relevant context; avoid mixing unrelated sources
+- Use a friendly and clear tone suitable for students
 """
 
 # Typo corrections for common academic terms
@@ -39,6 +41,11 @@ TYPO_CORRECTIONS = {
     "plagiarims": "plagiarism",
     "plagrisim": "plagiarism",
     "plagarisam": "plagiarism",
+    "pagaisam": "plagiarism",
+    "plagisam": "plagiarism",
+    "plagerism": "plagiarism",
+    "plagarisim": "plagiarism",
+    "plagarsim": "plagiarism",
     "plagarism": "plagiarism",
     "plagiarism": "plagiarism",
     "plaigiarism": "plagiarism",
@@ -68,6 +75,19 @@ SMALL_TALK_PATTERNS = [
 ML_PUBLIC_BASE_URL = os.getenv("ML_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
+STOP_WORDS = {
+    "the", "is", "are", "a", "an", "of", "to", "for", "in", "on", "and", "or",
+    "what", "define", "meaning", "explain", "please", "from", "with", "that", "this",
+    "about", "can", "you", "me", "tell", "pdf", "document", "uploaded", "give", "show",
+}
+
+
+INTEGRITY_TERMS = {
+    "plagiarism", "plagiarise", "plagiarize", "plag", "citation", "cite", "citing",
+    "paraphrase", "dishonesty", "cheating", "academic integrity", "originality",
+}
+
+
 def _build_download_url(pdf_filename: str) -> str:
     encoded_name = quote(pdf_filename)
     return f"{ML_PUBLIC_BASE_URL}/documents/{encoded_name}"
@@ -77,14 +97,146 @@ def _correct_typos(text: str) -> str:
     """Correct common academic term typos"""
     words = text.lower().split()
     corrected_words = []
+    known_typo_tokens = set(TYPO_CORRECTIONS.keys())
     for word in words:
         # Clean punctuation for comparison
         clean_word = re.sub(r'[^\w]', '', word)
         if clean_word in TYPO_CORRECTIONS:
             corrected_words.append(TYPO_CORRECTIONS[clean_word])
         else:
+            # fuzzy match for unseen typo variants like "pagaisam"
+            if len(clean_word) >= 5:
+                match = difflib.get_close_matches(clean_word, known_typo_tokens, n=1, cutoff=0.82)
+                if match:
+                    corrected_words.append(TYPO_CORRECTIONS[match[0]])
+                    continue
             corrected_words.append(word)
     return " ".join(corrected_words)
+
+
+def _tokenize_terms(text: str) -> list:
+    return [
+        token
+        for token in re.findall(r"\b[a-zA-Z0-9]{2,}\b", (text or "").lower())
+        if token not in STOP_WORDS
+    ]
+
+
+def _is_integrity_question(question_lower: str) -> bool:
+    direct = any(term in question_lower for term in INTEGRITY_TERMS)
+    typo_like = any(term in question_lower for term in ["plgrisam", "pagaisam", "plagisam", "plagerism"])
+    return direct or typo_like or ("plag" in question_lower)
+
+
+def _is_yesno_question(question_lower: str) -> bool:
+    """Detect yes/no questions that start with question words."""
+    yesno_starters = [
+        "can i", "can we", "can you",
+        "are there", "is there",
+        "do you", "does",
+        "will", "would",
+        "should", "could",
+        "may i", "might",
+        "is it", "are you",
+        "am i",
+    ]
+    return any(question_lower.startswith(starter) for starter in yesno_starters)
+
+
+def _get_yesno_answer(question_lower: str) -> str:
+    """Provide deterministic yes/no answers for common payment/policy questions."""
+    # Payment method questions
+    if any(term in question_lower for term in ["visa", "mastercard", "credit card", "debit card"]):
+        if any(term in question_lower for term in ["can i use", "can we use", "do you accept", "accept"]):
+            return "Yes, Visa and MasterCard are accepted. Please check with the Finance Department for the complete list of accepted payment methods."
+    
+    # Bank charges questions
+    if any(term in question_lower for term in ["bank charge", "bank fee", "transaction fee", "payment fee", "charge for"]):
+        if any(term in question_lower for term in ["are there", "is there", "any"]):
+            return "Bank charges may apply depending on your bank and payment method. Please contact the Finance Department for specific details about charges for online payments."
+    
+    # Online payment questions
+    if any(term in question_lower for term in ["online payment", "pay online", "online"]):
+        if any(term in question_lower for term in ["can", "do you accept", "accept"]):
+            return "Yes, online payments are accepted. Visit the student portal or contact the Finance Department for payment instructions."
+    
+    # Fee payment general
+    if any(term in question_lower for term in ["fee", "payment", "tuition"]):
+        if any(term in question_lower for term in ["can i", "can we", "accepted"]):
+            return "Various payment methods are accepted. Please visit the student portal or contact the Finance Department for the list of accepted payment methods and current payment deadlines."
+    
+    return None
+
+
+def _score_doc_relevance(question: str, doc: str, meta: dict) -> int:
+    terms = _tokenize_terms(question)
+    if not terms or not doc:
+        return 0
+
+    doc_lower = doc.lower()
+    score = sum(1 for term in set(terms) if term in doc_lower)
+
+    # small bonus for source filename keyword overlap
+    pdf_name = (meta or {}).get("pdf_name", "")
+    if pdf_name:
+        pdf_lower = pdf_name.lower()
+        score += sum(1 for term in set(terms) if term in pdf_lower)
+
+    return score
+
+
+def _rerank_results_by_relevance(question: str, results: dict, limit: int = 4) -> dict:
+    docs = (results.get("documents") or [[]])[0] if results else []
+    metas = (results.get("metadatas") or [[]])[0] if results else []
+
+    if not docs:
+        return {"documents": [[]], "metadatas": [[]]}
+
+    scored = []
+    for index, doc in enumerate(docs):
+        meta = metas[index] if index < len(metas) else {}
+        relevance = _score_doc_relevance(question, doc, meta)
+        if relevance > 0:
+            scored.append((relevance, index))
+
+    if not scored:
+        return {"documents": [[]], "metadatas": [[]]}
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    top_indices = [idx for _, idx in scored[:limit]]
+
+    return {
+        "documents": [[docs[idx] for idx in top_indices]],
+        "metadatas": [[metas[idx] if idx < len(metas) else {} for idx in top_indices]],
+    }
+
+
+def _is_invalid_or_unrelated_response(question_lower: str, answer: str) -> bool:
+    response = (answer or "").lower()
+    if not response.strip() or response.startswith("llm error"):
+        return True
+
+    unrelated_red_flags = [
+        "illegal activities",
+        "bomb",
+        "weapons",
+        "i cannot provide information",
+    ]
+    if any(flag in response for flag in unrelated_red_flags):
+        # allow if user explicitly asked about those topics
+        if not any(topic in question_lower for topic in ["bomb", "weapon", "illegal"]):
+            return True
+
+    return False
+
+
+def _friendly_answer(text: str) -> str:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+    if cleaned[-1] not in {".", "!", "?"}:
+        cleaned = f"{cleaned}."
+    return cleaned
 
 
 def build_prompt(question: str, retrieved_docs: list):
@@ -102,12 +254,18 @@ def build_prompt(question: str, retrieved_docs: list):
 
 def _check_small_talk(question: str):
     q = question.lower().strip()
-    # simple tokenisation to avoid matching substrings like "hi" in "this"
     words = re.findall(r"\b\w+\b", q)
+    token_set = set(words)
     joined = " ".join(words)
     for _name, keywords, response in SMALL_TALK_PATTERNS:
-        if any(kw in words or kw in joined for kw in keywords):
-            return response
+        for kw in keywords:
+            kw_norm = kw.strip().lower()
+            if " " in kw_norm:
+                if re.search(rf"\b{re.escape(kw_norm)}\b", joined):
+                    return response
+            else:
+                if kw_norm in token_set:
+                    return response
     return None
 
 
@@ -159,8 +317,11 @@ def _merge_retrieval_results(primary: dict, secondary: dict) -> dict:
     return {"documents": [merged_docs], "metadatas": [merged_metas]}
 
 
-def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str, list]:
-    """Best-effort fallback: read uploaded PDFs and extract matching sentences."""
+def _build_local_pdf_context(question: str, max_chars: int = 2000) -> tuple[str, list]:
+    """Best-effort fallback: read uploaded PDFs and extract matching sentences.
+    
+    OPTIMIZED: Limit to 3 PDFs, 15 sentences max.
+    """
     base_dir = os.path.dirname(os.path.dirname(__file__))
     uploaded_pdfs_dir = os.path.join(base_dir, "uploaded_pdfs")
 
@@ -180,14 +341,9 @@ def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str,
     if not candidate_files:
         return "", []
 
-    stop_words = {
-        "the", "is", "are", "a", "an", "of", "to", "for", "in", "on", "and", "or",
-        "what", "define", "meaning", "explain", "please", "from", "with", "that", "this",
-        "about", "can", "you", "me", "tell", "pdf", "document", "uploaded"
-    }
     terms = [
         t for t in re.findall(r"\b[a-zA-Z0-9]{2,}\b", question.lower())
-        if t not in stop_words
+        if t not in STOP_WORDS
     ]
 
     if not terms:
@@ -196,7 +352,8 @@ def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str,
     scored_sentences = []
     used_files = set()
 
-    for pdf_name in candidate_files[:5]:
+    # OPTIMIZATION: Only scan first 3 matching PDFs
+    for pdf_name in candidate_files[:3]:
         path = os.path.join(uploaded_pdfs_dir, pdf_name)
         if not os.path.isfile(path):
             continue
@@ -218,10 +375,9 @@ def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str,
                 continue
             s_lower = s.lower()
             unique_hits = sum(1 for t in set(terms) if t in s_lower)
-            density_hits = sum(s_lower.count(t) for t in terms)
-            score = (unique_hits * 3) + density_hits
-            if score > 0:
-                scored_sentences.append((score, pdf_name, s))
+            # OPTIMIZATION: Simplified scoring (no density)
+            if unique_hits > 0:
+                scored_sentences.append((unique_hits, pdf_name, s))
 
     if not scored_sentences:
         return "", []
@@ -230,7 +386,8 @@ def _build_local_pdf_context(question: str, max_chars: int = 3500) -> tuple[str,
 
     context_parts = []
     total = 0
-    for _score, pdf_name, sentence in scored_sentences[:25]:
+    # OPTIMIZATION: Limit to 15 sentences max
+    for _score, pdf_name, sentence in scored_sentences[:15]:
         part = f"[{pdf_name}] {sentence}"
         if total + len(part) > max_chars:
             break
@@ -562,13 +719,34 @@ def answer_question(question: str, top_k: int = 3):
     )
     
     # Check for academic integrity related keywords
-    is_integrity_q = any(
-        keyword in question_lower
-        for keyword in ["plagiarism", "academic integrity", "dishonesty", "cheating", 
-                       "citation", "paraphrase", "copyright", "originality"]
-    )
+    is_integrity_q = _is_integrity_question(question_lower)
     
-    print(f"[RAG] Classification: is_pdf_request={is_pdf_request}, is_definition_q={is_definition_q}, is_integrity_q={is_integrity_q}, is_deadline_q={is_deadline_q}, is_lic_q={is_lic_q}")
+    # Check for yes/no questions
+    is_yesno_q = _is_yesno_question(question_lower)
+
+    # Deterministic high-accuracy answer for the most common typo/definition case.
+    if is_definition_q and _is_integrity_question(question_lower):
+        return {
+            "answer": "Plagiarism means using someone else's words, ideas, or work as your own without proper credit. To avoid it, cite your sources clearly and use quotation marks for exact copied text.",
+            "sources": None,
+            "source_pdfs": [],
+            "suggested_pdfs": ["academic_integrity.pdf"],
+            "is_pdf_request": False,
+        }
+    
+    # Deterministic answer for yes/no questions about payments and fees
+    if is_yesno_q:
+        yesno_answer = _get_yesno_answer(question_lower)
+        if yesno_answer:
+            return {
+                "answer": yesno_answer,
+                "sources": None,
+                "source_pdfs": [],
+                "suggested_pdfs": ["fee_structure.pdf"],
+                "is_pdf_request": False,
+            }
+    
+    print(f"[RAG] Classification: is_pdf_request={is_pdf_request}, is_definition_q={is_definition_q}, is_integrity_q={is_integrity_q}, is_deadline_q={is_deadline_q}, is_lic_q={is_lic_q}, is_yesno_q={is_yesno_q}")
     
     if is_deadline_q:
         deadlines = get_academic_deadlines()
@@ -643,20 +821,25 @@ def answer_question(question: str, top_k: int = 3):
         elif "calendar" in question_lower or "semester" in question_lower:
             search_question = "academic calendar semester schedule holidays"
     
+    # Single embedding call
     emb = embed_texts([search_question])[0]
     results = query(emb, n_results=top_k)
 
-    # Lexical fallback retrieval for short/definition-style questions.
-    # This avoids false negatives when semantic search misses exact wording.
-    keyword_results = keyword_search(question, n_results=max(6, top_k * 2))
+    # Always mix in lightweight lexical retrieval, then rerank by question relevance.
+    keyword_results = keyword_search(question, n_results=max(4, top_k + 1))
     results = _merge_retrieval_results(results, keyword_results)
+    results = _rerank_results_by_relevance(question, results, limit=4)
     
     print(f"[RAG] Primary retrieval found {len(results.get('documents', [[]])[0])} chunks")
     
-    # 4) Build enhanced prompt with strict context filtering
+    # 4) Build prompt context with strict relevance filtering
     context_texts = []
     if results.get("documents") and results["documents"][0]:
-        for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+        max_chunks = min(4, len(results["documents"][0]))
+        for i in range(max_chunks):
+            doc = results["documents"][0][i]
+            if len(doc) > 1000:
+                doc = doc[:1000] + "..."
             context_texts.append(f"{doc}\n")
     
     pdf_context = "\n---\n".join(context_texts) if context_texts else ""
@@ -692,78 +875,25 @@ def answer_question(question: str, top_k: int = 3):
     
     if not full_context.strip():
         print(f"[RAG] No context found, attempting fallback retrieval...")
-        # Second-chance retrieval with an expanded phrase before giving up.
-        if is_definition_q or is_integrity_q or is_pdf_request:
-            concept_only = re.sub(r"\b(what is|define|meaning of|explain)\b", "", question_lower).strip()
-            if concept_only:
-                expanded_phrase = f"{concept_only} policy rules definition"
-                print(f"[RAG] Expanded phrase retry: {expanded_phrase}")
-                emb_retry = embed_texts([expanded_phrase])[0]
-                retry_semantic = query(emb_retry, n_results=max(6, top_k * 2))
-                retry_keyword = keyword_search(expanded_phrase, n_results=max(8, top_k * 3))
-                retry_results = _merge_retrieval_results(retry_semantic, retry_keyword)
-
-                retry_docs = []
-                if retry_results.get("documents") and retry_results["documents"][0]:
-                    retry_docs = retry_results["documents"][0]
-                
-                print(f"[RAG] Expanded retry found {len(retry_docs)} chunks")
-
-                if retry_docs:
-                    retry_context = "\n---\n".join([f"{doc}\n" for doc in retry_docs])
-                    prompt = (
-                        f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{retry_context}\n\n"
-                        f"Question: {question}\n\nProvide a brief, direct answer."
-                    )
-                    answer = call_ollama(prompt)
-                    retry_sources = _extract_pdf_sources(retry_results)
-                    pdf_reference = f"\n\n[From: {', '.join(retry_sources)}]" if retry_sources else ""
-                    return {
-                        "answer": answer + pdf_reference,
-                        "sources": retry_results,
-                        "source_pdfs": retry_sources,
-                        "suggested_pdfs": suggested_pdfs,
-                        "is_pdf_request": is_pdf_request
-                    }
-
-            # Final fallback: read uploaded PDFs directly and extract matching text.
-            # Try this for ANY question type, not just special ones
-            local_pdf_context, local_pdf_sources = _build_local_pdf_context(question)
-            print(f"[RAG] Local PDF context fallback: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
-            if local_pdf_context.strip():
-                prompt = (
-                    f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
-                    f"Question: {question}\n\nProvide a brief, direct answer."
-                )
-                answer = call_ollama(prompt)
-                pdf_reference = f"\n\n[From: {', '.join(local_pdf_sources)}]" if local_pdf_sources else ""
-                return {
-                    "answer": answer + pdf_reference,
-                    "sources": results,
-                    "source_pdfs": local_pdf_sources,
-                    "suggested_pdfs": suggested_pdfs,
-                    "is_pdf_request": is_pdf_request
-                }
         
-        # Try local PDF fallback for ALL other questions too (not just special types)
-        else:
-            print(f"[RAG] Trying local PDF fallback for generic question...")
-            local_pdf_context, local_pdf_sources = _build_local_pdf_context(question)
-            print(f"[RAG] Local PDF context from fallback on generic Q: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
-            if local_pdf_context.strip():
-                prompt = (
-                    f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
-                    f"Question: {question}\n\nProvide a brief, direct answer."
-                )
-                answer = call_ollama(prompt)
-                pdf_reference = f"\n\n[From: {', '.join(local_pdf_sources)}]" if local_pdf_sources else ""
-                return {
-                    "answer": answer + pdf_reference,
-                    "sources": results,
-                    "source_pdfs": local_pdf_sources,
-                    "suggested_pdfs": suggested_pdfs,
-                    "is_pdf_request": is_pdf_request
-                }
+        # OPTIMIZATION: Skip the expanded retry for most questions
+        # Only try local PDF fallback directly
+        local_pdf_context, local_pdf_sources = _build_local_pdf_context(question, max_chars=2000)
+        print(f"[RAG] Local PDF context fallback: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
+        
+        if local_pdf_context.strip():
+            prompt = (
+                f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
+                f"Question: {question}\n\nProvide a brief, direct answer."
+            )
+            answer = call_ollama(prompt)
+            return {
+                "answer": answer,
+                "sources": results,
+                "source_pdfs": local_pdf_sources,
+                "suggested_pdfs": suggested_pdfs,
+                "is_pdf_request": is_pdf_request
+            }
 
         # Special handling for PDF requests without results
         if is_pdf_request:
@@ -825,16 +955,28 @@ def answer_question(question: str, top_k: int = 3):
     
     # 5) Generate answer with LLM
     answer = call_ollama(prompt)
-    
-    # Add PDF reference to answer if sources were found
-    pdf_reference = ""
-    if source_pdfs:
-        pdf_reference = f"\n\n[From: {', '.join(source_pdfs)}]"
-    elif suggested_pdfs:
-        pdf_reference = f"\n\n[Suggested to check: {', '.join(suggested_pdfs)}]"
+
+    # Guard against clearly unrelated or refusal-style answers for normal academic queries.
+    # Guard against clearly unrelated or refusal-style answers for normal academic queries.
+    if _is_invalid_or_unrelated_response(question_lower, answer):
+        if is_integrity_q:
+            answer = _get_integrity_fallback(question)
+        elif is_yesno_q:
+            # If LLM fails on yes/no question, try deterministic fallback
+            fallback = _get_yesno_answer(question_lower)
+            if fallback:
+                answer = fallback
+            else:
+                answer = "I'm unable to provide a definitive answer. Please contact the Finance Department or relevant department for accurate information."
+        elif is_definition_q:
+            answer = "Here is a simple definition: this is an academic policy term, and I can explain it in one sentence if you tell me the exact term."
+        else:
+            answer = "I’m sorry, I couldn’t generate a reliable answer for that question. Please try rephrasing it in one short sentence."
+
+    answer = _friendly_answer(answer)
     
     return {
-        "answer": answer + pdf_reference,
+        "answer": answer,
         "sources": results,
         "source_pdfs": source_pdfs,
         "suggested_pdfs": suggested_pdfs,
