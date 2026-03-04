@@ -10,6 +10,7 @@ from .services.academic_service import (
     get_academic_deadlines,
     get_module_details,
 )
+from .services.student_profile_service import get_profile_manager
 
 
 SYSTEM_INSTRUCTIONS = """
@@ -678,10 +679,83 @@ Your Lecturer in Charge can also provide guidance on specific policies."""
     return content, None
 
 
-def answer_question(question: str, top_k: int = 3):
-    """Enhanced RAG with academic data integration"""
+def _build_personalized_system_instructions(user_id: str = None) -> str:
+    """Build system instructions adapted to student profile.
+    
+    Args:
+        user_id: Optional user ID to fetch student profile
+    
+    Returns:
+        Personalized system instructions
+    """
+    base_instructions = SYSTEM_INSTRUCTIONS
+    
+    if not user_id:
+        return base_instructions
+    
+    try:
+        profile_manager = get_profile_manager()
+        profile = profile_manager.get_profile(user_id)
+        status = profile.get("status", "average")
+        risk_factors = profile.get("risk_factors", [])
+        
+        # Add personalized guidance based on student status
+        if status == "at_risk":
+            # For at-risk students, add emphasis on support and deadlines
+            adaptive_guidance = """
+**PERSONALIZED SUPPORT FOR YOU**: 
+I notice you may need extra support. Here's what I can help with:
+- Deadlines: I'll highlight all important dates to help you stay on track
+- Academic integrity: Proper citation and avoiding plagiarism are key to success
+- Contact your LIC: Your Lecturer in Charge can provide additional support
+- Ask early: Don't wait until deadlines to reach out for help
+
+URGENT REMINDERS:
+- Attend classes regularly - it makes a real difference
+- Reach out to your LIC if you're struggling
+- Check submission dates in advance to plan your work
+"""
+            return base_instructions + "\n\n" + adaptive_guidance
+        
+        elif status == "excellent":
+            # For high achievers, encourage advanced topics and mentorship
+            adaptive_guidance = """
+**PERSONALIZED GUIDANCE FOR YOU**:
+You're performing excellently! I can help with:
+- Advanced academic integrity topics (proper research ethics)
+- Module details and prerequisites for further study
+- Lecturer consultations for complex topics
+- Consider mentoring other students
+
+Keep maintaining your excellent attendance and academic standards!
+"""
+            return base_instructions + "\n\n" + adaptive_guidance
+        
+        elif status == "good":
+            # For average/good students, balanced approach
+            adaptive_guidance = """
+**YOUR ACADEMIC SUPPORT**:
+I'm here to help you maintain your progress:
+- Stay on track with deadlines
+- Maintain good attendance
+- Check academic integrity policies
+- Reach out to your LIC for clarification
+"""
+            return base_instructions + "\n\n" + adaptive_guidance
+    
+    except Exception as e:
+        print(f"Error building personalized instructions for {user_id}: {e}")
+        return base_instructions
+    
+    return base_instructions
+
+
+def answer_question(question: str, top_k: int = 3, user_id: str = None):
+    """Enhanced RAG with academic data integration and optional user context"""
     
     print(f"\n[RAG] Processing question: {question}")
+    if user_id:
+        print(f"[RAG] User: {user_id}")
     
     # Correct common typos in the question
     corrected_question = _correct_typos(question)
@@ -882,8 +956,9 @@ def answer_question(question: str, top_k: int = 3):
         print(f"[RAG] Local PDF context fallback: {len(local_pdf_context)} chars from {len(local_pdf_sources)} files")
         
         if local_pdf_context.strip():
+            personalized_instructions = _build_personalized_system_instructions(user_id)
             prompt = (
-                f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{local_pdf_context}\n\n"
+                f"{personalized_instructions}\n\nContext:\n{local_pdf_context}\n\n"
                 f"Question: {question}\n\nProvide a brief, direct answer."
             )
             answer = call_ollama(prompt)
@@ -946,12 +1021,13 @@ def answer_question(question: str, top_k: int = 3):
         }
     
     # Special handling for LIC queries - tell LLM to return exact format
+    personalized_instructions = _build_personalized_system_instructions(user_id)
     if is_lic_q and has_module_code:
-        prompt = f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nReturn ONLY the lecturer's name, email, and office hours. Do not add any other information."
+        prompt = f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nReturn ONLY the lecturer's name, email, and office hours. Do not add any other information."
     elif is_deadline_q:
-        prompt = f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nReturn ONLY the date. No titles, no explanations, just the date in format: Month Day, Year"
+        prompt = f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nReturn ONLY the date. No titles, no explanations, just the date in format: Month Day, Year"
     else:
-        prompt = f"{SYSTEM_INSTRUCTIONS}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nProvide a brief, direct answer."
+        prompt = f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nProvide a brief, direct answer."
     
     # 5) Generate answer with LLM
     answer = call_ollama(prompt)
