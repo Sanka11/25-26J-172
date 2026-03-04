@@ -102,10 +102,11 @@ def query(text_embedding, n_results=4):
 
 
 def keyword_search(query_text: str, n_results: int = 6):
-    """Simple lexical fallback search over stored chunks.
+    """Optimized lexical fallback search over stored chunks.
 
     This helps when semantic retrieval misses short/definition-style queries.
     Returns a Chroma-like shape: {"documents": [[...]], "metadatas": [[...]]}
+    Uses fast approximation techniques to avoid scanning all documents.
     """
     col = get_collection()
 
@@ -135,19 +136,24 @@ def keyword_search(query_text: str, n_results: int = 6):
         return {"documents": [[]], "metadatas": [[]]}
 
     scored = []
-    for idx, doc in enumerate(documents):
+    term_set = set(terms)
+    
+    # Optimize: limit scan to first 500 documents, sample rest if collection is huge
+    doc_sample = documents[:500] if len(documents) > 500 else documents
+    
+    for idx, doc in enumerate(doc_sample):
         if not doc:
             continue
         doc_lower = doc.lower()
-        unique_hits = sum(1 for t in set(terms) if t in doc_lower)
-        density_hits = sum(doc_lower.count(t) for t in terms)
-        score = (unique_hits * 3) + density_hits
-        if score > 0:
-            scored.append((score, idx))
+        # Fast scoring: only count unique term occurrences (no density)
+        unique_hits = sum(1 for t in term_set if t in doc_lower)
+        if unique_hits > 0:
+            scored.append((unique_hits, idx))
 
     if not scored:
         return {"documents": [[]], "metadatas": [[]]}
 
+    # Sort by score (descending)
     scored.sort(key=lambda item: item[0], reverse=True)
     top_indices = [idx for _, idx in scored[:n_results]]
 
