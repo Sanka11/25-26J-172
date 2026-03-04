@@ -36,11 +36,12 @@ export default function GlobalReminders({ onReminderClick }) {
         if (!active) return;
         const dismissed = loadDismissed();
         const filtered = (data || []).filter(
-          (a) => isReminderActive(a) && !dismissed.has(a.id)
+          (a) => isReminderActive(a) && !dismissed.has(a.id),
         );
         setReminders(filtered);
       } catch (err) {
         console.error("GlobalReminders load error", err);
+        setReminders([]); // Clear reminders on error to show graceful fallback
       } finally {
         if (active) setLoading(false);
       }
@@ -76,64 +77,107 @@ export default function GlobalReminders({ onReminderClick }) {
   };
 
   return (
-    <div className="fixed top-20 right-5 z-30 max-w-sm w-[90vw] sm:w-80 space-y-2 max-h-64 overflow-y-auto">
+    <div className="fixed top-20 right-4 z-50 max-w-sm w-[90vw] sm:w-96 space-y-3 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent">
       {reminders.map((a) => (
         <div
           key={a.id}
           onClick={(e) => handleReminderClick(e, a)}
-          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-xs cursor-pointer hover:bg-amber-100"
+          className="group relative flex items-start gap-3 rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 px-4 py-3 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer hover:scale-[1.02] animate-slide-in"
         >
-          <div className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold">
-            !
+          {/* Icon */}
+          <div className="mt-1 flex-shrink-0">
+            <div className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg">
+              <svg
+                className="w-5 h-5 text-white animate-pulse"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+            </div>
           </div>
+
+          {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-              <p className="font-semibold truncate">{a.title}</p>
-              <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="font-bold text-amber-900 text-base leading-tight truncate">
+                {a.title}
+              </p>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 {a.remind_until && (
-                  <span className="text-[10px] text-amber-800/80 whitespace-nowrap">
+                  <span className="text-sm text-amber-800 bg-amber-200 px-2 py-0.5 rounded-md font-medium whitespace-nowrap">
                     {formatDateOnly(a.remind_until)}
                   </span>
                 )}
                 {renderCountdownBadge(a, now)}
               </div>
             </div>
-            <p className="text-amber-900/90 leading-snug line-clamp-2">
+            <p className="text-sm text-amber-900 leading-relaxed line-clamp-2 mb-2">
               {a.message}
             </p>
             {Array.isArray(a.attachments) && a.attachments.length > 0 && (
-              <ul className="mt-1 space-y-0.5 text-[11px] text-amber-900/90">
-                {a.attachments.map((att, idx) => (
-                  <li
+              <div className="mt-2 space-y-1">
+                {a.attachments.slice(0, 2).map((att, idx) => (
+                  <div
                     key={`${att.url}-${idx}`}
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1.5 text-sm bg-white/70 px-2 py-1 rounded-lg border border-amber-200"
                   >
-                    <span
-                      className="inline-block w-2 h-2 rounded-full bg-amber-600"
-                      aria-hidden="true"
-                    />
-                    <span className="text-amber-700 font-medium">
-                      {att.label || "Attachment"}:
-                    </span>
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-amber-900 underline break-all"
+                    <svg
+                      className="w-3.5 h-3.5 text-amber-600 flex-shrink-0"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
                     >
-                      {att.url}
-                    </a>
-                  </li>
+                      <path
+                        fillRule="evenodd"
+                        d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="text-amber-800 font-semibold truncate">
+                      {att.label || "Attachment"}
+                    </span>
+                  </div>
                 ))}
-              </ul>
+                {a.attachments.length > 2 && (
+                  <p className="text-sm text-amber-700 font-medium pl-2">
+                    +{a.attachments.length - 2} more
+                  </p>
+                )}
+              </div>
             )}
           </div>
+
+          {/* Dismiss Button */}
           <button
             type="button"
-            onClick={() => handleDismiss(a.id)}
-            className="ml-1 text-[11px] text-amber-800/80 hover:text-amber-900"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss(a.id);
+            }}
+            className="flex-shrink-0 -mt-1 inline-flex items-center justify-center w-7 h-7 rounded-full text-amber-600 hover:text-amber-900 hover:bg-amber-200 transition-colors"
+            title="Dismiss"
           >
-            ×
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
       ))}
@@ -172,8 +216,15 @@ function renderCountdownBadge(a, now) {
   const label = h > 0 ? `${h}h ${m}m` : `${m}m`;
 
   return (
-    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 border border-red-200">
-      Due in {label}
+    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-red-500 to-pink-600 px-2 py-0.5 text-sm font-bold text-white shadow-md">
+      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+        <path
+          fillRule="evenodd"
+          d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+          clipRule="evenodd"
+        />
+      </svg>
+      {label}
     </span>
   );
 }

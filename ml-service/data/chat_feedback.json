@@ -1,0 +1,37 @@
+[
+  {
+    "rating": 4.0,
+    "comment": "good",
+    "last_question": null,
+    "last_answer": null,
+    "created_at": 1772491069.182
+  },
+  {
+    "rating": 3.0,
+    "comment": "perfect",
+    "last_question": null,
+    "last_answer": null,
+    "created_at": 1772491079.493
+  },
+  {
+    "rating": 5.0,
+    "comment": "very helpful",
+    "last_question": null,
+    "last_answer": null,
+    "created_at": 1772491898.73
+  },
+  {
+    "rating": 5.0,
+    "comment": "woow",
+    "last_question": "what is plgarisam",
+    "last_answer": "I couldn't find a definition for that in the available documents. Please try rephrasing your question or contact academic support.",
+    "created_at": 1772493722.509
+  },
+  {
+    "rating": 4.0,
+    "comment": "niceeeeeeeeeee",
+    "last_question": null,
+    "last_answer": null,
+    "created_at": 1772493991.823
+  }
+]

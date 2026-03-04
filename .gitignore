@@ -43,6 +43,8 @@ firebase-debug.*.log
 # -------------------------------
 # Python (ML service)
 # -------------------------------
+.venv/
+venv/
 ml-service/venv/
 **/__pycache__/
 *.pyc

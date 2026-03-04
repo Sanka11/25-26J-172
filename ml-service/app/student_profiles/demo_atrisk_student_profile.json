@@ -1,0 +1,21 @@
+{
+  "user_id": "demo_atrisk_student",
+  "created_at": "2026-03-05T00:15:55.697356",
+  "last_updated": "2026-03-05T00:15:55.697356",
+  "attendance_percent": 42.0,
+  "exam_marks": [
+    35.0,
+    40.0,
+    38.0
+  ],
+  "avg_exam_marks": 37.666666666666664,
+  "exams_missed": 2,
+  "total_exams": 3,
+  "status": "at_risk",
+  "risk_factors": [
+    "Low attendance",
+    "Low exam performance",
+    "Missed 2 exam(s)",
+    "Failed at least one exam"
+  ]
+}
