@@ -9,11 +9,12 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Initialize Groq as a constant
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
+// Initialize Groq as a constant (with fallback if API key not set)
+const groq = process.env.GROQ_API_KEY
+  ? new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    })
+  : null;
 
 /**
  * Generate Weekly Workload purely from SUBJECT data
@@ -464,8 +465,6 @@ const generateBusyWeekReminders = functions.https.onRequest(
   },
 );
 
-
-
 const getActiveReminders = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "GET") {
@@ -644,4 +643,3 @@ module.exports = {
   generateBusyWeekReminders,
   getEnrolledSubjects,
 };
-
