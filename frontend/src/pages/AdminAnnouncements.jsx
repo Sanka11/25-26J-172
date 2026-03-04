@@ -85,6 +85,15 @@ export default function AdminAnnouncements() {
         "Please select a reminder deadline (date and time) when enabling reminders.";
     }
 
+    if (remind && remindUntil) {
+      const selectedDate = new Date(remindUntil);
+      const now = new Date();
+      if (selectedDate < now) {
+        newFieldErrors.remindUntil =
+          "Reminder deadline cannot be in the past. Please select a future date and time.";
+      }
+    }
+
     if (attachmentUrl.trim() || attachmentLabel.trim()) {
       // Encourage clicking "Add" instead of leaving partially filled row
       newFieldErrors.attachments =
@@ -842,6 +851,7 @@ export default function AdminAnnouncements() {
                       type="datetime-local"
                       value={remindUntil}
                       onChange={(e) => setRemindUntil(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
                       className="w-full rounded-lg border-2 border-amber-200 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
                     />
                     {fieldErrors.remindUntil && (
