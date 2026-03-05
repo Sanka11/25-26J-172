@@ -20,18 +20,23 @@ export async function createAnnouncement(data) {
 }
 
 export async function getAnnouncements() {
-  const res = await fetch(appConfig.GET_ANNOUNCEMENTS_URL);
+  try {
+    const res = await fetch(appConfig.GET_ANNOUNCEMENTS_URL);
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("GetAnnouncements API error", {
-      status: res.status,
-      response: text,
-    });
-    throw new Error(`Get announcements failed (${res.status})`);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("GetAnnouncements API error", {
+        status: res.status,
+        response: text,
+      });
+      return []; // Return empty array on error
+    }
+
+    return res.json();
+  } catch (err) {
+    console.error("GetAnnouncements network error", err);
+    return []; // Return empty array on network failure
   }
-
-  return res.json();
 }
 
 export async function updateAnnouncement(id, data) {
