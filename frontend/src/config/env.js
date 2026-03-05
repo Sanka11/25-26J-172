@@ -2,6 +2,11 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
 // savindi
+//ssavindi admin 
+const GET_ALL_WORKLOADS_URL = `${BASE_URL}/getAllWorkloads`;
+const UPDATE_TASK_COMPLETION_URL = `${BASE_URL}/updateTaskCompletion`;
+const TRIGGER_WARNING_EMAIL_URL = `${BASE_URL}/triggerManualWarningEmail`;
+//savindi student
 const GENERATE_WORKLOAD_URL = `${BASE_URL}/generateWorkload`;
 const CAREER_READINESS_URL = `${BASE_URL}/careerReadinessProxy`;
 const GET_RECOMMENDATIONS_URL = `${BASE_URL}/getRecommendations`;
@@ -74,6 +79,12 @@ export const appConfig = {
   GET_ACTIVE_REMINDERS_URL,
   DISMISS_REMINDER_URL,
   // savindi
+  GET_ALL_WORKLOADS_URL,
+  UPDATE_TASK_COMPLETION_URL,
+  TRIGGER_WARNING_EMAIL_URL,
+
+
+
   GENERATE_WORKLOAD_URL,
   GET_RECOMMENDATIONS_URL,
   CAREER_READINESS_URL,
