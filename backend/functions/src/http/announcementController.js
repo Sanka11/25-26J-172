@@ -3,11 +3,24 @@ const admin = require("../firebase");
 
 const db = admin.firestore();
 
+// CORS and OPTIONS handler helper
+const setCorsHeaders = (res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+};
+
 /**
  * Create Announcement (admin)
  * Body: { title: string, message: string, remind?: boolean, remind_until?: string, attachments?: Array<{ label?: string, url: string }> }
  */
 const createAnnouncement = functions.https.onRequest(async (req, res) => {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -82,6 +95,12 @@ const getAnnouncements = functions.https.onRequest(async (req, res) => {
  * Body: { id: string, title?: string, message?: string, remind?: boolean, remind_until?: string | null, attachments?: Array<{ label?: string, url: string }> }
  */
 const updateAnnouncement = functions.https.onRequest(async (req, res) => {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -133,6 +152,12 @@ const updateAnnouncement = functions.https.onRequest(async (req, res) => {
  * Body: { id: string }
  */
 const deleteAnnouncement = functions.https.onRequest(async (req, res) => {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");

@@ -1,0 +1,17 @@
+{
+  "user_id": "excellent_student",
+  "created_at": "2026-03-05T00:19:02.546147",
+  "last_updated": "2026-03-05T00:19:02.547147",
+  "attendance_percent": 92.0,
+  "exam_marks": [
+    85.0,
+    90.0,
+    88.0,
+    92.0
+  ],
+  "avg_exam_marks": 88.75,
+  "exams_missed": 0,
+  "total_exams": 4,
+  "status": "excellent",
+  "risk_factors": []
+}
