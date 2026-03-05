@@ -47,7 +47,15 @@ from app.vector_store import add_documents
 from app.services.student_profile_service import get_profile_manager
 from app.services.chat_history_service import get_history_manager
 
+# ----------------------------
+# Disengagement Router
+# ----------------------------
+from app.disengagement.router import router as disengagement_router
+
+
 app = FastAPI(title="AcademiGuard ML Service")
+
+app.include_router(disengagement_router)
 
 
 def _feedback_file_path() -> str:
