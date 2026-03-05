@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
+import FeedbackModal from "./FeedbackModal";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -12,7 +13,7 @@ export default function Chat({ onClose }) {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi!I'm Arlo, How can I help you today?",
+      text: "Hi!I'm AcademiGuard, How can I help you today?",
       createdAt: new Date().toISOString(),
     },
   ]);
@@ -23,13 +24,6 @@ export default function Chat({ onClose }) {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackRating, setFeedbackRating] = useState(null);
-  const [feedbackComment, setFeedbackComment] = useState("");
-  const [feedbackStatus, setFeedbackStatus] = useState("");
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [avgRating, setAvgRating] = useState(null);
-  const [ratingCount, setRatingCount] = useState(0);
-  const [statsLoading, setStatsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -79,6 +73,9 @@ export default function Chat({ onClose }) {
           sender: "assistant",
           text: "",
           createdAt: new Date().toISOString(),
+          downloadable_pdf: data.downloadable_pdf || null,
+          download_url: data.download_url || null,
+          is_pdf_request: data.is_pdf_request || false,
         },
       ]);
       setTypingState({
@@ -244,7 +241,7 @@ export default function Chat({ onClose }) {
       {
         id: "welcome",
         sender: "assistant",
-        text: "Hi, I'm AcademiGuard. Ask me about plagiarism, assessments, or academic integrity based on the documents you've uploaded.",
+        text: "Hi, I'm AcademiGuard, How can I help today?",
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -253,103 +250,16 @@ export default function Chat({ onClose }) {
     setTypingState(null);
   };
 
-  const loadFeedbackStats = async () => {
-    try {
-      setStatsLoading(true);
-      const res = await fetch(appConfig.GET_CHAT_FEEDBACK_STATS_URL);
-      if (!res.ok) {
-        throw new Error(`Stats request failed with status ${res.status}`);
-      }
-      const data = await res.json();
-      setAvgRating(
-        typeof data.average_rating === "number" ? data.average_rating : null,
-      );
-      setRatingCount(
-        typeof data.total_ratings === "number" ? data.total_ratings : 0,
-      );
-    } catch (err) {
-      console.error("Failed to load feedback stats", err);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showFeedback) {
-      loadFeedbackStats();
-    }
-  }, [showFeedback]);
-
-  const handleSubmitFeedback = async (e) => {
-    e.preventDefault();
-    setFeedbackStatus("");
-
-    const trimmed = feedbackComment.trim();
-    if (!feedbackRating) {
-      setFeedbackStatus("Please select a rating between 1 and 5.");
-      return;
-    }
-
-    if (!trimmed) {
-      setFeedbackStatus("Please enter your feedback before submitting.");
-      return;
-    }
-
-    // get last user and assistant messages if available
-    const lastUser = [...messages].reverse().find((m) => m.sender === "user");
-    const lastAssistant = [...messages]
-      .reverse()
-      .find((m) => m.sender === "assistant" && m.id !== "welcome");
-
-    const payload = {
-      rating: feedbackRating,
-      comment: trimmed,
-      created_at: Date.now() / 1000,
-      last_question: lastUser?.text || null,
-      last_answer: lastAssistant?.text || null,
-    };
-
-    try {
-      setFeedbackLoading(true);
-      const res = await fetch(appConfig.SUBMIT_CHAT_FEEDBACK_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Feedback request failed with status ${res.status}`);
-      }
-
-      setFeedbackStatus("Thank you, your feedback has been recorded.");
-      setFeedbackComment("");
-      setFeedbackRating(null);
-      await loadFeedbackStats();
-    } catch (err) {
-      console.error(err);
-      setFeedbackStatus(
-        "Unable to send feedback right now. Please try again later.",
-      );
-    } finally {
-      setFeedbackLoading(false);
-    }
-  };
-
   return (
-    <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[460px] overflow-hidden">
+    <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-2xl">
         <div>
-          <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
               AG
             </span>
             AcademiGuard chatbot
-          </p>
-          <p className="text-[11px] text-slate-500">
-            Ask about your uploaded academic documents.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -383,64 +293,12 @@ export default function Chat({ onClose }) {
         </div>
       </div>
 
-      {/* Feedback panel */}
-      {showFeedback && (
-        <div className="px-4 pt-3 pb-2 border-b border-slate-200 bg-white text-[11px] space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-slate-800">Rate this chatbot</p>
-            <p className="text-[10px] text-slate-500">
-              {statsLoading
-                ? "Loading rating…"
-                : ratingCount > 0 && avgRating != null
-                  ? `Average: ${avgRating.toFixed(
-                      1,
-                    )} / 5 (${ratingCount} ratings)`
-                  : "No ratings yet"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setFeedbackRating(star)}
-                className={`h-6 w-6 flex items-center justify-center rounded-full border text-[11px] ${
-                  feedbackRating && star <= feedbackRating
-                    ? "bg-yellow-400 border-yellow-400 text-white"
-                    : "bg-white border-slate-300 text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                {star}
-              </button>
-            ))}
-          </div>
-          <form onSubmit={handleSubmitFeedback} className="space-y-1">
-            <textarea
-              className="w-full border border-slate-200 rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none h-14"
-              placeholder="Share what worked well or what should be improved…"
-              value={feedbackComment}
-              onChange={(e) => setFeedbackComment(e.target.value)}
-            />
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] text-slate-400">
-                Feedback helps us improve AcademiGuard.
-              </p>
-              <button
-                type="submit"
-                disabled={feedbackLoading}
-                className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {feedbackLoading ? "Sending…" : "Submit"}
-              </button>
-            </div>
-            {feedbackStatus && (
-              <p className="mt-1 text-[10px] text-slate-500">
-                {feedbackStatus}
-              </p>
-            )}
-          </form>
-        </div>
-      )}
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        messages={messages}
+      />
 
       {/* Conversation area */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
@@ -457,13 +315,29 @@ export default function Chat({ onClose }) {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm ${
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
                 msg.sender === "user"
                   ? "bg-blue-600 text-white rounded-br-sm"
                   : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
               }`}
             >
               <p className="whitespace-pre-line">{msg.text}</p>
+
+              {/* Show download button for PDF requests */}
+              {msg.sender === "assistant" &&
+                msg.download_url &&
+                msg.downloadable_pdf && (
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <a
+                      href={msg.download_url}
+                      download
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      📥 Download {msg.downloadable_pdf}
+                    </a>
+                  </div>
+                )}
+
               {msg.createdAt && (
                 <p
                   className={`mt-1 text-[10px] opacity-70 ${
@@ -487,7 +361,7 @@ export default function Chat({ onClose }) {
             <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
               AG
             </div>
-            <div className="max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
+            <div className="max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
               <div className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.15s]" />
@@ -513,8 +387,8 @@ export default function Chat({ onClose }) {
         className="border-t border-slate-200 px-3 py-3 rounded-b-2xl bg-white space-y-2"
       >
         <textarea
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-16"
-          placeholder="Ask a question about plagiarism, assessments, or academic integrity..."
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20"
+          placeholder="Type your message..."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
@@ -532,29 +406,70 @@ export default function Chat({ onClose }) {
             <button
               type="button"
               onClick={handleVoiceInput}
+              aria-label="Voice input"
+              title="Voice input"
               className={`inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 text-[11px] font-semibold ${
                 voiceListening
                   ? "bg-red-50 text-red-600 border-red-200"
                   : "bg-white text-slate-500 hover:bg-slate-50"
               }`}
             >
-              🎤
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M6 11a6 6 0 0 0 12 0" />
+                <path d="M12 17v4" />
+                <path d="M9 21h6" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={() =>
                 fileInputRef.current && fileInputRef.current.click()
               }
+              aria-label="Upload image"
+              title="Upload image"
               className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
             >
-              📷
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="12" cy="12" r="3" />
+                <path d="M8 5l1.2-2h5.6L16 5" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+              aria-label="Upload PDF"
+              title="Upload PDF"
               className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
             >
-              📄
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <path d="M7 3h7l5 5v13H7z" />
+                <path d="M14 3v5h5" />
+                <path d="M9 14h6" />
+                <path d="M9 17h6" />
+              </svg>
             </button>
             <span className="ml-1 hidden md:inline">
               Powered by PDFs, voice, and images.
