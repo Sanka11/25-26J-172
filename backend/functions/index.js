@@ -7,7 +7,11 @@ const {
   getQuizByLevel,
   fetchQuizByUser,
 } = require("./src/http/quizController");
-
+const {
+  getAllWorkloads,
+  updateTaskCompletion,
+  triggerManualWarningEmail,
+} = require("./src/http/adminWorkloadController");
 const {
   generateWorkload,
   generateLectureAlerts,
@@ -49,7 +53,6 @@ const {
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
 
-
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
 // -------------------------------
@@ -69,6 +72,13 @@ exports.fetchQuizByUser = fetchQuizByUser;
 // -------------------------------
 // workload savindi
 // -------------------------------
+exports.getAllWorkloads = getAllWorkloads;
+exports.updateTaskCompletion = updateTaskCompletion;
+exports.triggerManualWarningEmail = triggerManualWarningEmail;
+
+
+
+
 exports.generateLectureAlerts = generateLectureAlerts;
 exports.getWeeklyWorkload = getWeeklyWorkload;
 exports.generateOverloadReminders = generateOverloadReminders;
@@ -117,3 +127,4 @@ const {
 exports.getAllDeadlines = getAllDeadlines;
 exports.getModuleInfo = getModuleInfo;
 exports.getUpcomingDeadlines = getUpcomingDeadlines;
+
