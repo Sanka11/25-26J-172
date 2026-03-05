@@ -21,6 +21,8 @@ import CreateQuiz from "./pages/CreateQuiz";
 import TakeQuiz from "./pages/TakeQuiz";
 import Levels from "./pages/Levels";
 import CareerReadiness from "./pages/CareerReadiness";
+import AdminWorkloadTracker from "./pages/AdminWorkloadTracker";
+
 //
 
 import PdfUpload from "./pages/PdfUpload";
@@ -127,7 +129,6 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
-
         {/* STAFF */}
         <Route
           path="/upload"
@@ -137,7 +138,6 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
-
         {/* ADMIN */}
         <Route
           path="/admin/announcements"
@@ -152,6 +152,14 @@ function MainShell() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
               <CreateQuiz />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/adminworkload"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <AdminWorkloadTracker/>
             </ProtectedRoute>
           }
         />
@@ -181,14 +189,12 @@ function MainShell() {
         />
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
-
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
-
+     
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />
-
         {/* 404 */}
         <Route
           path="*"
