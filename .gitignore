@@ -43,6 +43,8 @@ firebase-debug.*.log
 # -------------------------------
 # Python (ML service)
 # -------------------------------
+.venv/
+venv/
 ml-service/venv/
 **/__pycache__/
 *.pyc
@@ -80,6 +82,7 @@ ml-service/app/test_*.py
 frontend/.env
 backend/.env
 ml-service/.env
+.history/
 
 # -------------------------------
 # Firebase / Google Cloud Security
