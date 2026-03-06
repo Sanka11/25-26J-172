@@ -5,8 +5,11 @@ import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
 import { chatHistoryService } from "../services/chatHistoryService";
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker from npm package
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.js",
+  import.meta.url,
+).href;
 
 export default function Chat({ onClose }) {
   const [question, setQuestion] = useState("");
@@ -14,7 +17,7 @@ export default function Chat({ onClose }) {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi!I'm AcademiGuard, How can I help you today?",
+      text: "Hi! I'm AcademiGuard, How can I help you today?",
       createdAt: new Date().toISOString(),
     },
   ]);
@@ -29,14 +32,25 @@ export default function Chat({ onClose }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
+  const historyLoadedRef = useRef(false);
 
-  // Load chat history from Firebase on mount
+  // Load chat history from Firebase on mount (only once)
   useEffect(() => {
+    if (historyLoadedRef.current) return; // Already loaded
+    historyLoadedRef.current = true;
+
     const loadHistory = async () => {
       try {
         const savedMessages = await chatHistoryService.loadMessages();
         if (savedMessages.length > 0) {
-          setMessages(savedMessages);
+          // Always show welcome message first, then previous messages
+          const welcomeMsg = {
+            id: "welcome",
+            sender: "assistant",
+            text: "Hi! I'm AcademiGuard, How can I help you today?",
+            createdAt: new Date().toISOString(),
+          };
+          setMessages([welcomeMsg, ...savedMessages]);
           console.log("Loaded chat history from Firebase");
         }
       } catch (error) {
@@ -55,9 +69,15 @@ export default function Chat({ onClose }) {
     // Save the last message if it's not the welcome message
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage.id !== "welcome" && lastMessage.text) {
+      if (
+        lastMessage.id !== "welcome" &&
+        lastMessage.text &&
+        !lastMessage.savedToFirebase
+      ) {
+        lastMessage.savedToFirebase = true; // Mark to avoid re-saving
         chatHistoryService.saveMessage(lastMessage).catch((err) => {
           console.error("Failed to save message:", err);
+          lastMessage.savedToFirebase = false; // Reset on error
         });
       }
     }
@@ -285,7 +305,7 @@ export default function Chat({ onClose }) {
       {
         id: "welcome",
         sender: "assistant",
-        text: "Hi, I'm AcademiGuard, How can I help today?",
+        text: "Hi! I'm AcademiGuard, How can I help you today?",
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -346,59 +366,61 @@ export default function Chat({ onClose }) {
 
       {/* Conversation area */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${
-              msg.sender === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            {msg.sender === "assistant" && (
-              <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
-                AG
-              </div>
-            )}
+        {Array.from(new Set(messages.map((m) => m.id)))
+          .map((id) => messages.find((m) => m.id === id))
+          .map((msg) => (
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
-                msg.sender === "user"
-                  ? "bg-blue-600 text-white rounded-br-sm"
-                  : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+              key={msg.id}
+              className={`flex ${
+                msg.sender === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <p className="whitespace-pre-line">{msg.text}</p>
+              {msg.sender === "assistant" && (
+                <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
+                  AG
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
+                  msg.sender === "user"
+                    ? "bg-blue-600 text-white rounded-br-sm"
+                    : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                }`}
+              >
+                <p className="whitespace-pre-line">{msg.text}</p>
 
-              {/* Show download button for PDF requests */}
-              {msg.sender === "assistant" &&
-                msg.download_url &&
-                msg.downloadable_pdf && (
-                  <div className="mt-2 pt-2 border-t border-slate-200">
-                    <a
-                      href={msg.download_url}
-                      download
-                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
-                    >
-                      📥 Download {msg.downloadable_pdf}
-                    </a>
-                  </div>
+                {/* Show download button for PDF requests */}
+                {msg.sender === "assistant" &&
+                  msg.download_url &&
+                  msg.downloadable_pdf && (
+                    <div className="mt-2 pt-2 border-t border-slate-200">
+                      <a
+                        href={msg.download_url}
+                        download
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                      >
+                        📥 Download {msg.downloadable_pdf}
+                      </a>
+                    </div>
+                  )}
+
+                {msg.createdAt && (
+                  <p
+                    className={`mt-1 text-[10px] opacity-70 ${
+                      msg.sender === "user" ? "text-blue-100" : "text-slate-500"
+                    }`}
+                  >
+                    {formatTime(msg.createdAt)}
+                  </p>
                 )}
-
-              {msg.createdAt && (
-                <p
-                  className={`mt-1 text-[10px] opacity-70 ${
-                    msg.sender === "user" ? "text-blue-100" : "text-slate-500"
-                  }`}
-                >
-                  {formatTime(msg.createdAt)}
-                </p>
+              </div>
+              {msg.sender === "user" && (
+                <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
+                  You
+                </div>
               )}
             </div>
-            {msg.sender === "user" && (
-              <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
-                You
-              </div>
-            )}
-          </div>
-        ))}
+          ))}
 
         {loading && (
           <div className="flex items-center justify-start mt-1">
