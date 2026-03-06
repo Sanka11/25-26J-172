@@ -82,6 +82,10 @@ class ChatHistoryService {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        // Skip welcome messages - they'll be shown by default in the component
+        if (data.id === "welcome") {
+          return;
+        }
         messages.push({
           id: data.id,
           sender: data.sender,
