@@ -3,6 +3,7 @@ import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
+import { chatHistoryService } from "../services/chatHistoryService";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -18,6 +19,7 @@ export default function Chat({ onClose }) {
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState("");
   const [typingState, setTypingState] = useState(null); // for word-by-word animation
   const [voiceListening, setVoiceListening] = useState(false);
@@ -27,6 +29,39 @@ export default function Chat({ onClose }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
+
+  // Load chat history from Firebase on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const savedMessages = await chatHistoryService.loadMessages();
+        if (savedMessages.length > 0) {
+          setMessages(savedMessages);
+          console.log("Loaded chat history from Firebase");
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  // Save messages to Firebase whenever they change (except initial load)
+  useEffect(() => {
+    if (!historyLoaded) return;
+
+    // Save the last message if it's not the welcome message
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.id !== "welcome" && lastMessage.text) {
+        chatHistoryService.saveMessage(lastMessage).catch((err) => {
+          console.error("Failed to save message:", err);
+        });
+      }
+    }
+  }, [messages, historyLoaded]);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -236,7 +271,16 @@ export default function Chat({ onClose }) {
     }
   };
 
-  const handleResetChat = () => {
+  const handleResetChat = async () => {
+    try {
+      // Clear Firebase history
+      await chatHistoryService.clearHistory();
+      console.log("Chat history cleared from Firebase");
+    } catch (error) {
+      console.error("Failed to clear chat history:", error);
+    }
+
+    // Reset local state
     setMessages([
       {
         id: "welcome",
