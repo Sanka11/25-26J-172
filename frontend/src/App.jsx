@@ -43,6 +43,11 @@ import RLDemo from "./pages/RLDemo";
 import PeerStudentDashboard from "./pages/PeerDashBoard";
 import HighRiskInterventionDashboard from "./pages/HumanSupport";
 import DisengagementPage from "./pages/DisengagementPage";
+import GruBatchRun from "./pages/gru/GruBatchRun";
+import GruSingleStudent from "./pages/gru/GruSingleStudent";
+import RlBatchRun from "./pages/rl/RlBatchRun";
+import RlHistory from "./pages/rl/RlHistory";
+import DisengagementHub from "./pages/DisengagementHub";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -82,6 +87,12 @@ function AppLayout() {
           >
             My Risk Timeline
           </Link>
+          <Link
+          to="/admin/disengagementhub"
+          className="block text-center px-3 py-2 rounded bg-slate-800"
+        >
+          Disengagement Center
+        </Link>
         </nav>
       </aside>
 
@@ -180,14 +191,56 @@ function MainShell() {
           }
         />
         <Route
-          path="admin/disengagement"
+          path="/admin/disengagementhub"
           element={
             <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
-              <DisengagementPage />
+              <DisengagementHub />
             </ProtectedRoute>
           }
         />
-        {/* SHARED ROUTES */}
+        <Route
+          path="/gru/batch"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <GruBatchRun />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gru/history"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <GruSingleStudent />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/rl/batch"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <RlBatchRun />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/rl/history"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <RlHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+        path="admin/disengagementhub"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <DisengagementHub />
+          </ProtectedRoute>
+        }
+      />
+                {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
