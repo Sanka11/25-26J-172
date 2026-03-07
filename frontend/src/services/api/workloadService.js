@@ -144,122 +144,45 @@ export async function generateBusyWeekReminders(studentId) {
   return data;
 }
 
-// Fetch active reminders
-// export async function fetchActiveReminders(studentId) {
-//   const url = `${appConfig.GET_ACTIVE_REMINDERS_URL}?studentId=${studentId}`;
 
-//   console.log("➡️ [API] fetchActiveReminders called");
-//   console.log("   studentId:", studentId);
-//   console.log("   URL:", url);
 
-//   const res = await fetch(url);
+const SEMESTER_START_DATE = "2026-01-31";
+function calculateCurrentWeek() {
+  const startDate = new Date(SEMESTER_START_DATE);
+  const today = new Date();
 
-//   console.log("⬅️ [API] fetchActiveReminders response status:", res.status);
+  const diffTime = today - startDate;
 
-//   if (!res.ok) {
-//     console.error("❌ Fetch active reminders failed");
-//     const errorText = await res.text();
-//     console.error("   Error details:", errorText);
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-//     // Return empty array instead of throwing to prevent UI crash
-//     return { reminders: [], count: 0, studentId };
-//   }
+  const week = Math.floor(diffDays / 7) + 1;
 
-//   const data = await res.json();
-//   console.log("✅ Fetch active reminders response:", data);
-//   console.log("   Total reminders count:", data.count || 0);
-//   console.log("   Reminders array length:", data.reminders?.length || 0);
+  return week;
+}
 
-//   // Log each reminder details for debugging
-//   if (data.reminders && data.reminders.length > 0) {
-//     console.log("📋 Reminder details:");
-//     data.reminders.forEach((reminder, index) => {
-//       console.log(`   ${index + 1}. ID: ${reminder.id}`);
-//       console.log(`      Target Week: ${reminder.targetBusyWeek}`);
-//       console.log(`      Status: ${reminder.targetStatus}`);
-//       console.log(`      Hours: ${reminder.targetTotalHours}h`);
-//       console.log(`      Week Start: ${reminder.targetWeekStart}`);
-//       console.log(
-//         `      Active: ${reminder.isActive}, Dismissed: ${reminder.isDismissed}`,
-//       );
-//     });
-//   } else {
-//     console.log("ℹ️ No reminders found in response");
-//   }
-
-//   return data;
-// }
 export async function fetchActiveReminders(studentId) {
-  const url = `${appConfig.GET_ACTIVE_REMINDERS_URL}?studentId=${studentId}`;
+  const currentWeek = calculateCurrentWeek();
 
-  console.log("➡️ [API] fetchActiveReminders called");
-  console.log("   studentId:", studentId);
-  console.log("   URL:", url);
+  console.log("Sending currentWeek:", currentWeek);
+
+  const url = `${appConfig.GET_ACTIVE_REMINDERS_URL}?studentId=${studentId}&currentWeek=${currentWeek}`;
+
+  console.log("➡️ fetchActiveReminders URL:", url);
 
   const res = await fetch(url);
 
-  console.log("⬅️ [API] fetchActiveReminders response status:", res.status);
-
   if (!res.ok) {
-    console.error("❌ Fetch active reminders failed");
     const errorText = await res.text();
-    console.error("   Error details:", errorText);
-
-    // Return empty array instead of throwing to prevent UI crash
-    return { reminders: [], count: 0, studentId };
+    console.error("Fetch reminders failed:", errorText);
+    return { reminders: [], count: 0 };
   }
 
   const data = await res.json();
 
-  // 🌟 NEW FRONTEND FILTERING LOGIC 🌟
-  if (data.reminders && data.reminders.length > 0) {
-    const uniqueRemindersMap = new Map();
-
-    data.reminders.forEach((reminder) => {
-      const targetWeek = reminder.targetBusyWeek;
-      const existingReminder = uniqueRemindersMap.get(targetWeek);
-
-      if (!existingReminder) {
-        // If we haven't seen this target week yet, add it to the map
-        uniqueRemindersMap.set(targetWeek, reminder);
-      } else {
-        // If we already have a reminder for this week, keep the one with the highest reminderWeek
-        if (reminder.reminderWeek > existingReminder.reminderWeek) {
-          uniqueRemindersMap.set(targetWeek, reminder);
-        }
-      }
-    });
-
-    // Replace the original array with our clean, deduplicated array
-    data.reminders = Array.from(uniqueRemindersMap.values());
-    data.count = data.reminders.length; // Update the count to match
-  }
-  // 🌟 END FILTERING LOGIC 🌟
-
-  console.log("✅ Fetch active reminders response:", data);
-  console.log("   Total reminders count:", data.count || 0);
-  console.log("   Reminders array length:", data.reminders?.length || 0);
-
-  // Log each reminder details for debugging
-  if (data.reminders && data.reminders.length > 0) {
-    console.log("📋 Reminder details:");
-    data.reminders.forEach((reminder, index) => {
-      console.log(`   ${index + 1}. ID: ${reminder.id}`);
-      console.log(`      Target Week: ${reminder.targetBusyWeek}`);
-      console.log(`      Status: ${reminder.targetStatus}`);
-      console.log(`      Hours: ${reminder.targetTotalHours}h`);
-      console.log(`      Week Start: ${reminder.targetWeekStart}`);
-      console.log(
-        `      Active: ${reminder.isActive}, Dismissed: ${reminder.isDismissed}`,
-      );
-    });
-  } else {
-    console.log("ℹ️ No reminders found in response");
-  }
+  console.log("Reminders received:", data);
 
   return data;
 }
-
 // Dismiss a reminder
 export async function dismissReminder(reminderId, studentId) {
   const url = appConfig.DISMISS_REMINDER_URL;

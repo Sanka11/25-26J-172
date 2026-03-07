@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   GraduationCap,
@@ -8,7 +9,7 @@ import {
   Grid,
   AlertTriangle,
   CheckCircle,
-  Circle, // Added for pending status
+  Circle,
   X,
   Loader,
   Sparkles,
@@ -35,11 +36,9 @@ import {
 
 /* ---------------- HELPERS ---------------- */
 
+// 🚀 OPTIMIZATION 1: Removed the 800ms artificial delay
 const fetchSystemConfig = async () => {
-  return new Promise((resolve) => {
-    // Note: Adjust this date if you want the "Current Week" math to change
-    setTimeout(() => resolve({ semesterStartDate: "2025-12-15" }), 800);
-  });
+  return { semesterStartDate: "2026-01-31" };
 };
 
 const groupTimetableByDay = (timetable) => {
@@ -241,29 +240,50 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (!studentId) return;
+
     async function loadDashboard() {
       try {
         setLoading(true);
-        const config = await fetchSystemConfig();
+
+        // 🚀 OPTIMIZATION 2: Fetch all static data in parallel
+        const [config, enrollment, weeklyResponse, alertRes] =
+          await Promise.all([
+            fetchSystemConfig(),
+            fetchStudentEnrollment(studentId),
+            fetchWeeklyWorkload(studentId),
+            fetchLectureAlerts(),
+          ]);
+
         setSysConfig(config);
-        const enrollment = await fetchStudentEnrollment(studentId);
         setSubjects(enrollment?.subjects || []);
-        await generateWorkloadIfNeeded(studentId, config.semesterStartDate);
-        await generateBusyWeekReminders(studentId);
-        const [weeklyResponse, alertRes] = await Promise.all([
-          fetchWeeklyWorkload(studentId),
-          fetchLectureAlerts(),
-        ]);
+
         const workloadData = Array.isArray(weeklyResponse?.weeks)
           ? weeklyResponse.weeks
           : [];
         setWeeklyWorkload(workloadData);
         setWorkloadStats(calculateWorkloadStats(workloadData));
         setLectureAlerts(alertRes?.alerts || []);
+
+        // 🚀 Stop loading immediately so the user can see the dashboard
+        setLoading(false);
+
+        // 🚀 OPTIMIZATION 3: Run slow AI tasks in the background without blocking the UI
+        generateWorkloadIfNeeded(studentId, config.semesterStartDate)
+          .then(() => generateBusyWeekReminders(studentId))
+          .then(() => {
+            // Silently refetch if new AI tasks were generated
+            fetchWeeklyWorkload(studentId).then((res) => {
+              if (res?.weeks) {
+                setWeeklyWorkload(res.weeks);
+                setWorkloadStats(calculateWorkloadStats(res.weeks));
+              }
+            });
+            loadBackendReminders(); // Fetch reminders after generation completes
+          })
+          .catch((err) => console.error("Background AI task error:", err));
       } catch (err) {
         console.error("Dashboard error:", err);
-      } finally {
-        setLoading(false);
+        setLoading(false); // Make sure loader drops even if there is an error
       }
     }
     loadDashboard();
@@ -290,15 +310,10 @@ const StudentDashboard = () => {
               : new Date(),
           }))
           .filter((r) => {
-            // 🌟 STRICT EXPIRATION RULE:
-            // Calculate how many days have passed since the target week started
             const daysSinceStart =
               (today - r.targetWeekStart) / (1000 * 60 * 60 * 24);
-
-            // If it has been more than 7 days, the week is over. Hide it!
             return daysSinceStart <= 7;
           });
-
         setBackendReminders(validReminders);
       }
       setHasLoadedReminders(true);
@@ -336,8 +351,16 @@ const StudentDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 space-y-8">
+        {/* 🚀 ADDED A CLEAR LOADER SPINNER */}
+        <div className="flex flex-col items-center gap-4 mb-4">
+          <Loader className="w-12 h-12 text-indigo-600 animate-spin" />
+          <p className="text-gray-500 font-bold text-lg animate-pulse">
+            Loading your dashboard...
+          </p>
+        </div>
+
+        <div className="max-w-7xl mx-auto w-full space-y-6 opacity-60">
           <div className="h-24 bg-white/50 rounded-3xl animate-pulse backdrop-blur-md border border-white/40 shadow-sm"></div>
           <div className="flex gap-6 overflow-x-hidden">
             {[1, 2, 3].map((i) => (
@@ -361,6 +384,7 @@ const StudentDashboard = () => {
         .glass-card { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07); }
       `}</style>
 
+      {/* MODAL CODE REMAINS UNCHANGED */}
       {isModalOpen && selectedWeek && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden relative">
@@ -390,7 +414,7 @@ const StudentDashboard = () => {
               {selectedWeek.breakdown && selectedWeek.breakdown.length > 0 ? (
                 <div className="space-y-3">
                   {selectedWeek.breakdown.map((task, idx) => {
-                    const isDone = task.isCompleted; // Check if the task is done
+                    const isDone = task.isCompleted;
                     return (
                       <div
                         key={idx}
@@ -402,7 +426,6 @@ const StudentDashboard = () => {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex items-start gap-3">
-                            {/* Render CheckCircle if done, otherwise empty Circle */}
                             {isDone ? (
                               <CheckCircle className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
                             ) : (
@@ -429,7 +452,6 @@ const StudentDashboard = () => {
                                   {formatTaskType(task.type)}
                                 </span>
 
-                                {/* Status Badge */}
                                 {isDone ? (
                                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">
                                     Done
@@ -465,6 +487,7 @@ const StudentDashboard = () => {
         </div>
       )}
 
+      {/* DASHBOARD REMAINS UNCHANGED */}
       <div className="min-h-screen bg-slate-50/50 text-gray-800 font-sans pb-12">
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
           <div className="glass-card rounded-3xl p-6 sm:p-8">
@@ -517,7 +540,6 @@ const StudentDashboard = () => {
                 {backendReminders.map((reminder) => {
                   const isDownloading = downloadingPdfId === reminder.id;
 
-                  // 🌟 SMARTER BADGES LOGIC
                   const daysUntil = Math.ceil(
                     (reminder.targetWeekStart - new Date()) /
                       (1000 * 60 * 60 * 24),
@@ -556,7 +578,6 @@ const StudentDashboard = () => {
                           <h4 className="font-extrabold text-gray-900 text-xl">
                             Week {reminder.targetBusyWeek} Plan
                           </h4>
-                          {/* 🌟 APPLIED BADGE TEXT AND COLOR */}
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-bold ${badgeColor}`}
                           >
@@ -677,7 +698,6 @@ const StudentDashboard = () => {
                               key={i}
                               className={`flex items-start gap-2 text-xs bg-white/80 backdrop-blur-sm p-3 rounded-xl shadow-sm border ${isDone ? "border-emerald-100" : "border-gray-100"}`}
                             >
-                              {/* Display Done/Pending icon in the upcoming preview */}
                               {isDone ? (
                                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                               ) : (
@@ -799,5 +819,3 @@ const StudentDashboard = () => {
 };
 
 export default StudentDashboard;
-
-
