@@ -15,6 +15,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 // Configure PDF.js worker from npm package
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -33,6 +34,108 @@ const PERFORMANCE_THRESHOLDS = {
 const toNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
+};
+
+const APP_AUTOMATION_COMMANDS = [
+  {
+    route: "/WorkloadDashboard",
+    label: "Workload Dashboard",
+    patterns: [
+      /\bwork\s*load\s*dashboard\b/i,
+      /\bworkloaddashboard\b/i,
+      /\bopen\s+workload\b/i,
+    ],
+  },
+  {
+    route: "/recommendation",
+    label: "Recommendation Dashboard",
+    patterns: [/\brecommendation\b/i, /\brecommendations\b/i],
+  },
+  {
+    route: "/announcements",
+    label: "Announcements",
+    patterns: [/\bannouncement\b/i, /\bannouncements\b/i],
+  },
+  {
+    route: "/live-risk",
+    label: "Live Risk Dashboard",
+    patterns: [/\blive\s*risk\b/i, /\brisk\s*dashboard\b/i],
+  },
+  {
+    route: "/student-risk",
+    label: "Student Risk Timeline",
+    patterns: [/\bstudent\s*risk\b/i, /\brisk\s*timeline\b/i, /\bmy\s*risk\b/i],
+  },
+  {
+    route: "/chat",
+    label: "Chat Page",
+    patterns: [/\bopen\s+chat\b/i, /\bgo\s+to\s+chat\b/i],
+  },
+  {
+    route: "/careerReadiness",
+    label: "Career Readiness",
+    patterns: [/\bcareer\s*readiness\b/i, /\bcareer\b/i],
+  },
+  {
+    route: "/levels",
+    label: "Levels",
+    patterns: [/\blevels\b/i, /\bopen\s+levels\b/i],
+  },
+  {
+    route: "/create-quiz",
+    label: "Create Quiz",
+    patterns: [/\bcreate\s*quiz\b/i, /\bquiz\s*creator\b/i],
+  },
+  {
+    route: "/upload",
+    label: "PDF Upload",
+    patterns: [/\bupload\s*pdf\b/i, /\bpdf\s*upload\b/i],
+  },
+  {
+    route: "/peer",
+    label: "Peer Dashboard",
+    patterns: [/\bpeer\b/i, /\bpeer\s*dashboard\b/i],
+  },
+  {
+    route: "/support",
+    label: "Human Support Dashboard",
+    patterns: [/\bsupport\b/i, /\bhuman\s*support\b/i],
+  },
+  {
+    route: "/admin/announcements",
+    label: "Admin Announcements",
+    patterns: [/\badmin\s*announcement\b/i],
+  },
+  {
+    route: "/gru",
+    label: "GRU Dashboard",
+    patterns: [/\bgru\b/i],
+  },
+  {
+    route: "/rl",
+    label: "RL Dashboard",
+    patterns: [/\brl\b/i, /\breinforcement\s*learning\b/i],
+  },
+];
+
+const resolveAutomationCommand = (input) => {
+  const text = (input || "").trim();
+  if (!text) return null;
+
+  const normalized = text.toLowerCase();
+  const hasNavIntent =
+    /\b(open|go|navigate|take me|show|need to see|i need to see|move)\b/i.test(
+      normalized,
+    ) || normalized.includes("dashboard");
+
+  if (!hasNavIntent) return null;
+
+  for (const command of APP_AUTOMATION_COMMANDS) {
+    const matched = command.patterns.some((pattern) => pattern.test(text));
+    if (matched) return command;
+  }
+
+  return null;
 };
 
 const buildInterventionFromMetrics = (metrics) => {
@@ -113,6 +216,7 @@ const buildInterventionFromMetrics = (metrics) => {
 
 export default function Chat({ onClose }) {
   const { currentUser, userData } = useAuth();
+  const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([
     {
@@ -478,6 +582,22 @@ export default function Chat({ onClose }) {
     };
     setMessages((prev) => [...prev, userMessage]);
     setQuestion("");
+
+    const automationCommand = resolveAutomationCommand(trimmed);
+    if (automationCommand) {
+      navigate(automationCommand.route);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-nav-${Date.now()}`,
+          sender: "assistant",
+          text: `Of course. I'll navigate you to ${automationCommand.label} now.`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     setLoading(true);
 
     try {
