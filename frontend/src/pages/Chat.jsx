@@ -84,7 +84,7 @@ const buildInterventionFromMetrics = (metrics) => {
       "Your Midterm score is below the expected level. Consider reviewing lecture slides and contacting your lecturer for additional support.",
     );
   }
-  if (belowThreshold.includes("assignment_avg")) {
+  if (belowThreshold.includes("assignments_avg")) {
     reminders.push(
       "Your assignment average is low. Please ensure future submissions are completed before deadlines.",
     );
