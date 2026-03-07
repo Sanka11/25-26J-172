@@ -14,11 +14,7 @@ app.use(express.json());
 
 // IMPORTANT:
 // RAW body ONLY for CSV upload (Firebase-compatible)
-app.use(
-  "/api/upload-weekly-csv",
-  express.raw({ type: "*/*", limit: "10mb" })
-);
-
+app.use("/api/upload-weekly-csv", express.raw({ type: "*/*", limit: "10mb" }));
 
 // -------------------------------
 // Health check
@@ -53,8 +49,14 @@ app.use("/api/rl", rlRoutes);
 // Temporal Risk History (Semester-wise)
 // ----------------------------------------------------
 const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
+const {
+  getStudentPerformance,
+  getStudentsByPerformance,
+} = require("./src/http/studentPerformanceController");
 
 app.get("/api/students/:studentId/risk-history", getStudentRiskHistory);
+app.get("/api/students/:studentId/performance", getStudentPerformance);
+app.get("/api/students/performance/classify", getStudentsByPerformance);
 
 // ----------------------------------------------------
 // Risk real-time
@@ -78,12 +80,9 @@ app.post("/api/run-weekly-batch", runWeeklyBatch);
 // ----------------------------------------------------
 // CSV Upload – Student Weekly Activity
 // ----------------------------------------------------
-const {
-  uploadWeeklyCsv,
-} = require("./src/http/uploadWeeklyCsvController");
+const { uploadWeeklyCsv } = require("./src/http/uploadWeeklyCsvController");
 
 app.post("/api/upload-weekly-csv", uploadWeeklyCsv);
-
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function

@@ -22,16 +22,20 @@ You are AcademiGuard, an academic assistant. You help students with:
 5. Important academic calendar dates
 6. General academic integrity questions (from uploaded PDFs)
 
-IMPORTANT: Keep answers brief and direct.
+CRITICAL INSTRUCTIONS:
+- Return ONLY the information asked for in the question
+- If user asks about "password policy", return ONLY the password policy section, not other policies
+- Keep answers brief and direct
 - For deadlines: Just state the date in a clear format (e.g., "February 28, 2026")
 - For contact info: Name, email, and office hours only
 - Avoid repetition and unnecessary details
-- Don't list the same information multiple times
+- Don't list the same information multiple times or similar items
 - Answer in 1-3 sentences unless specifically asked for more detail
-- Do not mention documents, portals, policies, or internal sources
+- Do not mention documents, portals, policies names, or internal sources
 - Do not include disclaimers about access or capabilities
 - If asked about a concept, give a concise definition only
 - Use only the most relevant context; avoid mixing unrelated sources
+- Extract ONLY relevant points from the provided context
 - Use a friendly and clear tone suitable for students
 """
 
@@ -902,18 +906,20 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     # Always mix in lightweight lexical retrieval, then rerank by question relevance.
     keyword_results = keyword_search(question, n_results=max(4, top_k + 1))
     results = _merge_retrieval_results(results, keyword_results)
-    results = _rerank_results_by_relevance(question, results, limit=4)
+    # Reduce re-ranking limit from 4 to 2 for more focused results
+    results = _rerank_results_by_relevance(question, results, limit=2)
     
     print(f"[RAG] Primary retrieval found {len(results.get('documents', [[]])[0])} chunks")
     
     # 4) Build prompt context with strict relevance filtering
     context_texts = []
     if results.get("documents") and results["documents"][0]:
-        max_chunks = min(4, len(results["documents"][0]))
+        # Limit to 2 most relevant chunks
+        max_chunks = min(2, len(results["documents"][0]))
         for i in range(max_chunks):
             doc = results["documents"][0][i]
-            if len(doc) > 1000:
-                doc = doc[:1000] + "..."
+            if len(doc) > 800:
+                doc = doc[:800] + "..."
             context_texts.append(f"{doc}\n")
     
     pdf_context = "\n---\n".join(context_texts) if context_texts else ""
