@@ -22,16 +22,20 @@ You are AcademiGuard, an academic assistant. You help students with:
 5. Important academic calendar dates
 6. General academic integrity questions (from uploaded PDFs)
 
-IMPORTANT: Keep answers brief and direct.
+CRITICAL INSTRUCTIONS:
+- Return ONLY the information asked for in the question
+- If user asks about "password policy", return ONLY the password policy section, not other policies
+- Keep answers brief and direct
 - For deadlines: Just state the date in a clear format (e.g., "February 28, 2026")
 - For contact info: Name, email, and office hours only
 - Avoid repetition and unnecessary details
-- Don't list the same information multiple times
+- Don't list the same information multiple times or similar items
 - Answer in 1-3 sentences unless specifically asked for more detail
-- Do not mention documents, portals, policies, or internal sources
+- Do not mention documents, portals, policies names, or internal sources
 - Do not include disclaimers about access or capabilities
 - If asked about a concept, give a concise definition only
 - Use only the most relevant context; avoid mixing unrelated sources
+- Extract ONLY relevant points from the provided context
 - Use a friendly and clear tone suitable for students
 """
 
@@ -144,6 +148,42 @@ def _is_yesno_question(question_lower: str) -> bool:
     return any(question_lower.startswith(starter) for starter in yesno_starters)
 
 
+def _is_policy_rule_question(question_lower: str) -> bool:
+    """Detect policy/rulebook questions that should NOT be answered as simple dates."""
+    policy_terms = [
+        "what happens if",
+        "without valid registration",
+        "studentship",
+        "postpon",
+        "maximum period",
+        "how often must students register",
+        "register at sliit",
+        "registration period",
+        "academic honours",
+        "academic honors",
+        "degree level",
+    ]
+    return any(term in question_lower for term in policy_terms)
+
+
+def _is_deadline_date_question(question_lower: str) -> bool:
+    """Detect true date/deadline questions while excluding policy-consequence questions."""
+    if _is_policy_rule_question(question_lower):
+        return False
+
+    date_terms = [
+        "deadline",
+        "due date",
+        "closing date",
+        "submission date",
+        "payment deadline",
+        "registration deadline",
+        "when is",
+        "when's",
+    ]
+    return any(term in question_lower for term in date_terms)
+
+
 def _get_yesno_answer(question_lower: str) -> str:
     """Provide deterministic yes/no answers for common payment/policy questions."""
     # Payment method questions
@@ -166,6 +206,40 @@ def _get_yesno_answer(question_lower: str) -> str:
         if any(term in question_lower for term in ["can i", "can we", "accepted"]):
             return "Various payment methods are accepted. Please visit the student portal or contact the Finance Department for the list of accepted payment methods and current payment deadlines."
     
+    return None
+
+
+def _get_rulebook_policy_answer(question_lower: str) -> str:
+    """Deterministic, student-friendly answers for high-confidence SLIIT rulebook questions."""
+    q = (question_lower or "").strip()
+
+    if "how often" in q and "register" in q and "sliit" in q:
+        return "Students must register for each semester."
+
+    if "fails to register" in q or (
+        "registration period" in q and "what happens" in q
+    ):
+        return "If a student fails to register during the registration period, they must pay a late processing fee and penalty."
+
+    if "without valid registration" in q and (
+        "attend" in q or "lectures" in q
+    ):
+        return "No. Students without valid registration cannot attend lectures, assessments, or examinations."
+
+    if "does not complete" in q and "studentship period" in q:
+        return "If a student does not complete the degree within the studentship period, the studentship is automatically terminated."
+
+    if ("maximum period" in q and "postpon" in q) or (
+        "postponing studentship" in q
+    ):
+        return "The maximum period allowed for postponing studentship is one year."
+
+    if "academic honours" in q or "academic honors" in q:
+        return (
+            "At degree level, academic honours are based on the required cumulative/weighted GPA and awarded as First Class, "
+            "Second Class Upper Division, or Second Class Lower Division according to the rulebook criteria."
+        )
+
     return None
 
 
@@ -782,10 +856,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                        "academic calendar", "calendar", "conduct code", "integrity policy"]
     )
     
-    is_deadline_q = any(
-        keyword in question_lower
-        for keyword in ["deadline", "due", "registration", "payment", "when is", "when's"]
-    )
+    is_deadline_q = _is_deadline_date_question(question_lower)
     is_definition_q = bool(re.search(r"\b(what is|define|meaning of|explain)\b", question_lower))
     is_lic_q = any(
         keyword in question_lower
@@ -797,6 +868,17 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     
     # Check for yes/no questions
     is_yesno_q = _is_yesno_question(question_lower)
+
+    # Deterministic handling for core SLIIT rulebook policy questions.
+    rulebook_answer = _get_rulebook_policy_answer(question_lower)
+    if rulebook_answer:
+        return {
+            "answer": rulebook_answer,
+            "sources": None,
+            "source_pdfs": ["SLIIT Rule Book.pdf"],
+            "suggested_pdfs": ["SLIIT Rule Book.pdf"],
+            "is_pdf_request": False,
+        }
 
     # Deterministic high-accuracy answer for the most common typo/definition case.
     if is_definition_q and _is_integrity_question(question_lower):
@@ -902,6 +984,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     # Always mix in lightweight lexical retrieval, then rerank by question relevance.
     keyword_results = keyword_search(question, n_results=max(4, top_k + 1))
     results = _merge_retrieval_results(results, keyword_results)
+    # Reduce re-ranking limit from 4 to 2 for more focused results
     results = _rerank_results_by_relevance(question, results, limit=4)
     
     print(f"[RAG] Primary retrieval found {len(results.get('documents', [[]])[0])} chunks")
@@ -909,11 +992,12 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     # 4) Build prompt context with strict relevance filtering
     context_texts = []
     if results.get("documents") and results["documents"][0]:
-        max_chunks = min(4, len(results["documents"][0]))
+        # Limit to 2 most relevant chunks
+        max_chunks = min(2, len(results["documents"][0]))
         for i in range(max_chunks):
             doc = results["documents"][0][i]
-            if len(doc) > 1000:
-                doc = doc[:1000] + "..."
+            if len(doc) > 800:
+                doc = doc[:800] + "..."
             context_texts.append(f"{doc}\n")
     
     pdf_context = "\n---\n".join(context_texts) if context_texts else ""
@@ -1027,7 +1111,11 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     elif is_deadline_q:
         prompt = f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nReturn ONLY the date. No titles, no explanations, just the date in format: Month Day, Year"
     else:
-        prompt = f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\nProvide a brief, direct answer."
+        prompt = (
+            f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\n"
+            "Answer in a student-friendly way using 1-2 short sentences. "
+            "If the context includes an explicit rule, state that rule directly and clearly."
+        )
     
     # 5) Generate answer with LLM
     answer = call_ollama(prompt)

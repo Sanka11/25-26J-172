@@ -11,13 +11,9 @@ app.use(cors({ origin: true }));
 // JSON for normal APIs ONLY
 app.use(express.json());
 
-// ----------------------------------------------------
-// RAW body ONLY for WEEKLY CSV upload (keep this)
-// ----------------------------------------------------
-app.use(
-  "/api/upload-weekly-csv",
-  express.raw({ type: "*/*", limit: "10mb" })
-);
+// IMPORTANT:
+// RAW body ONLY for CSV upload (Firebase-compatible)
+app.use("/api/upload-weekly-csv", express.raw({ type: "*/*", limit: "10mb" }));
 
 // -------------------------------
 // Health check
@@ -50,11 +46,15 @@ app.use("/api/rl", rlRoutes);
 // ----------------------------------------------------
 // Temporal Risk History (Semester-wise)
 // ----------------------------------------------------
+const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 const {
-  getStudentRiskHistory,
-} = require("./src/http/temporalRiskController");
+  getStudentPerformance,
+  getStudentsByPerformance,
+} = require("./src/http/studentPerformanceController");
 
 app.get("/api/students/:studentId/risk-history", getStudentRiskHistory);
+app.get("/api/students/:studentId/performance", getStudentPerformance);
+app.get("/api/students/performance/classify", getStudentsByPerformance);
 
 // ----------------------------------------------------
 // Risk real-time
@@ -96,108 +96,9 @@ app.post("/api/run-weekly-batch", runWeeklyBatch);
 // ----------------------------------------------------
 // CSV Upload – Student Weekly Activity (RAW)
 // ----------------------------------------------------
-const {
-  uploadWeeklyCsv,
-} = require("./src/http/uploadWeeklyCsvController");
+const { uploadWeeklyCsv } = require("./src/http/uploadWeeklyCsvController");
 
 app.post("/api/upload-weekly-csv", uploadWeeklyCsv);
-
-// ----------------------------------------------------
-// CSV Upload – Student Master Data (FILE UPLOAD)
-// ----------------------------------------------------
-const {
-  uploadStudentCsv,
-} = require("./src/http/uploadStudentCsvController");
-
-const {
-  uploadStudentWeeklyCsv,
-} = require("./src/http/uploadStudentWeeklyCsvController");
-
-app.post("/api/upload-student-csv", uploadStudentCsv);
-
-app.post("/api/upload-student-weekly-csv", uploadStudentWeeklyCsv);
-
-// ----------------------------------------------------
-// Test GRU inference (Firestore → ML-service)
-// ----------------------------------------------------
-const {
-  testGruInference,
-} = require("./src/http/testGruInferenceController");
-
-app.get("/api/test-gru-inference/:studentId", testGruInference);
-
-// // ----------------------------------------------------
-// // ML – GRU + RL combined prediction (NEW)
-// // ----------------------------------------------------
-// const {
-//   gruRlPredict,
-// } = require("./src/http/gruRlPredictController");
-
-// app.post("/api/ml/gru-rl-predict", gruRlPredict);
-
-
-// ----------------------------------------------------
-// GRU batch run – all students (NEW)
-// ----------------------------------------------------
-const {
-  runGruBatch,
-} = require("./src/http/runGruBatchController");
-
-app.post("/api/ml/run-gru-batch", runGruBatch);
-
-// ----------------------------------------------------
-// Test GRU history → RL input
-// ----------------------------------------------------
-const {
-  testGruHistoryForRl,
-} = require("./src/http/testGruHistoryForRlController");
-
-app.get("/api/test-gru-history-rl/:studentId", testGruHistoryForRl);
-
-const {
-  predictGruOnly,
-} = require("./src/http/predictGruOnlyController");
-
-app.get("/api/gru/predict/:studentId", predictGruOnly);
-
-const {
-  getLatestGruWithTrend,
-} = require("./src/http/getLatestGruWithTrendController");
-
-app.get(
-  "/api/gru/latest-with-trend/:studentId",
-  getLatestGruWithTrend
-);
-
-const {
-  gruRlPredict,
-} = require("./src/http/gruRlPredictController");
-
-app.get("/api/gru-rl/predict/:studentId", gruRlPredict);
-
-const {
-  runRlBatch,
-} = require("./src/http/runRlBatchController");
-
-app.post("/api/run-rl-batch", runRlBatch);
-
-const { runBatchRl } = require("./src/http/runBatchRlController");
-app.post("/api/run-batch-rl", runBatchRl);
-
-
-// --- RL HISTORY CONTROLLER ---
-const { getRlHistory } = require("./src/http/getRlHistoryController");
-
-// Get ALL students
-app.get("/api/ml/rl-history", getRlHistory);
-
-// Get SINGLE student
-app.get("/api/ml/rl-history/:studentId", getRlHistory);
-
-const { getGruHistory } = require("./src/http/getGruHistoryController");
-
-app.get("/api/ml/gru-history", getGruHistory);
-
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function
