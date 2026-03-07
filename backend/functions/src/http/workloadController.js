@@ -1,1089 +1,265 @@
-// const functions = require("firebase-functions");
-// const admin = require("../firebase");
-// require("dotenv").config();
-// const db = admin.firestore();
-// const Groq = require("groq-sdk");
-
-// // Initialize Firebase Admin if not already initialized
-// if (!admin.apps.length) {
-//   admin.initializeApp();
-// }
-
-// // Initialize Groq as a constant
-// const groq = new Groq({
-//   apiKey: process.env.GROQ_API_KEY,
-// });
-
-// /**
-//  * Generate Weekly Workload purely from SUBJECT data
-//  * Method: POST
-//  * Body: { studentId, semesterStartDate }
-//  */
-// const generateWorkload = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "POST") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
-
-//     const { studentId, semesterStartDate } = req.body;
-
-//     if (!studentId || !semesterStartDate) {
-//       return res.status(400).json({ error: "Missing fields" });
-//     }
-
-//     const semesterStart = new Date(semesterStartDate);
-
-//     /* 1️⃣ Get enrolled subjects */
-//     const enrollSnap = await db
-//       .collection("student_enrollments")
-//       .doc(studentId)
-//       .get();
-
-//     if (!enrollSnap.exists) {
-//       return res.status(404).json({ error: "Student not enrolled" });
-//     }
-
-//     const subjectIds = enrollSnap.data().subjects || [];
-
-//     /* 2️⃣ Load subject details */
-//     const subjects = await Promise.all(
-//       subjectIds.map(async (id) => {
-//         const snap = await db.collection("subjects").doc(id).get();
-//         return snap.exists ? snap.data() : null;
-//       }),
-//     );
-
-//     /* 3️⃣ Weekly workload map (EXPLAINABLE) */
-//     const weeklyLoad = {};
-//     // week -> { totalHours, breakdown[] }
-
-//     const addLoad = (week, entry) => {
-//       if (!weeklyLoad[week]) {
-//         weeklyLoad[week] = {
-//           totalHours: 0,
-//           breakdown: [],
-//         };
-//       }
-
-//       weeklyLoad[week].totalHours += entry.hours;
-//       weeklyLoad[week].breakdown.push(entry);
-//     };
-
-//     /* 4️⃣ Process subjects */
-//     subjects.forEach((sub) => {
-//       if (!sub) return;
-
-//       // 🎓 Academic subjects
-//       if (sub.type === "ACADEMIC") {
-//         const t = sub.assessmentTimeline || {};
-//         const h = sub.estimatedHours || {};
-
-//         // Assignments
-//         t.assignments?.forEach((week) =>
-//           addLoad(week, {
-//             subjectId: sub.subjectId,
-//             subjectName: sub.subjectName,
-//             type: "ASSIGNMENT",
-//             hours: h.assignment || 6,
-//           }),
-//         );
-
-//         // Mid exam
-//         if (t.midExamWeek) {
-//           addLoad(t.midExamWeek, {
-//             subjectId: sub.subjectId,
-//             subjectName: sub.subjectName,
-//             type: "MID_EXAM",
-//             hours: h.midExam || 10,
-//           });
-//         }
-
-//         // Final exam
-//         if (t.finalExamWeek) {
-//           addLoad(t.finalExamWeek, {
-//             subjectId: sub.subjectId,
-//             subjectName: sub.subjectName,
-//             type: "FINAL_EXAM",
-//             hours: h.finalExam || 15,
-//           });
-//         }
-//       }
-
-//       // 🏭 Internship subject
-//       if (sub.type === "INTERNSHIP") {
-//         sub.submissionWeeks?.forEach((week) =>
-//           addLoad(week, {
-//             subjectId: sub.subjectId,
-//             subjectName: sub.subjectName,
-//             type: "INTERNSHIP_SUBMISSION",
-//             hours: sub.estimatedHoursPerSubmission || 8,
-//           }),
-//         );
-//       }
-//     });
-
-//     /* 5️⃣ Save weekly workload with explanation */
-//     const batch = db.batch();
-
-//     Object.entries(weeklyLoad).forEach(([week, data]) => {
-//       let status = "NORMAL";
-
-//       if (data.totalHours >= 20) status = "OVERLOADED";
-//       else if (data.totalHours >= 12) status = "BUSY";
-
-//       const weekStart = new Date(
-//         semesterStart.getTime() + (Number(week) - 1) * 7 * 86400000,
-//       );
-
-//       const ref = db.collection("weekly_workload").doc(`${studentId}_W${week}`);
-
-//       batch.set(ref, {
-//         studentId,
-//         week: Number(week),
-//         weekStart,
-//         totalHours: data.totalHours,
-//         status,
-//         breakdown: data.breakdown, // ⭐ EXPLAINABLE PART
-//         createdAt: new Date(),
-//       });
-//     });
-
-//     await batch.commit();
-
-//     return res.json({
-//       message: "Weekly workload generated (with explanations)",
-//       weeksAnalyzed: Object.keys(weeklyLoad).length,
-//     });
-//   } catch (err) {
-//     console.error("generateWorkload error:", err);
-//     res.status(500).json({ error: "Workload generation failed" });
-//   }
-// });
-
-// /**
-//  * Generate lecture alerts (manual trigger)
-//  */
-// const generateLectureAlerts = functions.https.onRequest(async (req, res) => {
-//   try {
-//     const now = new Date(
-//       new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" }),
-//     );
-//     const todayName = now.toLocaleDateString("en-US", {
-//       weekday: "long",
-//     });
-
-//     const subjectsSnap = await db.collection("subjects").get();
-//     const alerts = [];
-
-//     subjectsSnap.forEach((doc) => {
-//       const sub = doc.data();
-
-//       if (!sub.lectureDays?.includes(todayName)) return;
-
-//       const lectureStart = new Date(
-//         `${now.toDateString()} ${sub.lectureStartTime}`,
-//       );
-
-//       const diffMinutes = (lectureStart - now) / 60000;
-
-//       // 🔔 Lecture starting soon
-//       if (diffMinutes > 0 && diffMinutes <= 15) {
-//         alerts.push({
-//           type: "LECTURE_STARTING_SOON",
-//           subjectId: sub.subjectId,
-//           subjectName: sub.subjectName,
-//           message: `Lecture starts in ${Math.round(diffMinutes)} minutes`,
-//           deliveryMode: sub.deliveryMode,
-//           joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
-//         });
-//       }
-
-//       // 🔔 Lecture live
-//       if (diffMinutes <= 0 && diffMinutes >= -5) {
-//         alerts.push({
-//           type: "LECTURE_NOW",
-//           subjectId: sub.subjectId,
-//           subjectName: sub.subjectName,
-//           message:
-//             sub.deliveryMode === "ONLINE"
-//               ? "Lecture is live now. Join using the link."
-//               : "Lecture is happening now.",
-//           deliveryMode: sub.deliveryMode,
-//           joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
-//         });
-//       }
-//     });
-
-//     return res.json({
-//       timestamp: now,
-//       alerts,
-//     });
-//   } catch (err) {
-//     console.error("generateLectureAlerts error:", err);
-//     res.status(500).json({ error: "Failed to generate lecture alerts" });
-//   }
-// });
-// const getWeeklyWorkload = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "GET") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
-
-//     const { studentId } = req.query;
-//     if (!studentId) {
-//       return res.status(400).json({ error: "Missing studentId" });
-//     }
-
-//     const snap = await db
-//       .collection("weekly_workload")
-//       .where("studentId", "==", studentId)
-//       .get();
-
-//     // 🔴 FILTER ONLY BUSY / OVERLOADED
-//     const weeks = snap.docs
-//       .map((doc) => ({ id: doc.id, ...doc.data() }))
-//       .filter((w) => w.status == "NORMAL" || w.status == "BUSY");
-
-//     return res.json({
-//       studentId,
-//       totalFlaggedWeeks: weeks.length,
-//       weeks,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to fetch weekly workload" });
-//   }
-// });
-// const generateOverloadReminders = functions.https.onRequest(
-//   async (req, res) => {
-//     try {
-//       const { studentId } = req.body;
-
-//       if (!studentId) {
-//         return res.status(400).json({ error: "Missing studentId" });
-//       }
-
-//       // 1️⃣ Fetch overloaded weeks
-//       const snap = await db
-//         .collection("weekly_workload")
-//         .where("studentId", "==", studentId)
-//         .where("status", "==", "OVERLOADED")
-//         .get();
-
-//       if (snap.empty) {
-//         return res.json({
-//           message: "No overloaded weeks detected",
-//           remindersCreated: 0,
-//         });
-//       }
-
-//       const batch = db.batch();
-//       let reminderCount = 0;
-
-//       snap.docs.forEach((doc) => {
-//         const data = doc.data();
-//         const overloadedWeek = Number(data.week);
-
-//         // 2️⃣ Weeks BEFORE overload
-//         const reminderWeeks = [overloadedWeek - 2, overloadedWeek - 1];
-
-//         reminderWeeks.forEach((week) => {
-//           if (week <= 0) return;
-
-//           const ref = db
-//             .collection("reminders")
-//             .doc(`${studentId}_OVERLOAD_W${overloadedWeek}_REM_W${week}`);
-
-//           batch.set(ref, {
-//             studentId,
-//             reminderWeek: week,
-//             targetOverloadedWeek: overloadedWeek,
-//             type: "OVERLOAD_EARLY_WARNING",
-//             message: `Week ${overloadedWeek} will be overloaded. Start preparation early.`,
-//             createdAt: new Date(),
-//           });
-
-//           reminderCount++;
-//         });
-//       });
-
-//       await batch.commit();
-
-//       return res.json({
-//         message: "Overload reminders generated",
-//         remindersCreated: reminderCount,
-//       });
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ error: "Failed to generate overload reminders" });
-//     }
-//   },
-// );
-// /**
-//  * Cloud Function to generate AI-powered study reminders for busy weeks.
-//  * Uses Groq (Llama 3.3 70B) for high-speed, structured JSON output.
-//  */
-
-// const generateBusyWeekReminders = functions.https.onRequest(
-//   async (req, res) => {
-//     try {
-//       const { studentId } = req.body;
-
-//       if (!studentId) {
-//         return res.status(400).json({ error: "Missing studentId" });
-//       }
-
-//       // Fetch upcoming workload that is flagged as high-intensity
-//       const snap = await db
-//         .collection("weekly_workload")
-//         .where("studentId", "==", studentId)
-//         .where("status", "in", ["BUSY", "HEAVY", "OVERLOADED"])
-//         .get();
-
-//       if (snap.empty) {
-//         return res.json({
-//           message: "No busy weeks detected",
-//           remindersCreated: 0,
-//         });
-//       }
-
-//       const batch = db.batch();
-//       let reminderCount = 0;
-//       const today = new Date();
-
-//       for (const doc of snap.docs) {
-//         const data = doc.data();
-//         const busyWeek = Number(data.week);
-//         const weekStart = data.weekStart.toDate();
-
-//         // Only create reminders for future weeks
-//         if (weekStart <= today) continue;
-
-//         // Create warnings for 2 weeks and 1 week before the busy period
-//         const reminderWeeks = [busyWeek - 2, busyWeek - 1];
-
-//         for (const week of reminderWeeks) {
-//           if (week <= 0) continue;
-
-//           // Extract subject details for AI context
-//           const subjectDetails = data.breakdown
-//             .map((b) => `${b.hours} hours of ${b.subjectName} (${b.type})`)
-//             .join(", ");
-
-//           // Enhanced Prompt for specific, unique distribution
-//           const prompt = `
-//             You are an expert academic advisor.
-//             A student has an upcoming week labeled as "${data.status}" with ${data.totalHours} total hours.
-//             Workload breakdown: ${subjectDetails}
-
-//             TASK: Create a realistic 5-day study timetable (Day 1 to Day 5).
-
-//             RULES:
-//             1. Distribute the ${data.totalHours} hours logically across 5 days.
-//             2. Be highly specific: Use tasks like "Draft intro for ${data.breakdown[0]?.subjectName || "Subject"}" instead of just "Study".
-//             3. Ensure no single day is excessively overloaded.
-//             4. You MUST return ONLY a valid JSON array of objects.
-
-//             JSON format:
-//             [
-//               { "day": 1, "subject": "Name", "hours": 2, "task": "Specific actionable task" },
-//               { "day": 2, "subject": "Name", "hours": 3, "task": "Another task" }
-//             ]
-//           `;
-
-//           let aiTimetable = [];
-
-//           try {
-//             // Call Groq with Llama 3.3 and force JSON output
-//             const chatCompletion = await groq.chat.completions.create({
-//               messages: [
-//                 {
-//                   role: "system",
-//                   content:
-//                     "You are a helpful academic assistant that outputs strictly JSON arrays.",
-//                 },
-//                 { role: "user", content: prompt },
-//               ],
-//               model: "llama-3.3-70b-versatile",
-//               response_format: { type: "json_object" },
-//               temperature: 0.7, // Adds uniqueness to tasks
-//             });
-
-//             const content = chatCompletion.choices[0].message.content;
-//             const parsedData = JSON.parse(content);
-
-//             // Handle cases where AI might wrap array in an object (e.g., { "timetable": [] })
-//             aiTimetable = Array.isArray(parsedData)
-//               ? parsedData
-//               : parsedData.timetable || parsedData.schedule || [];
-//           } catch (aiError) {
-//             console.error("Groq AI failed:", aiError);
-//             // Fallback content if AI fails
-//             aiTimetable = [
-//               {
-//                 day: 1,
-//                 subject: "Preparation",
-//                 hours: 2,
-//                 task: `Begin early prep for your upcoming ${data.status} week.`,
-//               },
-//             ];
-//           }
-
-//           const reminderId = `${studentId}_W${busyWeek}_REM_W${week}`;
-//           const ref = db.collection("busy_week_reminders").doc(reminderId);
-
-//           batch.set(ref, {
-//             studentId,
-//             reminderWeek: week,
-//             targetBusyWeek: busyWeek,
-//             targetWeekStart: weekStart,
-//             targetStatus: data.status,
-//             targetTotalHours: data.totalHours,
-//             type: "BUSY_WEEK_WARNING",
-//             timetable: aiTimetable,
-//             createdAt: new Date(),
-//             isActive: true,
-//             isDismissed: false,
-//           });
-
-//           reminderCount++;
-//         }
-//       }
-
-//       await batch.commit();
-
-//       return res.json({
-//         message: "Dynamic Groq-powered timetables generated",
-//         remindersCreated: reminderCount,
-//       });
-//     } catch (err) {
-//       console.error("Main Function Error:", err);
-//       res.status(500).json({ error: "Failed to generate reminders" });
-//     }
-//   },
-// );
-
-// const getActiveReminders = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "GET") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
-
-//     const { studentId } = req.query;
-//     if (!studentId) {
-//       return res.status(400).json({ error: "Missing studentId" });
-//     }
-
-//     const today = new Date();
-//     // Look ahead 14 days so we can catch upcoming weeks properly
-//     const twoWeeksFromNow = new Date(
-//       today.getTime() + 14 * 24 * 60 * 60 * 1000,
-//     );
-
-//     const snap = await db
-//       .collection("busy_week_reminders")
-//       .where("studentId", "==", studentId)
-//       .get();
-
-//     // 1️⃣ Filter the active reminders
-//     const allActiveReminders = snap.docs
-//       .map((doc) => ({
-//         id: doc.id,
-//         ...doc.data(),
-//         targetWeekStart: doc.data().targetWeekStart.toDate(),
-//         createdAt: doc.data().createdAt.toDate(),
-//       }))
-//       .filter(
-//         (reminder) =>
-//           reminder.isActive === true &&
-//           reminder.isDismissed === false &&
-//           reminder.targetWeekStart > today &&
-//           reminder.targetWeekStart <= twoWeeksFromNow,
-//       );
-
-//     // 2️⃣ DEDUPLICATE: Only keep ONE reminder per target busy week
-//     const uniqueRemindersMap = new Map();
-
-//     allActiveReminders.forEach((reminder) => {
-//       const targetWeek = reminder.targetBusyWeek;
-
-//       if (!uniqueRemindersMap.has(targetWeek)) {
-//         uniqueRemindersMap.set(targetWeek, reminder);
-//       } else {
-//         // If we already have a reminder for this week, keep the latest one
-//         // (e.g., keep the W3 reminder instead of the W2 reminder for a Week 4 target)
-//         const existingReminder = uniqueRemindersMap.get(targetWeek);
-//         if (reminder.reminderWeek > existingReminder.reminderWeek) {
-//           uniqueRemindersMap.set(targetWeek, reminder);
-//         }
-//       }
-//     });
-
-//     // Convert the Map back into an array
-//     const finalReminders = Array.from(uniqueRemindersMap.values());
-
-//     return res.json({
-//       studentId,
-//       count: finalReminders.length,
-//       reminders: finalReminders, // 🌟 Now it only returns 1 alert per busy week!
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to fetch reminders" });
-//   }
-// });
-
-// /**
-//  * Get Enrolled Subjects for a student
-//  * Method: GET
-//  * Query: ?studentId=UID
-//  */
-// const getEnrolledSubjects = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "GET") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
-
-//     const { studentId } = req.query;
-
-//     if (!studentId) {
-//       return res.status(400).json({ error: "Missing studentId" });
-//     }
-
-//     // 1️⃣ Get enrollment document
-//     const enrollSnap = await db
-//       .collection("student_enrollments")
-//       .doc(studentId)
-//       .get();
-
-//     if (!enrollSnap.exists) {
-//       return res.status(404).json({ error: "Student not enrolled" });
-//     }
-
-//     const subjectIds = enrollSnap.data().subjects || [];
-
-//     // 2️⃣ Load subject details
-//     const subjects = await Promise.all(
-//       subjectIds.map(async (id) => {
-//         const snap = await db.collection("subjects").doc(id).get();
-//         if (!snap.exists) return null;
-
-//         const data = snap.data();
-
-//         return {
-//           subjectId: data.subjectId,
-//           subjectName: data.subjectName, // ✅ display name
-//           type: data.type,
-//           deliveryMode: data.deliveryMode || "PHYSICAL",
-//           lectureDays: data.lectureDays || [],
-//           lectureStartTime: data.lectureStartTime || null,
-//           lectureEndTime: data.lectureEndTime || null,
-
-//           // ✅ ADD THIS
-//           onlinePlatform: data.onlinePlatform || null,
-//         };
-//       }),
-//     );
-
-//     return res.json({
-//       studentId,
-//       subjects: subjects.filter(Boolean),
-//     });
-//   } catch (err) {
-//     console.error("getEnrolledSubjects error:", err);
-//     res.status(500).json({ error: "Failed to fetch enrolled subjects" });
-//   }
-// });
-// // Add this function to dismiss a reminder
-// const dismissReminder = functions.https.onRequest(async (req, res) => {
-//   try {
-//     if (req.method !== "POST") {
-//       return res.status(405).send("Method Not Allowed");
-//     }
-
-//     const { reminderId, studentId } = req.body;
-//     if (!reminderId || !studentId) {
-//       return res.status(400).json({ error: "Missing fields" });
-//     }
-
-//     const ref = db.collection("busy_week_reminders").doc(reminderId);
-//     const doc = await ref.get();
-
-//     if (!doc.exists) {
-//       return res.status(404).json({ error: "Reminder not found" });
-//     }
-
-//     if (doc.data().studentId !== studentId) {
-//       return res.status(403).json({ error: "Unauthorized" });
-//     }
-
-//     await ref.update({
-//       isDismissed: true,
-//       dismissedAt: new Date(),
-//     });
-
-//     return res.json({
-//       message: "Reminder dismissed successfully",
-//       reminderId,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Failed to dismiss reminder" });
-//   }
-// });
-// module.exports = {
-//   generateWorkload,
-//   generateLectureAlerts,
-//   generateOverloadReminders,
-//   getWeeklyWorkload,
-//   dismissReminder,
-//   getActiveReminders,
-//   generateBusyWeekReminders,
-//   getEnrolledSubjects,
-// };
-
 const functions = require("firebase-functions");
 const admin = require("../firebase");
 require("dotenv").config();
 const db = admin.firestore();
 const Groq = require("groq-sdk");
-const cors = require("cors")({ origin: true }); // 🌟 ADDED CORS FOR REACT
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Initialize Groq as a constant (with fallback if API key not set)
-const groq = process.env.GROQ_API_KEY
-  ? new Groq({
-      apiKey: process.env.GROQ_API_KEY,
-    })
-  : null;
+// Initialize Groq as a constant
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 /**
  * Generate Weekly Workload purely from SUBJECT data
  * Method: POST
  * Body: { studentId, semesterStartDate }
  */
-// const generateWorkload = functions.https.onRequest((req, res) => {
-//   cors(req, res, async () => {
-//     try {
-//       if (req.method !== "POST" && req.method !== "OPTIONS") {
-//         return res.status(405).send("Method Not Allowed");
-//       }
+const generateWorkload = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
 
-//       const { studentId, semesterStartDate } = req.body;
+    const { studentId, semesterStartDate } = req.body;
 
-//       if (!studentId || !semesterStartDate) {
-//         return res.status(400).json({ error: "Missing fields" });
-//       }
+    if (!studentId || !semesterStartDate) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
 
-//       const semesterStart = new Date(semesterStartDate);
+    const semesterStart = new Date(semesterStartDate);
 
-//       /* 1️⃣ Get enrolled subjects */
-//       const enrollSnap = await db
-//         .collection("student_enrollments")
-//         .doc(studentId)
-//         .get();
+    /* 1️⃣ Get enrolled subjects */
+    const enrollSnap = await db
+      .collection("student_enrollments")
+      .doc(studentId)
+      .get();
 
-//       if (!enrollSnap.exists) {
-//         return res.status(404).json({ error: "Student not enrolled" });
-//       }
+    if (!enrollSnap.exists) {
+      return res.status(404).json({ error: "Student not enrolled" });
+    }
 
-//       const subjectIds = enrollSnap.data().subjects || [];
+    const subjectIds = enrollSnap.data().subjects || [];
 
-//       /* 2️⃣ Load subject details */
-//       const subjects = await Promise.all(
-//         subjectIds.map(async (id) => {
-//           const snap = await db.collection("subjects").doc(id).get();
-//           return snap.exists ? snap.data() : null;
-//         }),
-//       );
+    /* 2️⃣ Load subject details */
+    const subjects = await Promise.all(
+      subjectIds.map(async (id) => {
+        const snap = await db.collection("subjects").doc(id).get();
+        return snap.exists ? snap.data() : null;
+      }),
+    );
 
-//       /* 3️⃣ Weekly workload map (EXPLAINABLE) */
-//       const weeklyLoad = {};
+    /* 3️⃣ Weekly workload map (EXPLAINABLE) */
+    const weeklyLoad = {};
+    // week -> { totalHours, breakdown[] }
 
-//       const addLoad = (week, entry) => {
-//         if (!weeklyLoad[week]) {
-//           weeklyLoad[week] = {
-//             totalHours: 0,
-//             breakdown: [],
-//           };
-//         }
-
-//         weeklyLoad[week].totalHours += entry.hours;
-//         weeklyLoad[week].breakdown.push(entry);
-//       };
-
-//       /* 4️⃣ Process subjects */
-//       subjects.forEach((sub) => {
-//         if (!sub) return;
-
-//         // 🎓 Academic subjects
-//         if (sub.type === "ACADEMIC") {
-//           const t = sub.assessmentTimeline || {};
-//           const h = sub.estimatedHours || {};
-
-//           // Assignments
-//           t.assignments?.forEach((week) =>
-//             addLoad(week, {
-//               subjectId: sub.subjectId,
-//               subjectName: sub.subjectName,
-//               type: "ASSIGNMENT",
-//               hours: h.assignment || 6,
-//               isCompleted: false, // 🌟 ADDED DEFAULT PENDING STATUS
-//             }),
-//           );
-
-//           // Mid exam
-//           if (t.midExamWeek) {
-//             addLoad(t.midExamWeek, {
-//               subjectId: sub.subjectId,
-//               subjectName: sub.subjectName,
-//               type: "MID_EXAM",
-//               hours: h.midExam || 10,
-//               isCompleted: false, // 🌟 ADDED DEFAULT PENDING STATUS
-//             });
-//           }
-
-//           // Final exam
-//           if (t.finalExamWeek) {
-//             addLoad(t.finalExamWeek, {
-//               subjectId: sub.subjectId,
-//               subjectName: sub.subjectName,
-//               type: "FINAL_EXAM",
-//               hours: h.finalExam || 15,
-//               isCompleted: false, // 🌟 ADDED DEFAULT PENDING STATUS
-//             });
-//           }
-//         }
-
-//         // 🏭 Internship subject
-//         if (sub.type === "INTERNSHIP") {
-//           sub.submissionWeeks?.forEach((week) =>
-//             addLoad(week, {
-//               subjectId: sub.subjectId,
-//               subjectName: sub.subjectName,
-//               type: "INTERNSHIP_SUBMISSION",
-//               hours: sub.estimatedHoursPerSubmission || 8,
-//               isCompleted: false, // 🌟 ADDED DEFAULT PENDING STATUS
-//             }),
-//           );
-//         }
-//       });
-
-//       /* 5️⃣ Save weekly workload with explanation */
-//       const batch = db.batch();
-
-//       Object.entries(weeklyLoad).forEach(([week, data]) => {
-//         let status = "NORMAL";
-
-//         if (data.totalHours >= 20) status = "OVERLOADED";
-//         else if (data.totalHours >= 12) status = "BUSY";
-
-//         const weekStart = new Date(
-//           semesterStart.getTime() + (Number(week) - 1) * 7 * 86400000,
-//         );
-
-//         const ref = db
-//           .collection("weekly_workload")
-//           .doc(`${studentId}_W${week}`);
-
-//         batch.set(ref, {
-//           studentId,
-//           week: Number(week),
-//           weekStart,
-//           totalHours: data.totalHours,
-//           status,
-//           breakdown: data.breakdown,
-//           createdAt: new Date(),
-//         });
-//       });
-
-//       await batch.commit();
-
-//       return res.json({
-//         message: "Weekly workload generated (with explanations)",
-//         weeksAnalyzed: Object.keys(weeklyLoad).length,
-//       });
-//     } catch (err) {
-//       console.error("generateWorkload error:", err);
-//       res.status(500).json({ error: "Workload generation failed" });
-//     }
-//   });
-// });
-/**
- * Generate Weekly Workload purely from SUBJECT data
- * Method: POST
- * Body: { studentId, semesterStartDate }
- */
-const generateWorkload = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method !== "POST" && req.method !== "OPTIONS") {
-        return res.status(405).send("Method Not Allowed");
+    const addLoad = (week, entry) => {
+      if (!weeklyLoad[week]) {
+        weeklyLoad[week] = {
+          totalHours: 0,
+          breakdown: [],
+        };
       }
 
-      const { studentId, semesterStartDate } = req.body;
+      weeklyLoad[week].totalHours += entry.hours;
+      weeklyLoad[week].breakdown.push(entry);
+    };
 
-      if (!studentId || !semesterStartDate) {
-        return res.status(400).json({ error: "Missing fields" });
-      }
+    /* 4️⃣ Process subjects */
+    subjects.forEach((sub) => {
+      if (!sub) return;
 
-      const semesterStart = new Date(semesterStartDate);
+      // 🎓 Academic subjects
+      if (sub.type === "ACADEMIC") {
+        const t = sub.assessmentTimeline || {};
+        const h = sub.estimatedHours || {};
 
-      /* 1️⃣ Get enrolled subjects */
-      const enrollSnap = await db
-        .collection("student_enrollments")
-        .doc(studentId)
-        .get();
-
-      if (!enrollSnap.exists) {
-        return res.status(404).json({ error: "Student not enrolled" });
-      }
-
-      const subjectIds = enrollSnap.data().subjects || [];
-
-      /* 2️⃣ Load subject details */
-      const subjects = await Promise.all(
-        subjectIds.map(async (id) => {
-          const snap = await db.collection("subjects").doc(id).get();
-          return snap.exists ? snap.data() : null;
-        }),
-      );
-
-      /* 3️⃣ Weekly workload map */
-      const weeklyLoad = {};
-
-      const addLoad = (week, entry) => {
-        if (!weeklyLoad[week]) {
-          weeklyLoad[week] = {
-            totalHours: 0,
-            breakdown: [],
-          };
-        }
-
-        weeklyLoad[week].totalHours += entry.hours;
-        weeklyLoad[week].breakdown.push(entry);
-      };
-
-      /* 4️⃣ Process subjects */
-      subjects.forEach((sub) => {
-        if (!sub) return;
-
-        if (sub.type === "ACADEMIC") {
-          const t = sub.assessmentTimeline || {};
-          const h = sub.estimatedHours || {};
-
-          t.assignments?.forEach((week) =>
-            addLoad(week, {
-              subjectId: sub.subjectId,
-              subjectName: sub.subjectName,
-              type: "ASSIGNMENT",
-              hours: h.assignment || 6,
-              isCompleted: false,
-            }),
-          );
-
-          if (t.midExamWeek) {
-            addLoad(t.midExamWeek, {
-              subjectId: sub.subjectId,
-              subjectName: sub.subjectName,
-              type: "MID_EXAM",
-              hours: h.midExam || 10,
-              isCompleted: false,
-            });
-          }
-
-          if (t.finalExamWeek) {
-            addLoad(t.finalExamWeek, {
-              subjectId: sub.subjectId,
-              subjectName: sub.subjectName,
-              type: "FINAL_EXAM",
-              hours: h.finalExam || 15,
-              isCompleted: false,
-            });
-          }
-        }
-
-        if (sub.type === "INTERNSHIP") {
-          sub.submissionWeeks?.forEach((week) =>
-            addLoad(week, {
-              subjectId: sub.subjectId,
-              subjectName: sub.subjectName,
-              type: "INTERNSHIP_SUBMISSION",
-              hours: sub.estimatedHoursPerSubmission || 8,
-              isCompleted: false,
-            }),
-          );
-        }
-      });
-
-      /* 🌟 NEW: Check existing workloads to prevent overwriting checkmarks! */
-      const existingSnap = await db
-        .collection("weekly_workload")
-        .where("studentId", "==", studentId)
-        .get();
-
-      const existingWeeks = new Set();
-      existingSnap.forEach((doc) => existingWeeks.add(doc.data().week));
-
-      /* 5️⃣ Save weekly workload (Only if it doesn't already exist) */
-      const batch = db.batch();
-      let weeksAdded = 0;
-
-      Object.entries(weeklyLoad).forEach(([week, data]) => {
-        const weekNum = Number(week);
-
-        // 🚨 THE FIX: If this week is already in the database, skip it!
-        if (existingWeeks.has(weekNum)) return;
-
-        let status = "NORMAL";
-
-        if (data.totalHours >= 20) status = "OVERLOADED";
-        else if (data.totalHours >= 12) status = "BUSY";
-
-        const weekStart = new Date(
-          semesterStart.getTime() + (weekNum - 1) * 7 * 86400000,
+        // Assignments
+        t.assignments?.forEach((week) =>
+          addLoad(week, {
+            subjectId: sub.subjectId,
+            subjectName: sub.subjectName,
+            type: "ASSIGNMENT",
+            hours: h.assignment || 6,
+          }),
         );
 
-        const ref = db
-          .collection("weekly_workload")
-          .doc(`${studentId}_W${week}`);
+        // Mid exam
+        if (t.midExamWeek) {
+          addLoad(t.midExamWeek, {
+            subjectId: sub.subjectId,
+            subjectName: sub.subjectName,
+            type: "MID_EXAM",
+            hours: h.midExam || 10,
+          });
+        }
 
-        batch.set(ref, {
-          studentId,
-          week: weekNum,
-          weekStart,
-          totalHours: data.totalHours,
-          status,
-          breakdown: data.breakdown,
-          createdAt: new Date(),
-        });
-
-        weeksAdded++;
-      });
-
-      if (weeksAdded > 0) {
-        await batch.commit();
+        // Final exam
+        if (t.finalExamWeek) {
+          addLoad(t.finalExamWeek, {
+            subjectId: sub.subjectId,
+            subjectName: sub.subjectName,
+            type: "FINAL_EXAM",
+            hours: h.finalExam || 15,
+          });
+        }
       }
 
-      return res.json({
-        message: "Weekly workload generated",
-        weeksAdded: weeksAdded,
+      // 🏭 Internship subject
+      if (sub.type === "INTERNSHIP") {
+        sub.submissionWeeks?.forEach((week) =>
+          addLoad(week, {
+            subjectId: sub.subjectId,
+            subjectName: sub.subjectName,
+            type: "INTERNSHIP_SUBMISSION",
+            hours: sub.estimatedHoursPerSubmission || 8,
+          }),
+        );
+      }
+    });
+
+    /* 5️⃣ Save weekly workload with explanation */
+    const batch = db.batch();
+
+    Object.entries(weeklyLoad).forEach(([week, data]) => {
+      let status = "NORMAL";
+
+      if (data.totalHours >= 20) status = "OVERLOADED";
+      else if (data.totalHours >= 12) status = "BUSY";
+
+      const weekStart = new Date(
+        semesterStart.getTime() + (Number(week) - 1) * 7 * 86400000,
+      );
+
+      const ref = db.collection("weekly_workload").doc(`${studentId}_W${week}`);
+
+      batch.set(ref, {
+        studentId,
+        week: Number(week),
+        weekStart,
+        totalHours: data.totalHours,
+        status,
+        breakdown: data.breakdown, // ⭐ EXPLAINABLE PART
+        createdAt: new Date(),
       });
-    } catch (err) {
-      console.error("generateWorkload error:", err);
-      res.status(500).json({ error: "Workload generation failed" });
-    }
-  });
+    });
+
+    await batch.commit();
+
+    return res.json({
+      message: "Weekly workload generated (with explanations)",
+      weeksAnalyzed: Object.keys(weeklyLoad).length,
+    });
+  } catch (err) {
+    console.error("generateWorkload error:", err);
+    res.status(500).json({ error: "Workload generation failed" });
+  }
 });
 
 /**
  * Generate lecture alerts (manual trigger)
  */
-const generateLectureAlerts = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      const now = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" }),
+const generateLectureAlerts = functions.https.onRequest(async (req, res) => {
+  try {
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" }),
+    );
+    const todayName = now.toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+
+    const subjectsSnap = await db.collection("subjects").get();
+    const alerts = [];
+
+    subjectsSnap.forEach((doc) => {
+      const sub = doc.data();
+
+      if (!sub.lectureDays?.includes(todayName)) return;
+
+      const lectureStart = new Date(
+        `${now.toDateString()} ${sub.lectureStartTime}`,
       );
-      const todayName = now.toLocaleDateString("en-US", {
-        weekday: "long",
-      });
 
-      const subjectsSnap = await db.collection("subjects").get();
-      const alerts = [];
+      const diffMinutes = (lectureStart - now) / 60000;
 
-      subjectsSnap.forEach((doc) => {
-        const sub = doc.data();
-
-        if (!sub.lectureDays?.includes(todayName)) return;
-
-        const lectureStart = new Date(
-          `${now.toDateString()} ${sub.lectureStartTime}`,
-        );
-
-        const diffMinutes = (lectureStart - now) / 60000;
-
-        // 🔔 Lecture starting soon
-        if (diffMinutes > 0 && diffMinutes <= 15) {
-          alerts.push({
-            type: "LECTURE_STARTING_SOON",
-            subjectId: sub.subjectId,
-            subjectName: sub.subjectName,
-            message: `Lecture starts in ${Math.round(diffMinutes)} minutes`,
-            deliveryMode: sub.deliveryMode,
-            joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
-          });
-        }
-
-        // 🔔 Lecture live
-        if (diffMinutes <= 0 && diffMinutes >= -5) {
-          alerts.push({
-            type: "LECTURE_NOW",
-            subjectId: sub.subjectId,
-            subjectName: sub.subjectName,
-            message:
-              sub.deliveryMode === "ONLINE"
-                ? "Lecture is live now. Join using the link."
-                : "Lecture is happening now.",
-            deliveryMode: sub.deliveryMode,
-            joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
-          });
-        }
-      });
-
-      return res.json({
-        timestamp: now,
-        alerts,
-      });
-    } catch (err) {
-      console.error("generateLectureAlerts error:", err);
-      res.status(500).json({ error: "Failed to generate lecture alerts" });
-    }
-  });
-});
-
-/**
- * 🌟 FIXED: Get Weekly Workload
- * Removed the .filter() bug so ALL weeks load properly, and added CORS!
- */
-const getWeeklyWorkload = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method !== "GET" && req.method !== "OPTIONS") {
-        return res.status(405).send("Method Not Allowed");
+      // 🔔 Lecture starting soon
+      if (diffMinutes > 0 && diffMinutes <= 15) {
+        alerts.push({
+          type: "LECTURE_STARTING_SOON",
+          subjectId: sub.subjectId,
+          subjectName: sub.subjectName,
+          message: `Lecture starts in ${Math.round(diffMinutes)} minutes`,
+          deliveryMode: sub.deliveryMode,
+          joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
+        });
       }
 
-      const { studentId } = req.query;
-      if (!studentId) {
-        return res.status(400).json({ error: "Missing studentId" });
+      // 🔔 Lecture live
+      if (diffMinutes <= 0 && diffMinutes >= -5) {
+        alerts.push({
+          type: "LECTURE_NOW",
+          subjectId: sub.subjectId,
+          subjectName: sub.subjectName,
+          message:
+            sub.deliveryMode === "ONLINE"
+              ? "Lecture is live now. Join using the link."
+              : "Lecture is happening now.",
+          deliveryMode: sub.deliveryMode,
+          joinLink: sub.deliveryMode === "ONLINE" ? sub.onlinePlatform : null,
+        });
       }
+    });
 
-      const snap = await db
-        .collection("weekly_workload")
-        .where("studentId", "==", studentId)
-        .get();
-
-      // 🌟 REMOVED THE FILTER - Now it sends the entire workload, including HEAVY and OVERLOADED weeks!
-      const weeks = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-      return res.json({
-        studentId,
-        totalFlaggedWeeks: weeks.length,
-        weeks,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to fetch weekly workload" });
-    }
-  });
+    return res.json({
+      timestamp: now,
+      alerts,
+    });
+  } catch (err) {
+    console.error("generateLectureAlerts error:", err);
+    res.status(500).json({ error: "Failed to generate lecture alerts" });
+  }
 });
 
-const generateOverloadReminders = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
+const getWeeklyWorkload = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const { studentId } = req.query;
+
+    if (!studentId) {
+      return res.status(400).json({ error: "Missing studentId" });
+    }
+
+    const snap = await db
+      .collection("weekly_workload")
+      .where("studentId", "==", studentId)
+      .get();
+
+    const weeks = snap.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => a.week - b.week);
+
+    return res.json({
+      studentId,
+      totalWeeks: weeks.length,
+      weeks,
+    });
+  } catch (err) {
+    console.error("getWeeklyWorkload error:", err);
+    res.status(500).json({ error: "Failed to fetch weekly workload" });
+  }
+});
+const generateOverloadReminders = functions.https.onRequest(
+  async (req, res) => {
     try {
       const { studentId } = req.body;
 
@@ -1091,6 +267,7 @@ const generateOverloadReminders = functions.https.onRequest((req, res) => {
         return res.status(400).json({ error: "Missing studentId" });
       }
 
+      // 1️⃣ Fetch overloaded weeks
       const snap = await db
         .collection("weekly_workload")
         .where("studentId", "==", studentId)
@@ -1111,6 +288,7 @@ const generateOverloadReminders = functions.https.onRequest((req, res) => {
         const data = doc.data();
         const overloadedWeek = Number(data.week);
 
+        // 2️⃣ Weeks BEFORE overload
         const reminderWeeks = [overloadedWeek - 2, overloadedWeek - 1];
 
         reminderWeeks.forEach((week) => {
@@ -1143,11 +321,15 @@ const generateOverloadReminders = functions.https.onRequest((req, res) => {
       console.error(err);
       res.status(500).json({ error: "Failed to generate overload reminders" });
     }
-  });
-});
+  },
+);
+/**
+ * Cloud Function to generate AI-powered study reminders for busy weeks.
+ * Uses Groq (Llama 3.3 70B) for high-speed, structured JSON output.
+ */
 
-const generateBusyWeekReminders = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
+const generateBusyWeekReminders = functions.https.onRequest(
+  async (req, res) => {
     try {
       const { studentId } = req.body;
 
@@ -1184,64 +366,153 @@ const generateBusyWeekReminders = functions.https.onRequest((req, res) => {
         for (const week of reminderWeeks) {
           if (week <= 0) continue;
 
+          // --- 1. UPDATED: Clearer Subject Breakdown for the AI ---
           const subjectDetails = data.breakdown
-            .map((b) => `${b.hours} hours of ${b.subjectName} (${b.type})`)
-            .join(", ");
+            .map(
+              (b) =>
+                `- Subject: "${b.subjectName}" | Required Study: ${b.hours} hours | Assessment Type: ${b.type}`,
+            )
+            .join("\n");
 
+          // --- 1. THE ENHANCED PROMPT WITH KNOWLEDGE INJECTION ---
           const prompt = `
-            You are an expert academic advisor. 
-            A student has an upcoming week labeled as "${data.status}" with ${data.totalHours} total hours.
-            Workload breakdown: ${subjectDetails}
+You are an expert academic tutor and study planner.
 
-            TASK: Create a realistic 5-day study timetable (Day 1 to Day 5).
-            
-            RULES:
-            1. Distribute the ${data.totalHours} hours logically across 5 days.
-            2. Be highly specific: Use tasks like "Draft intro for ${data.breakdown[0]?.subjectName || "Subject"}" instead of just "Study".
-            3. Ensure no single day is excessively overloaded.
-            4. You MUST return ONLY a valid JSON array of objects.
+A student has a BUSY week approaching with a total workload of ${data.totalHours} hours.
 
-            JSON format:
-            [
-              { "day": 1, "subject": "Name", "hours": 2, "task": "Specific actionable task" },
-              { "day": 2, "subject": "Name", "hours": 3, "task": "Another task" }
-            ]
-          `;
+Here is the EXACT breakdown of their subjects:
+${subjectDetails}
+
+Your task is to create a highly personalized, balanced 5-day study timetable. 
+
+CRITICAL PERSONALIZATION RULES:
+1. 100% COVERAGE: Include study sessions for EVERY single subject listed above. Do not skip any.
+2. PROPORTIONAL HOURS: Allocate the total hours for each subject across the 5 days to match the required hours.
+3. KNOWLEDGE INJECTION (IDENTIFY DIFFICULTIES): For every subject, use your knowledge of university curricula to identify 2-3 commonly difficult or core concepts. 
+   - Example: If the subject is "Data Structures", identify "Trees, Graphs, Pointers". 
+   - Example: If the subject is "OOP", identify "Polymorphism, Inheritance, Interfaces".
+4. CONTEXTUAL TASKS: Integrate those difficult concepts into actionable tasks based on the assessment type (e.g., "Draft code focusing on Polymorphism for the OOP assignment", or "Revise Graph traversal algorithms for the final exam").
+5. DAILY BALANCE: Distribute the total ${data.totalHours} hours evenly across the 5 days.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with a single key called "timetable" containing an array. 
+You MUST include a "focusTopics" field that lists the difficult concepts you identified.
+
+Example:
+{
+  "timetable": [
+    { 
+      "day": 1, 
+      "subject": "Object Oriented Programming", 
+      "hours": 2, 
+      "task": "Review core concepts and practice implementing interfaces. Focus on understanding how memory allocation works.",
+      "focusTopics": "Interfaces, Memory Allocation, Polymorphism" 
+    },
+    { 
+      "day": 1, 
+      "subject": "Data Structures", 
+      "hours": 1.5, 
+      "task": "Solve practice problems involving nested loops and array manipulation for the midterm.",
+      "focusTopics": "Nested Loops, Multi-dimensional Arrays" 
+    }
+  ]
+}
+`;
 
           let aiTimetable = [];
 
           try {
-            const chatCompletion = await groq.chat.completions.create({
+            console.log("Calling Groq API for advanced timetable...");
+
+            const completion = await groq.chat.completions.create({
+              model: "llama-3.3-70b-versatile",
               messages: [
                 {
                   role: "system",
                   content:
-                    "You are a helpful academic assistant that outputs strictly JSON arrays.",
+                    "You are an expert tutor. You generate structured study plans and return ONLY JSON objects. Never return conversational text.",
                 },
-                { role: "user", content: prompt },
+                {
+                  role: "user",
+                  content: prompt,
+                },
               ],
-              model: "llama-3.3-70b-versatile",
               response_format: { type: "json_object" },
-              temperature: 0.7,
+              temperature: 0.7, // 0.7 gives the AI enough creativity to think of good topics
             });
 
-            const content = chatCompletion.choices[0].message.content;
-            const parsedData = JSON.parse(content);
+            let content = completion.choices[0].message.content;
+            console.log("AI raw response:", content);
 
-            aiTimetable = Array.isArray(parsedData)
-              ? parsedData
-              : parsedData.timetable || parsedData.schedule || [];
+            // Clean up potential markdown backticks
+            content = content
+              .replace(/```json/gi, "")
+              .replace(/```/g, "")
+              .trim();
+
+            let parsed;
+            parsed = JSON.parse(content);
+
+            // Extract the timetable array from the object
+            if (parsed && parsed.timetable && Array.isArray(parsed.timetable)) {
+              aiTimetable = parsed.timetable;
+            } else {
+              throw new Error("AI did not return a 'timetable' array");
+            }
+
+            if (aiTimetable.length === 0) {
+              throw new Error("AI returned an empty timetable");
+            }
+
+            console.log(
+              "Successfully generated AI timetable with focus topics!",
+            );
           } catch (aiError) {
-            console.error("Groq AI failed:", aiError);
+            console.error(
+              "AI generation failed! Using fallback. Error:",
+              aiError.message,
+            );
+
+            // Advanced Fallback timetable just in case
             aiTimetable = [
               {
                 day: 1,
+                subject: "Planning",
+                hours: 2,
+                task: "Review upcoming assignments and deadlines",
+                focusTopics: "Time Management",
+              },
+              {
+                day: 2,
+                subject: "Study",
+                hours: 3,
+                task: "Revise lecture notes and important concepts",
+                focusTopics: "Core Concepts",
+              },
+              {
+                day: 3,
+                subject: "Practice",
+                hours: 2,
+                task: "Solve practice exercises",
+                focusTopics: "Problem Solving",
+              },
+              {
+                day: 4,
+                subject: "Assignments",
+                hours: 3,
+                task: "Work on assignment draft",
+                focusTopics: "Drafting, Formatting",
+              },
+              {
+                day: 5,
                 subject: "Preparation",
                 hours: 2,
-                task: `Begin early prep for your upcoming ${data.status} week.`,
+                task: "Prepare for upcoming assessments",
+                focusTopics: "Exam Prep",
               },
             ];
           }
+          console.log("Final timetable:", aiTimetable);
 
           const reminderId = `${studentId}_W${busyWeek}_REM_W${week}`;
           const ref = db.collection("busy_week_reminders").doc(reminderId);
@@ -1267,232 +538,227 @@ const generateBusyWeekReminders = functions.https.onRequest((req, res) => {
       await batch.commit();
 
       return res.json({
-        message: "Dynamic Groq-powered timetables generated",
+        message: "AI study plans generated successfully",
         remindersCreated: reminderCount,
       });
     } catch (err) {
-      console.error("Main Function Error:", err);
-      res.status(500).json({ error: "Failed to generate reminders" });
+      console.error("generateBusyWeekReminders error:", err);
+
+      res.status(500).json({
+        error: "Failed to generate reminders",
+      });
     }
-  });
-});
+  },
+);
 
-//       const snap = await db
-//         .collection("busy_week_reminders")
-//         .where("studentId", "==", studentId)
-//         .get();
+const getActiveReminders = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
 
-//       const allActiveReminders = snap.docs
-//         .map((doc) => ({
-//           id: doc.id,
-//           ...doc.data(),
-//           targetWeekStart: doc.data().targetWeekStart.toDate(),
-//           createdAt: doc.data().createdAt.toDate(),
-//         }))
-//         .filter(
-//           (reminder) =>
-//             reminder.isActive === true &&
-//             reminder.isDismissed === false &&
-//             reminder.targetWeekStart > today &&
-//             reminder.targetWeekStart <= twoWeeksFromNow,
-//         );
+    const { studentId, currentWeek } = req.query;
 
-//       const uniqueRemindersMap = new Map();
+    if (!studentId) {
+      return res.status(400).json({ error: "Missing studentId" });
+    }
 
-//       allActiveReminders.forEach((reminder) => {
-//         const targetWeek = reminder.targetBusyWeek;
+    if (!currentWeek) {
+      return res.status(400).json({ error: "Missing currentWeek" });
+    }
 
-//         if (!uniqueRemindersMap.has(targetWeek)) {
-//           uniqueRemindersMap.set(targetWeek, reminder);
-//         } else {
-//           const existingReminder = uniqueRemindersMap.get(targetWeek);
-//           if (reminder.reminderWeek > existingReminder.reminderWeek) {
-//             uniqueRemindersMap.set(targetWeek, reminder);
-//           }
-//         }
-//       });
+    const currentWeekNum = Number(currentWeek);
 
-//       const finalReminders = Array.from(uniqueRemindersMap.values());
+    console.log("📥 getActiveReminders request");
+    console.log("Student:", studentId);
+    console.log("Current Week:", currentWeekNum);
 
-//       return res.json({
-//         studentId,
-//         count: finalReminders.length,
-//         reminders: finalReminders,
-//       });
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ error: "Failed to fetch reminders" });
-//     }
-//   });
-// });
-const getActiveReminders = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method !== "GET" && req.method !== "OPTIONS") {
-        return res.status(405).send("Method Not Allowed");
-      }
+    const snap = await db
+      .collection("busy_week_reminders")
+      .where("studentId", "==", studentId)
+      .get();
 
-      const { studentId } = req.query;
-      if (!studentId) {
-        return res.status(400).json({ error: "Missing studentId" });
-      }
+    if (snap.empty) {
+      return res.json({
+        studentId,
+        count: 0,
+        reminders: [],
+      });
+    }
 
-      const today = new Date();
-      const twoWeeksFromNow = new Date(
-        today.getTime() + 14 * 24 * 60 * 60 * 1000,
+    // Convert firestore docs
+    const reminders = snap.docs.map((doc) => {
+      const data = doc.data();
+
+      return {
+        id: doc.id,
+        ...data,
+        reminderWeek: Number(data.reminderWeek),
+        targetBusyWeek: Number(data.targetBusyWeek),
+        targetWeekStart: data.targetWeekStart?.toDate?.() || null,
+        createdAt: data.createdAt?.toDate?.() || null,
+      };
+    });
+
+    console.log("Total reminders in DB:", reminders.length);
+
+    /*
+      RULE:
+      show reminder when
+
+      reminderWeek <= currentWeek
+      AND
+      targetBusyWeek > currentWeek
+    */
+
+    const validReminders = reminders.filter((reminder) => {
+      return (
+        reminder.isActive === true &&
+        reminder.isDismissed === false &&
+        reminder.reminderWeek <= currentWeekNum &&
+        reminder.targetBusyWeek > currentWeekNum
       );
+    });
 
-      const snap = await db
-        .collection("busy_week_reminders")
-        .where("studentId", "==", studentId)
-        .get();
+    console.log("Valid reminders after filter:", validReminders.length);
 
-      const allActiveReminders = snap.docs
-        .map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          targetWeekStart: doc.data().targetWeekStart.toDate(),
-          createdAt: doc.data().createdAt.toDate(),
-        }))
-        .filter((reminder) => {
-          // Hide dismissed or inactive reminders
-          if (reminder.isActive !== true || reminder.isDismissed === true) {
-            return false;
-          }
+    /*
+      If multiple reminders exist for same busy week
+      keep the closest reminder week
+    */
 
-          const weekStart = reminder.targetWeekStart;
-          // 🌟 THE FIX: A week lasts 7 days. Calculate the exact end date of the week.
-          const weekEnd = new Date(
-            weekStart.getTime() + 7 * 24 * 60 * 60 * 1000,
-          );
+    const reminderMap = new Map();
 
-          // Show the reminder IF the week hasn't finished yet AND it's not too far in the future
-          return weekEnd >= today && weekStart <= twoWeeksFromNow;
-        });
+    validReminders.forEach((reminder) => {
+      const busyWeek = reminder.targetBusyWeek;
 
-      const uniqueRemindersMap = new Map();
+      if (!reminderMap.has(busyWeek)) {
+        reminderMap.set(busyWeek, reminder);
+      } else {
+        const existing = reminderMap.get(busyWeek);
 
-      allActiveReminders.forEach((reminder) => {
-        const targetWeek = reminder.targetBusyWeek;
-
-        if (!uniqueRemindersMap.has(targetWeek)) {
-          uniqueRemindersMap.set(targetWeek, reminder);
-        } else {
-          const existingReminder = uniqueRemindersMap.get(targetWeek);
-          if (reminder.reminderWeek > existingReminder.reminderWeek) {
-            uniqueRemindersMap.set(targetWeek, reminder);
-          }
+        if (reminder.reminderWeek > existing.reminderWeek) {
+          reminderMap.set(busyWeek, reminder);
         }
-      });
+      }
+    });
 
-      const finalReminders = Array.from(uniqueRemindersMap.values());
+    const finalReminders = Array.from(reminderMap.values());
 
-      return res.json({
-        studentId,
-        count: finalReminders.length,
-        reminders: finalReminders,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to fetch reminders" });
-    }
-  });
+    console.log("Final reminders returned:", finalReminders.length);
+
+    return res.json({
+      studentId,
+      currentWeek: currentWeekNum,
+      count: finalReminders.length,
+      reminders: finalReminders,
+    });
+  } catch (err) {
+    console.error("❌ getActiveReminders error:", err);
+
+    res.status(500).json({
+      error: "Failed to fetch reminders",
+    });
+  }
 });
-
-const getEnrolledSubjects = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method !== "GET" && req.method !== "OPTIONS") {
-        return res.status(405).send("Method Not Allowed");
-      }
-
-      const { studentId } = req.query;
-
-      if (!studentId) {
-        return res.status(400).json({ error: "Missing studentId" });
-      }
-
-      const enrollSnap = await db
-        .collection("student_enrollments")
-        .doc(studentId)
-        .get();
-
-      if (!enrollSnap.exists) {
-        return res.status(404).json({ error: "Student not enrolled" });
-      }
-
-      const subjectIds = enrollSnap.data().subjects || [];
-
-      const subjects = await Promise.all(
-        subjectIds.map(async (id) => {
-          const snap = await db.collection("subjects").doc(id).get();
-          if (!snap.exists) return null;
-
-          const data = snap.data();
-
-          return {
-            subjectId: data.subjectId,
-            subjectName: data.subjectName,
-            type: data.type,
-            deliveryMode: data.deliveryMode || "PHYSICAL",
-            lectureDays: data.lectureDays || [],
-            lectureStartTime: data.lectureStartTime || null,
-            lectureEndTime: data.lectureEndTime || null,
-            onlinePlatform: data.onlinePlatform || null,
-          };
-        }),
-      );
-
-      return res.json({
-        studentId,
-        subjects: subjects.filter(Boolean),
-      });
-    } catch (err) {
-      console.error("getEnrolledSubjects error:", err);
-      res.status(500).json({ error: "Failed to fetch enrolled subjects" });
+/**
+ * Get Enrolled Subjects for a student
+ * Method: GET
+ * Query: ?studentId=UID
+ */
+const getEnrolledSubjects = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
     }
-  });
-});
 
-const dismissReminder = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method !== "POST" && req.method !== "OPTIONS") {
-        return res.status(405).send("Method Not Allowed");
-      }
+    const { studentId } = req.query;
 
-      const { reminderId, studentId } = req.body;
-      if (!reminderId || !studentId) {
-        return res.status(400).json({ error: "Missing fields" });
-      }
-
-      const ref = db.collection("busy_week_reminders").doc(reminderId);
-      const doc = await ref.get();
-
-      if (!doc.exists) {
-        return res.status(404).json({ error: "Reminder not found" });
-      }
-
-      if (doc.data().studentId !== studentId) {
-        return res.status(403).json({ error: "Unauthorized" });
-      }
-
-      await ref.update({
-        isDismissed: true,
-        dismissedAt: new Date(),
-      });
-
-      return res.json({
-        message: "Reminder dismissed successfully",
-        reminderId,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to dismiss reminder" });
+    if (!studentId) {
+      return res.status(400).json({ error: "Missing studentId" });
     }
-  });
-});
 
+    // 1️⃣ Get enrollment document
+    const enrollSnap = await db
+      .collection("student_enrollments")
+      .doc(studentId)
+      .get();
+
+    if (!enrollSnap.exists) {
+      return res.status(404).json({ error: "Student not enrolled" });
+    }
+
+    const subjectIds = enrollSnap.data().subjects || [];
+
+    // 2️⃣ Load subject details
+    const subjects = await Promise.all(
+      subjectIds.map(async (id) => {
+        const snap = await db.collection("subjects").doc(id).get();
+        if (!snap.exists) return null;
+
+        const data = snap.data();
+
+        return {
+          subjectId: data.subjectId,
+          subjectName: data.subjectName, // ✅ display name
+          type: data.type,
+          deliveryMode: data.deliveryMode || "PHYSICAL",
+          lectureDays: data.lectureDays || [],
+          lectureStartTime: data.lectureStartTime || null,
+          lectureEndTime: data.lectureEndTime || null,
+
+          // ✅ ADD THIS
+          onlinePlatform: data.onlinePlatform || null,
+        };
+      }),
+    );
+
+    return res.json({
+      studentId,
+      subjects: subjects.filter(Boolean),
+    });
+  } catch (err) {
+    console.error("getEnrolledSubjects error:", err);
+    res.status(500).json({ error: "Failed to fetch enrolled subjects" });
+  }
+});
+// Add this function to dismiss a reminder
+const dismissReminder = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const { reminderId, studentId } = req.body;
+    if (!reminderId || !studentId) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const ref = db.collection("busy_week_reminders").doc(reminderId);
+    const doc = await ref.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Reminder not found" });
+    }
+
+    if (doc.data().studentId !== studentId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    await ref.update({
+      isDismissed: true,
+      dismissedAt: new Date(),
+    });
+
+    return res.json({
+      message: "Reminder dismissed successfully",
+      reminderId,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to dismiss reminder" });
+  }
+});
 module.exports = {
   generateWorkload,
   generateLectureAlerts,
