@@ -1,8 +1,0 @@
-.\venv\Scripts\Activate.ps1 
-
-python -m app.rl.rl_simulation_live
-
-uvicorn app.api:app --reload
-uvicorn app.rl_main:app --reload
-
-firebase emulators:start
