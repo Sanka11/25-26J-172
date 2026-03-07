@@ -5,6 +5,21 @@ const { ML_STRUGGLE_URL } = require("../config");
 
 const db = admin.firestore();
 
+const setCorsHeaders = (res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+};
+
+const applyCors = (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+};
+
 // 🔧 CONFIG
 const QUIZ_PASS_THRESHOLD = 0.6; // for level unlock
 const STRUGGLE_THRESHOLD = 0.6; // for struggling lessons
@@ -13,6 +28,7 @@ const STRUGGLE_THRESHOLD = 0.6; // for struggling lessons
    1️⃣ CREATE QUIZ (LECTURER)
 ===================================================== */
 const createQuiz = functions.https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -54,6 +70,7 @@ const createQuiz = functions.https.onRequest(async (req, res) => {
    2️⃣ GET QUIZ BY LEVEL (STUDENT)
 ===================================================== */
 const getQuizByLevel = functions.https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
   try {
     const level = Number(req.query.level);
 
@@ -87,6 +104,7 @@ const getQuizByLevel = functions.https.onRequest(async (req, res) => {
    3️⃣ SUBMIT QUIZ + GAME + STRUGGLE LOGIC
 ===================================================== */
 const submitQuiz = functions.https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -136,6 +154,7 @@ const submitQuiz = functions.https.onRequest(async (req, res) => {
    5️⃣ GET ALL QUIZZES (STUDENT LIST)
 ===================================================== */
 const getAllQuizzes = functions.https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
   try {
     const snap = await db.collection("quizzes").orderBy("level", "asc").get();
 
@@ -156,6 +175,7 @@ const getAllQuizzes = functions.https.onRequest(async (req, res) => {
    FETCH QUIZ BY USER ID (STUDENT)
 ===================================================== */
 const fetchQuizByUser = functions.https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
   try {
     const user_id = req.query.user_id;
 
@@ -262,7 +282,7 @@ async function evaluateQuizProgress(user_id, quiz_id, quiz_level) {
       struggling_lessons: strugglingLessons,
       updated_at: new Date(),
     },
-    { merge: true }
+    { merge: true },
   );
 
   await db.collection("student_progress").doc(user_id).set(
@@ -271,7 +291,7 @@ async function evaluateQuizProgress(user_id, quiz_id, quiz_level) {
       last_quiz_avg_score: quizAvg,
       updated_at: new Date(),
     },
-    { merge: true }
+    { merge: true },
   );
 
   return {
