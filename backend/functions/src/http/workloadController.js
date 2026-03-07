@@ -328,7 +328,6 @@ const generateOverloadReminders = functions.https.onRequest(
  * Uses Groq (Llama 3.3 70B) for high-speed, structured JSON output.
  */
 
-
 const generateBusyWeekReminders = functions.https.onRequest(
   async (req, res) => {
     try {
@@ -375,7 +374,6 @@ const generateBusyWeekReminders = functions.https.onRequest(
             )
             .join("\n");
 
-         
           // --- 1. THE ENHANCED PROMPT WITH KNOWLEDGE INJECTION ---
           const prompt = `
 You are an expert academic tutor and study planner.
@@ -771,4 +769,3 @@ module.exports = {
   generateBusyWeekReminders,
   getEnrolledSubjects,
 };
-

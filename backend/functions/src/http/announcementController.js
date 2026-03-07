@@ -72,6 +72,12 @@ const createAnnouncement = functions.https.onRequest(async (req, res) => {
  * Method: GET
  */
 const getAnnouncements = functions.https.onRequest(async (req, res) => {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
