@@ -4,6 +4,17 @@ import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
 import { chatHistoryService } from "../services/chatHistoryService";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../config/firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+} from "firebase/firestore";
 
 // Configure PDF.js worker from npm package
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -11,7 +22,97 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).href;
 
+const PERFORMANCE_THRESHOLDS = {
+  assignments_avg: 50,
+  attendance_pct: 70,
+  midterm_score: 50,
+  projects_score: 50,
+  quizzes_avg: 50,
+};
+
+const toNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const buildInterventionFromMetrics = (metrics) => {
+  console.log("[CLASSIFICATION] Input metrics:", metrics);
+  console.log("[CLASSIFICATION] Thresholds:", PERFORMANCE_THRESHOLDS);
+
+  const belowThreshold = Object.entries(PERFORMANCE_THRESHOLDS)
+    .filter(([metric, threshold]) => {
+      const metricValue = toNumber(metrics?.[metric]);
+      const isBelow = metricValue < threshold;
+      console.log(
+        `[CLASSIFICATION] ${metric}: ${metricValue} < ${threshold} = ${isBelow}`,
+      );
+      return isBelow;
+    })
+    .map(([metric]) => metric);
+
+  console.log(
+    `[CLASSIFICATION] Below threshold count: ${belowThreshold.length}`,
+    belowThreshold,
+  );
+
+  if (belowThreshold.length === 0) {
+    console.log("[CLASSIFICATION] Result: HIGH PERFORMANCE");
+    return {
+      classification: "HIGH PERFORMANCE",
+      reminderText:
+        "- Excellent work! Your academic performance is strong.\n- Your attendance and assignment scores are very good. Keep maintaining this performance.\n- You are doing great in your coursework. Continue your effort.",
+    };
+  }
+
+  if (belowThreshold.length <= 2) {
+    console.log("[CLASSIFICATION] Result: MEDIUM PERFORMANCE");
+    return {
+      classification: "MEDIUM PERFORMANCE",
+      reminderText:
+        "- Your academic performance is moderate.\n- Consider improving your assignment participation and reviewing lecture materials regularly.",
+    };
+  }
+
+  const reminders = [];
+  if (belowThreshold.includes("attendance_pct")) {
+    reminders.push(
+      "Your attendance percentage is currently below the recommended level. Regular attendance significantly improves academic success.",
+    );
+  }
+  if (belowThreshold.includes("midterm_score")) {
+    reminders.push(
+      "Your Midterm score is below the expected level. Consider reviewing lecture slides and contacting your lecturer for additional support.",
+    );
+  }
+  if (belowThreshold.includes("assignment_avg")) {
+    reminders.push(
+      "Your assignment average is low. Please ensure future submissions are completed before deadlines.",
+    );
+  }
+  if (belowThreshold.includes("projects_score")) {
+    reminders.push(
+      "Your project score is below the expected level. Allocate more time for practical tasks.",
+    );
+  }
+  if (belowThreshold.includes("quizzes_avg")) {
+    reminders.push(
+      "Your quiz average is low. Revise weekly topics and practice more quizzes.",
+    );
+  }
+
+  const randomLowReminder =
+    reminders[Math.floor(Math.random() * reminders.length)] ||
+    "Some indicators need improvement. Stay consistent with lectures, coursework, and revision.";
+
+  console.log("[CLASSIFICATION] Result: LOW PERFORMANCE");
+  return {
+    classification: "LOW PERFORMANCE",
+    reminderText: `- ${randomLowReminder}`,
+  };
+};
+
 export default function Chat({ onClose }) {
+  const { currentUser, userData } = useAuth();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([
     {
@@ -33,6 +134,119 @@ export default function Chat({ onClose }) {
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
   const historyLoadedRef = useRef(false);
+  const reminderLoadedRef = useRef(false);
+
+  const resolveStudentId = () => {
+    return (
+      userData?.student_id ||
+      userData?.studentId ||
+      userData?.email ||
+      currentUser?.email ||
+      currentUser?.uid ||
+      null
+    );
+  };
+
+  const getStudentCandidates = () => {
+    const primary = resolveStudentId();
+    const candidates = [
+      primary,
+      userData?.student_id,
+      userData?.studentId,
+      currentUser?.uid,
+      userData?.email,
+      currentUser?.email,
+      (userData?.email || currentUser?.email || "").split("@")[0],
+    ]
+      .map((v) => (typeof v === "string" ? v.trim() : v))
+      .filter(Boolean);
+
+    return Array.from(new Set(candidates));
+  };
+
+  const fetchStudentMetricsFromFirestore = async () => {
+    const candidates = getStudentCandidates();
+    if (candidates.length === 0) return null;
+
+    console.log("[METRICS] Candidate IDs for lookup:", candidates);
+
+    // 1) Direct document-id lookup.
+    for (const candidate of candidates) {
+      try {
+        const snap = await getDoc(doc(db, "students", candidate));
+        if (snap.exists()) {
+          console.log(
+            `[METRICS] Found student by doc ID: ${candidate}`,
+            snap.data(),
+          );
+          return snap.data();
+        }
+      } catch (err) {
+        console.log(
+          `[METRICS] Doc ID lookup failed for ${candidate}:`,
+          err.message,
+        );
+      }
+    }
+
+    // 2) Field lookups with case-insensitive email matching.
+    for (const candidate of candidates) {
+      const fieldLookups = ["student_id", "studentId", "email", "uid"];
+      for (const field of fieldLookups) {
+        try {
+          const q = query(
+            collection(db, "students"),
+            where(field, "==", candidate),
+            limit(1),
+          );
+          const qs = await getDocs(q);
+          if (!qs.empty) {
+            console.log(
+              `[METRICS] Found student by field ${field}=${candidate}`,
+              qs.docs[0].data(),
+            );
+            return qs.docs[0].data();
+          }
+        } catch (err) {
+          console.log(
+            `[METRICS] Field lookup failed for ${field}=${candidate}:`,
+            err.message,
+          );
+        }
+      }
+    }
+
+    // 3) Case-insensitive email lookup - scan all students
+    if (userData?.email || currentUser?.email) {
+      const userEmail = (
+        userData?.email ||
+        currentUser?.email ||
+        ""
+      ).toLowerCase();
+      try {
+        const q = query(collection(db, "students"), limit(300));
+        const qs = await getDocs(q);
+        for (const doc of qs.docs) {
+          const docEmail = (doc.data().email || "").toLowerCase();
+          if (docEmail === userEmail) {
+            console.log(
+              `[METRICS] Found student by case-insensitive email match: ${docEmail}`,
+              doc.data(),
+            );
+            return doc.data();
+          }
+        }
+      } catch (err) {
+        console.log(
+          "[METRICS] Case-insensitive email scan failed:",
+          err.message,
+        );
+      }
+    }
+
+    console.log("[METRICS] No student record found in Firebase");
+    return null;
+  };
 
   // Load chat history from Firebase on mount (only once)
   useEffect(() => {
@@ -72,6 +286,7 @@ export default function Chat({ onClose }) {
       if (
         lastMessage.id !== "welcome" &&
         lastMessage.text &&
+        !lastMessage.isPersonalizedReminder &&
         !lastMessage.savedToFirebase
       ) {
         lastMessage.savedToFirebase = true; // Mark to avoid re-saving
@@ -82,6 +297,168 @@ export default function Chat({ onClose }) {
       }
     }
   }, [messages, historyLoaded]);
+
+  // Add personalized intervention reminder as the first dynamic message.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    if (reminderLoadedRef.current) return;
+
+    const insertReminderMessage = (reminderMessage) => {
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.isPersonalizedReminder);
+        if (alreadyExists) return prev;
+
+        const welcomeIndex = prev.findIndex((m) => m.id === "welcome");
+        if (welcomeIndex === -1) {
+          return [reminderMessage, ...prev];
+        }
+
+        const next = [...prev];
+        next.splice(welcomeIndex + 1, 0, reminderMessage);
+        return next;
+      });
+    };
+
+    const addFallbackReminder = () => {
+      const fallbackMessage = {
+        id: `intervention-${Date.now()}`,
+        sender: "assistant",
+        text: "Your recent academic activity suggests there may be some areas for improvement. \n\n- Reviewing your lecture materials and improving your attendance and assignment participation can help you stay on track and enhance your performance.",
+        createdAt: new Date().toISOString(),
+        isPersonalizedReminder: true,
+        classification: "GENERAL GUIDANCE",
+      };
+      insertReminderMessage(fallbackMessage);
+    };
+
+    const studentId = resolveStudentId();
+    if (!studentId) {
+      addFallbackReminder();
+      reminderLoadedRef.current = true;
+      return;
+    }
+
+    const loadReminder = async () => {
+      try {
+        console.log(
+          `[REMINDER] Fetching from API: ${appConfig.ML_INTERVENTION_REMINDER_URL}/${encodeURIComponent(studentId)}`,
+        );
+        const res = await fetch(
+          `${appConfig.ML_INTERVENTION_REMINDER_URL}/${encodeURIComponent(studentId)}`,
+        );
+
+        if (!res.ok) {
+          console.log(
+            `[REMINDER] API returned status ${res.status}, falling back to Firebase`,
+          );
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log("[REMINDER] Firebase metrics retrieved:", localMetrics);
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification: ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log("[REMINDER] No Firebase metrics found, using fallback");
+            addFallbackReminder();
+          }
+          reminderLoadedRef.current = true;
+          return;
+        }
+
+        const data = await res.json();
+        console.log("[REMINDER] API response:", data);
+        const reminderText = data?.reminder_message;
+        if (!reminderText) {
+          console.log(
+            "[REMINDER] API returned empty reminder_message, falling back to Firebase",
+          );
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log("[REMINDER] Firebase metrics retrieved:", localMetrics);
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification: ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log("[REMINDER] No Firebase metrics found, using fallback");
+            addFallbackReminder();
+          }
+          reminderLoadedRef.current = true;
+          return;
+        }
+
+        const reminderMessage = {
+          id: `intervention-${Date.now()}`,
+          sender: "assistant",
+          text: `${reminderText}`,
+          createdAt: new Date().toISOString(),
+          isPersonalizedReminder: true,
+          classification: data?.classification || null,
+        };
+
+        console.log("[REMINDER] Using API reminder:", reminderMessage);
+        insertReminderMessage(reminderMessage);
+      } catch (err) {
+        console.error("[REMINDER] API fetch error:", err);
+        try {
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log(
+              "[REMINDER] Firebase metrics retrieved (error fallback):",
+              localMetrics,
+            );
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification (error fallback): ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log(
+              "[REMINDER] No Firebase metrics found (error fallback), using fallback",
+            );
+            addFallbackReminder();
+          }
+        } catch (fallbackError) {
+          console.error(
+            "[REMINDER] Fallback reminder generation failed:",
+            fallbackError,
+          );
+          addFallbackReminder();
+        }
+      } finally {
+        reminderLoadedRef.current = true;
+      }
+    };
+
+    loadReminder();
+  }, [historyLoaded, currentUser, userData]);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -384,9 +761,16 @@ export default function Chat({ onClose }) {
                 className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
                   msg.sender === "user"
                     ? "bg-blue-600 text-white rounded-br-sm"
-                    : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                    : msg.isPersonalizedReminder
+                      ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
+                      : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
                 }`}
               >
+                {msg.isPersonalizedReminder && msg.classification && (
+                  <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {msg.classification}
+                  </p>
+                )}
                 <p className="whitespace-pre-line">{msg.text}</p>
 
                 {/* Show download button for PDF requests */}
