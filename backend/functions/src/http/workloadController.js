@@ -882,7 +882,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "ASSIGNMENT",
               hours: h.assignment || 6,
-              isCompleted: false, 
+              isCompleted: false,
             }),
           );
 
@@ -892,7 +892,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "MID_EXAM",
               hours: h.midExam || 10,
-              isCompleted: false, 
+              isCompleted: false,
             });
           }
 
@@ -902,7 +902,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "FINAL_EXAM",
               hours: h.finalExam || 15,
-              isCompleted: false, 
+              isCompleted: false,
             });
           }
         }
@@ -914,7 +914,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "INTERNSHIP_SUBMISSION",
               hours: sub.estimatedHoursPerSubmission || 8,
-              isCompleted: false, 
+              isCompleted: false,
             }),
           );
         }
@@ -925,7 +925,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
         .collection("weekly_workload")
         .where("studentId", "==", studentId)
         .get();
-        
+
       const existingWeeks = new Set();
       existingSnap.forEach((doc) => existingWeeks.add(doc.data().week));
 
@@ -948,7 +948,9 @@ const generateWorkload = functions.https.onRequest((req, res) => {
           semesterStart.getTime() + (weekNum - 1) * 7 * 86400000,
         );
 
-        const ref = db.collection("weekly_workload").doc(`${studentId}_W${week}`);
+        const ref = db
+          .collection("weekly_workload")
+          .doc(`${studentId}_W${week}`);
 
         batch.set(ref, {
           studentId,
@@ -956,10 +958,10 @@ const generateWorkload = functions.https.onRequest((req, res) => {
           weekStart,
           totalHours: data.totalHours,
           status,
-          breakdown: data.breakdown, 
+          breakdown: data.breakdown,
           createdAt: new Date(),
         });
-        
+
         weeksAdded++;
       });
 
@@ -1274,12 +1276,6 @@ const generateBusyWeekReminders = functions.https.onRequest((req, res) => {
     }
   });
 });
-
-const getActiveReminders = functions.https.onRequest(async (req, res) => {
-  try {
-    if (req.method !== "GET") {
-      return res.status(405).send("Method Not Allowed");
-    }
 
 //       const snap = await db
 //         .collection("busy_week_reminders")
