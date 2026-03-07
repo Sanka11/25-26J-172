@@ -48,6 +48,7 @@ const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
 const ML_FEEDBACK_STATS_URL = `${ML_BASE_URL}/feedback/stats`;
 const ML_LIST_DOCS_URL = `${ML_BASE_URL}/documents`;
+const ML_INTERVENTION_REMINDER_URL = `${ML_BASE_URL}/student/intervention-reminder`;
 
 // Academic APIs
 const GET_ALL_DEADLINES_URL = `${BASE_URL}/getAllDeadlines`;
@@ -65,6 +66,7 @@ export const appConfig = {
   ML_FEEDBACK_URL,
   ML_FEEDBACK_STATS_URL,
   ML_LIST_DOCS_URL,
+  ML_INTERVENTION_REMINDER_URL,
 
   // Quiz savindi
   CREATE_QUIZ_URL,

@@ -3,21 +3,231 @@ import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
+import { chatHistoryService } from "../services/chatHistoryService";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../config/firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+} from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker from npm package
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.js",
+  import.meta.url,
+).href;
+
+const PERFORMANCE_THRESHOLDS = {
+  assignments_avg: 50,
+  attendance_pct: 70,
+  midterm_score: 50,
+  projects_score: 50,
+  quizzes_avg: 50,
+};
+
+const toNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const APP_AUTOMATION_COMMANDS = [
+  {
+    route: "/WorkloadDashboard",
+    label: "Workload Dashboard",
+    patterns: [
+      /\bwork\s*load\s*dashboard\b/i,
+      /\bworkloaddashboard\b/i,
+      /\bopen\s+workload\b/i,
+    ],
+  },
+  {
+    route: "/recommendation",
+    label: "Recommendation Dashboard",
+    patterns: [/\brecommendation\b/i, /\brecommendations\b/i],
+  },
+  {
+    route: "/announcements",
+    label: "Announcements",
+    patterns: [/\bannouncement\b/i, /\bannouncements\b/i],
+  },
+  {
+    route: "/live-risk",
+    label: "Live Risk Dashboard",
+    patterns: [/\blive\s*risk\b/i, /\brisk\s*dashboard\b/i],
+  },
+  {
+    route: "/student-risk",
+    label: "Student Risk Timeline",
+    patterns: [/\bstudent\s*risk\b/i, /\brisk\s*timeline\b/i, /\bmy\s*risk\b/i],
+  },
+  {
+    route: "/chat",
+    label: "Chat Page",
+    patterns: [/\bopen\s+chat\b/i, /\bgo\s+to\s+chat\b/i],
+  },
+  {
+    route: "/careerReadiness",
+    label: "Career Readiness",
+    patterns: [/\bcareer\s*readiness\b/i, /\bcareer\b/i],
+  },
+  {
+    route: "/levels",
+    label: "Levels",
+    patterns: [/\blevels\b/i, /\bopen\s+levels\b/i],
+  },
+  {
+    route: "/create-quiz",
+    label: "Create Quiz",
+    patterns: [/\bcreate\s*quiz\b/i, /\bquiz\s*creator\b/i],
+  },
+  {
+    route: "/upload",
+    label: "PDF Upload",
+    patterns: [/\bupload\s*pdf\b/i, /\bpdf\s*upload\b/i],
+  },
+  {
+    route: "/peer",
+    label: "Peer Dashboard",
+    patterns: [/\bpeer\b/i, /\bpeer\s*dashboard\b/i],
+  },
+  {
+    route: "/support",
+    label: "Human Support Dashboard",
+    patterns: [/\bsupport\b/i, /\bhuman\s*support\b/i],
+  },
+  {
+    route: "/admin/announcements",
+    label: "Admin Announcements",
+    patterns: [/\badmin\s*announcement\b/i],
+  },
+  {
+    route: "/gru",
+    label: "GRU Dashboard",
+    patterns: [/\bgru\b/i],
+  },
+  {
+    route: "/rl",
+    label: "RL Dashboard",
+    patterns: [/\brl\b/i, /\breinforcement\s*learning\b/i],
+  },
+];
+
+const resolveAutomationCommand = (input) => {
+  const text = (input || "").trim();
+  if (!text) return null;
+
+  const normalized = text.toLowerCase();
+  const hasNavIntent =
+    /\b(open|go|navigate|take me|show|need to see|i need to see|move)\b/i.test(
+      normalized,
+    ) || normalized.includes("dashboard");
+
+  if (!hasNavIntent) return null;
+
+  for (const command of APP_AUTOMATION_COMMANDS) {
+    const matched = command.patterns.some((pattern) => pattern.test(text));
+    if (matched) return command;
+  }
+
+  return null;
+};
+
+const buildInterventionFromMetrics = (metrics) => {
+  console.log("[CLASSIFICATION] Input metrics:", metrics);
+  console.log("[CLASSIFICATION] Thresholds:", PERFORMANCE_THRESHOLDS);
+
+  const belowThreshold = Object.entries(PERFORMANCE_THRESHOLDS)
+    .filter(([metric, threshold]) => {
+      const metricValue = toNumber(metrics?.[metric]);
+      const isBelow = metricValue < threshold;
+      console.log(
+        `[CLASSIFICATION] ${metric}: ${metricValue} < ${threshold} = ${isBelow}`,
+      );
+      return isBelow;
+    })
+    .map(([metric]) => metric);
+
+  console.log(
+    `[CLASSIFICATION] Below threshold count: ${belowThreshold.length}`,
+    belowThreshold,
+  );
+
+  if (belowThreshold.length === 0) {
+    console.log("[CLASSIFICATION] Result: HIGH PERFORMANCE");
+    return {
+      classification: "HIGH PERFORMANCE",
+      reminderText:
+        "- Excellent work! Your academic performance is strong.\n- Your attendance and assignment scores are very good. Keep maintaining this performance.\n- You are doing great in your coursework. Continue your effort.",
+    };
+  }
+
+  if (belowThreshold.length <= 2) {
+    console.log("[CLASSIFICATION] Result: MEDIUM PERFORMANCE");
+    return {
+      classification: "MEDIUM PERFORMANCE",
+      reminderText:
+        "- Your academic performance is moderate.\n- Consider improving your assignment participation and reviewing lecture materials regularly.",
+    };
+  }
+
+  const reminders = [];
+  if (belowThreshold.includes("attendance_pct")) {
+    reminders.push(
+      "Your attendance percentage is currently below the recommended level. Regular attendance significantly improves academic success.",
+    );
+  }
+  if (belowThreshold.includes("midterm_score")) {
+    reminders.push(
+      "Your Midterm score is below the expected level. Consider reviewing lecture slides and contacting your lecturer for additional support.",
+    );
+  }
+  if (belowThreshold.includes("assignments_avg")) {
+    reminders.push(
+      "Your assignment average is low. Please ensure future submissions are completed before deadlines.",
+    );
+  }
+  if (belowThreshold.includes("projects_score")) {
+    reminders.push(
+      "Your project score is below the expected level. Allocate more time for practical tasks.",
+    );
+  }
+  if (belowThreshold.includes("quizzes_avg")) {
+    reminders.push(
+      "Your quiz average is low. Revise weekly topics and practice more quizzes.",
+    );
+  }
+
+  const randomLowReminder =
+    reminders[Math.floor(Math.random() * reminders.length)] ||
+    "Some indicators need improvement. Stay consistent with lectures, coursework, and revision.";
+
+  console.log("[CLASSIFICATION] Result: LOW PERFORMANCE");
+  return {
+    classification: "LOW PERFORMANCE",
+    reminderText: `- ${randomLowReminder}`,
+  };
+};
 
 export default function Chat({ onClose }) {
+  const { currentUser, userData } = useAuth();
+  const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi!I'm AcademiGuard, How can I help you today?",
+      text: "Hi! I'm AcademiGuard, How can I help you today?",
       createdAt: new Date().toISOString(),
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState("");
   const [typingState, setTypingState] = useState(null); // for word-by-word animation
   const [voiceListening, setVoiceListening] = useState(false);
@@ -27,6 +237,332 @@ export default function Chat({ onClose }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
+  const historyLoadedRef = useRef(false);
+  const reminderLoadedRef = useRef(false);
+
+  const resolveStudentId = () => {
+    return (
+      userData?.student_id ||
+      userData?.studentId ||
+      userData?.email ||
+      currentUser?.email ||
+      currentUser?.uid ||
+      null
+    );
+  };
+
+  const getStudentCandidates = () => {
+    const primary = resolveStudentId();
+    const candidates = [
+      primary,
+      userData?.student_id,
+      userData?.studentId,
+      currentUser?.uid,
+      userData?.email,
+      currentUser?.email,
+      (userData?.email || currentUser?.email || "").split("@")[0],
+    ]
+      .map((v) => (typeof v === "string" ? v.trim() : v))
+      .filter(Boolean);
+
+    return Array.from(new Set(candidates));
+  };
+
+  const fetchStudentMetricsFromFirestore = async () => {
+    const candidates = getStudentCandidates();
+    if (candidates.length === 0) return null;
+
+    console.log("[METRICS] Candidate IDs for lookup:", candidates);
+
+    // 1) Direct document-id lookup.
+    for (const candidate of candidates) {
+      try {
+        const snap = await getDoc(doc(db, "students", candidate));
+        if (snap.exists()) {
+          console.log(
+            `[METRICS] Found student by doc ID: ${candidate}`,
+            snap.data(),
+          );
+          return snap.data();
+        }
+      } catch (err) {
+        console.log(
+          `[METRICS] Doc ID lookup failed for ${candidate}:`,
+          err.message,
+        );
+      }
+    }
+
+    // 2) Field lookups with case-insensitive email matching.
+    for (const candidate of candidates) {
+      const fieldLookups = ["student_id", "studentId", "email", "uid"];
+      for (const field of fieldLookups) {
+        try {
+          const q = query(
+            collection(db, "students"),
+            where(field, "==", candidate),
+            limit(1),
+          );
+          const qs = await getDocs(q);
+          if (!qs.empty) {
+            console.log(
+              `[METRICS] Found student by field ${field}=${candidate}`,
+              qs.docs[0].data(),
+            );
+            return qs.docs[0].data();
+          }
+        } catch (err) {
+          console.log(
+            `[METRICS] Field lookup failed for ${field}=${candidate}:`,
+            err.message,
+          );
+        }
+      }
+    }
+
+    // 3) Case-insensitive email lookup - scan all students
+    if (userData?.email || currentUser?.email) {
+      const userEmail = (
+        userData?.email ||
+        currentUser?.email ||
+        ""
+      ).toLowerCase();
+      try {
+        const q = query(collection(db, "students"), limit(300));
+        const qs = await getDocs(q);
+        for (const doc of qs.docs) {
+          const docEmail = (doc.data().email || "").toLowerCase();
+          if (docEmail === userEmail) {
+            console.log(
+              `[METRICS] Found student by case-insensitive email match: ${docEmail}`,
+              doc.data(),
+            );
+            return doc.data();
+          }
+        }
+      } catch (err) {
+        console.log(
+          "[METRICS] Case-insensitive email scan failed:",
+          err.message,
+        );
+      }
+    }
+
+    console.log("[METRICS] No student record found in Firebase");
+    return null;
+  };
+
+  // Load chat history from Firebase on mount (only once)
+  useEffect(() => {
+    if (historyLoadedRef.current) return; // Already loaded
+    historyLoadedRef.current = true;
+
+    const loadHistory = async () => {
+      try {
+        const savedMessages = await chatHistoryService.loadMessages();
+        if (savedMessages.length > 0) {
+          // Always show welcome message first, then previous messages
+          const welcomeMsg = {
+            id: "welcome",
+            sender: "assistant",
+            text: "Hi! I'm AcademiGuard, How can I help you today?",
+            createdAt: new Date().toISOString(),
+          };
+          setMessages([welcomeMsg, ...savedMessages]);
+          console.log("Loaded chat history from Firebase");
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  // Save messages to Firebase whenever they change (except initial load)
+  useEffect(() => {
+    if (!historyLoaded) return;
+
+    // Save the last message if it's not the welcome message
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (
+        lastMessage.id !== "welcome" &&
+        lastMessage.text &&
+        !lastMessage.isPersonalizedReminder &&
+        !lastMessage.savedToFirebase
+      ) {
+        lastMessage.savedToFirebase = true; // Mark to avoid re-saving
+        chatHistoryService.saveMessage(lastMessage).catch((err) => {
+          console.error("Failed to save message:", err);
+          lastMessage.savedToFirebase = false; // Reset on error
+        });
+      }
+    }
+  }, [messages, historyLoaded]);
+
+  // Add personalized intervention reminder as the first dynamic message.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    if (reminderLoadedRef.current) return;
+
+    const insertReminderMessage = (reminderMessage) => {
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.isPersonalizedReminder);
+        if (alreadyExists) return prev;
+
+        const welcomeIndex = prev.findIndex((m) => m.id === "welcome");
+        if (welcomeIndex === -1) {
+          return [reminderMessage, ...prev];
+        }
+
+        const next = [...prev];
+        next.splice(welcomeIndex + 1, 0, reminderMessage);
+        return next;
+      });
+    };
+
+    const addFallbackReminder = () => {
+      const fallbackMessage = {
+        id: `intervention-${Date.now()}`,
+        sender: "assistant",
+        text: "Your recent academic activity suggests there may be some areas for improvement. \n\n- Reviewing your lecture materials and improving your attendance and assignment participation can help you stay on track and enhance your performance.",
+        createdAt: new Date().toISOString(),
+        isPersonalizedReminder: true,
+        classification: "GENERAL GUIDANCE",
+      };
+      insertReminderMessage(fallbackMessage);
+    };
+
+    const studentId = resolveStudentId();
+    if (!studentId) {
+      addFallbackReminder();
+      reminderLoadedRef.current = true;
+      return;
+    }
+
+    const loadReminder = async () => {
+      try {
+        console.log(
+          `[REMINDER] Fetching from API: ${appConfig.ML_INTERVENTION_REMINDER_URL}/${encodeURIComponent(studentId)}`,
+        );
+        const res = await fetch(
+          `${appConfig.ML_INTERVENTION_REMINDER_URL}/${encodeURIComponent(studentId)}`,
+        );
+
+        if (!res.ok) {
+          console.log(
+            `[REMINDER] API returned status ${res.status}, falling back to Firebase`,
+          );
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log("[REMINDER] Firebase metrics retrieved:", localMetrics);
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification: ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log("[REMINDER] No Firebase metrics found, using fallback");
+            addFallbackReminder();
+          }
+          reminderLoadedRef.current = true;
+          return;
+        }
+
+        const data = await res.json();
+        console.log("[REMINDER] API response:", data);
+        const reminderText = data?.reminder_message;
+        if (!reminderText) {
+          console.log(
+            "[REMINDER] API returned empty reminder_message, falling back to Firebase",
+          );
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log("[REMINDER] Firebase metrics retrieved:", localMetrics);
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification: ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log("[REMINDER] No Firebase metrics found, using fallback");
+            addFallbackReminder();
+          }
+          reminderLoadedRef.current = true;
+          return;
+        }
+
+        const reminderMessage = {
+          id: `intervention-${Date.now()}`,
+          sender: "assistant",
+          text: `${reminderText}`,
+          createdAt: new Date().toISOString(),
+          isPersonalizedReminder: true,
+          classification: data?.classification || null,
+        };
+
+        console.log("[REMINDER] Using API reminder:", reminderMessage);
+        insertReminderMessage(reminderMessage);
+      } catch (err) {
+        console.error("[REMINDER] API fetch error:", err);
+        try {
+          const localMetrics = await fetchStudentMetricsFromFirestore();
+          if (localMetrics) {
+            console.log(
+              "[REMINDER] Firebase metrics retrieved (error fallback):",
+              localMetrics,
+            );
+            const localReminder = buildInterventionFromMetrics(localMetrics);
+            console.log(
+              `[REMINDER] Classification (error fallback): ${localReminder.classification}`,
+              localReminder,
+            );
+            insertReminderMessage({
+              id: `intervention-${Date.now()}`,
+              sender: "assistant",
+              text: `${localReminder.reminderText}`,
+              createdAt: new Date().toISOString(),
+              isPersonalizedReminder: true,
+              classification: localReminder.classification,
+            });
+          } else {
+            console.log(
+              "[REMINDER] No Firebase metrics found (error fallback), using fallback",
+            );
+            addFallbackReminder();
+          }
+        } catch (fallbackError) {
+          console.error(
+            "[REMINDER] Fallback reminder generation failed:",
+            fallbackError,
+          );
+          addFallbackReminder();
+        }
+      } finally {
+        reminderLoadedRef.current = true;
+      }
+    };
+
+    loadReminder();
+  }, [historyLoaded, currentUser, userData]);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -46,6 +582,22 @@ export default function Chat({ onClose }) {
     };
     setMessages((prev) => [...prev, userMessage]);
     setQuestion("");
+
+    const automationCommand = resolveAutomationCommand(trimmed);
+    if (automationCommand) {
+      navigate(automationCommand.route);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-nav-${Date.now()}`,
+          sender: "assistant",
+          text: `Of course. I'll navigate you to ${automationCommand.label} now.`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -236,12 +788,21 @@ export default function Chat({ onClose }) {
     }
   };
 
-  const handleResetChat = () => {
+  const handleResetChat = async () => {
+    try {
+      // Clear Firebase history
+      await chatHistoryService.clearHistory();
+      console.log("Chat history cleared from Firebase");
+    } catch (error) {
+      console.error("Failed to clear chat history:", error);
+    }
+
+    // Reset local state
     setMessages([
       {
         id: "welcome",
         sender: "assistant",
-        text: "Hi, I'm AcademiGuard, How can I help today?",
+        text: "Hi! I'm AcademiGuard, How can I help you today?",
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -302,59 +863,68 @@ export default function Chat({ onClose }) {
 
       {/* Conversation area */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${
-              msg.sender === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            {msg.sender === "assistant" && (
-              <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
-                AG
-              </div>
-            )}
+        {Array.from(new Set(messages.map((m) => m.id)))
+          .map((id) => messages.find((m) => m.id === id))
+          .map((msg) => (
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
-                msg.sender === "user"
-                  ? "bg-blue-600 text-white rounded-br-sm"
-                  : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+              key={msg.id}
+              className={`flex ${
+                msg.sender === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <p className="whitespace-pre-line">{msg.text}</p>
-
-              {/* Show download button for PDF requests */}
-              {msg.sender === "assistant" &&
-                msg.download_url &&
-                msg.downloadable_pdf && (
-                  <div className="mt-2 pt-2 border-t border-slate-200">
-                    <a
-                      href={msg.download_url}
-                      download
-                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
-                    >
-                      📥 Download {msg.downloadable_pdf}
-                    </a>
-                  </div>
+              {msg.sender === "assistant" && (
+                <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
+                  AG
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
+                  msg.sender === "user"
+                    ? "bg-blue-600 text-white rounded-br-sm"
+                    : msg.isPersonalizedReminder
+                      ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
+                      : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                }`}
+              >
+                {msg.isPersonalizedReminder && msg.classification && (
+                  <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {msg.classification}
+                  </p>
                 )}
+                <p className="whitespace-pre-line">{msg.text}</p>
 
-              {msg.createdAt && (
-                <p
-                  className={`mt-1 text-[10px] opacity-70 ${
-                    msg.sender === "user" ? "text-blue-100" : "text-slate-500"
-                  }`}
-                >
-                  {formatTime(msg.createdAt)}
-                </p>
+                {/* Show download button for PDF requests */}
+                {msg.sender === "assistant" &&
+                  msg.download_url &&
+                  msg.downloadable_pdf && (
+                    <div className="mt-2 pt-2 border-t border-slate-200">
+                      <a
+                        href={msg.download_url}
+                        download
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                      >
+                        📥 Download {msg.downloadable_pdf}
+                      </a>
+                    </div>
+                  )}
+
+                {msg.createdAt && (
+                  <p
+                    className={`mt-1 text-[10px] opacity-70 ${
+                      msg.sender === "user" ? "text-blue-100" : "text-slate-500"
+                    }`}
+                  >
+                    {formatTime(msg.createdAt)}
+                  </p>
+                )}
+              </div>
+              {msg.sender === "user" && (
+                <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
+                  You
+                </div>
               )}
             </div>
-            {msg.sender === "user" && (
-              <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
-                You
-              </div>
-            )}
-          </div>
-        ))}
+          ))}
 
         {loading && (
           <div className="flex items-center justify-start mt-1">

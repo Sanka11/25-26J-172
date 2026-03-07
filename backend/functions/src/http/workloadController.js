@@ -654,10 +654,12 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Initialize Groq as a constant
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+// Initialize Groq as a constant (with fallback if API key not set)
+const groq = process.env.GROQ_API_KEY
+  ? new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    })
+  : null;
 
 /**
  * Generate Weekly Workload purely from SUBJECT data
@@ -880,7 +882,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "ASSIGNMENT",
               hours: h.assignment || 6,
-              isCompleted: false, 
+              isCompleted: false,
             }),
           );
 
@@ -890,7 +892,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "MID_EXAM",
               hours: h.midExam || 10,
-              isCompleted: false, 
+              isCompleted: false,
             });
           }
 
@@ -900,7 +902,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "FINAL_EXAM",
               hours: h.finalExam || 15,
-              isCompleted: false, 
+              isCompleted: false,
             });
           }
         }
@@ -912,7 +914,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
               subjectName: sub.subjectName,
               type: "INTERNSHIP_SUBMISSION",
               hours: sub.estimatedHoursPerSubmission || 8,
-              isCompleted: false, 
+              isCompleted: false,
             }),
           );
         }
@@ -923,7 +925,7 @@ const generateWorkload = functions.https.onRequest((req, res) => {
         .collection("weekly_workload")
         .where("studentId", "==", studentId)
         .get();
-        
+
       const existingWeeks = new Set();
       existingSnap.forEach((doc) => existingWeeks.add(doc.data().week));
 
@@ -946,7 +948,9 @@ const generateWorkload = functions.https.onRequest((req, res) => {
           semesterStart.getTime() + (weekNum - 1) * 7 * 86400000,
         );
 
-        const ref = db.collection("weekly_workload").doc(`${studentId}_W${week}`);
+        const ref = db
+          .collection("weekly_workload")
+          .doc(`${studentId}_W${week}`);
 
         batch.set(ref, {
           studentId,
@@ -954,10 +958,10 @@ const generateWorkload = functions.https.onRequest((req, res) => {
           weekStart,
           totalHours: data.totalHours,
           status,
-          breakdown: data.breakdown, 
+          breakdown: data.breakdown,
           createdAt: new Date(),
         });
-        
+
         weeksAdded++;
       });
 
@@ -1272,23 +1276,6 @@ const generateBusyWeekReminders = functions.https.onRequest((req, res) => {
     }
   });
 });
-
-// const getActiveReminders = functions.https.onRequest((req, res) => {
-//   cors(req, res, async () => {
-//     try {
-//       if (req.method !== "GET" && req.method !== "OPTIONS") {
-//         return res.status(405).send("Method Not Allowed");
-//       }
-
-//       const { studentId } = req.query;
-//       if (!studentId) {
-//         return res.status(400).json({ error: "Missing studentId" });
-//       }
-
-//       const today = new Date();
-//       const twoWeeksFromNow = new Date(
-//         today.getTime() + 14 * 24 * 60 * 60 * 1000,
-//       );
 
 //       const snap = await db
 //         .collection("busy_week_reminders")

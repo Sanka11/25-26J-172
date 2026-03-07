@@ -46,6 +46,9 @@ from app.vector_store import add_documents
 # ----------------------------
 from app.services.student_profile_service import get_profile_manager
 from app.services.chat_history_service import get_history_manager
+from app.services.personalized_intervention_service import (
+    get_personalized_intervention_service,
+)
 
 # ----------------------------
 # Disengagement Router
@@ -228,7 +231,8 @@ async def upload_pdf(
 
     # ----------- Chunk -----------
     print(f"Chunking text...")
-    chunks = chunk_text(text, chunk_size=1000, overlap=200)
+    # Use section-aware chunking with smaller chunk size for more relevance
+    chunks = chunk_text(text, chunk_size=600, overlap=100, section_aware=True)
     if not chunks:
         print(f"ERROR: No chunks produced")
         raise HTTPException(status_code=400, detail="Chunking produced no chunks")
@@ -637,6 +641,39 @@ def sync_student_from_firebase(user_id: str):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error syncing from Firebase: {str(e)}")
+
+
+@app.get("/student/intervention-reminder/{student_id}")
+def get_personalized_intervention_reminder(student_id: str):
+    """reminders for a student.
+
+    The endpoint reads current metrics from Firebase-backed students data,
+    classifies performance using configured thresholds, and generates dynamic
+    reminder statements for chatbot onboarding.
+    """
+    try:
+        service = get_personalized_intervention_service()
+        result = service.generate_personalized_intervention(student_id)
+        return {
+            "status": "success",
+            **result,
+        }
+    except ValueError as e:
+        # Return 200 fallback so frontend can continue with local Firebase lookup
+        # and we avoid repeated 404 noise in ML service logs.
+        return {
+            "status": "not_found",
+            "student_id": student_id,
+            "classification": None,
+            "reminders": [],
+            "reminder_message": "",
+            "detail": str(e),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating personalized intervention reminder: {str(e)}",
+        )
 
 
 # ========================================

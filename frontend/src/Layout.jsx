@@ -34,8 +34,7 @@ function Layout() {
 
   if (path === "/" || path === "/risk") {
     headerTitle = "Student risk analytics";
-    headerSubtitle =
-      "Demo how AcademiGuard scores academic risk per student.";
+    headerSubtitle = "Demo how AcademiGuard scores academic risk per student.";
   } else if (path === "/announcements") {
     headerTitle = "Announcements & reminders";
     headerSubtitle =
@@ -214,12 +213,56 @@ function Layout() {
         {!isChatOpen && (
           <button
             onClick={() => setIsChatOpen(true)}
-            className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="fixed bottom-8 right-8 z-40 relative w-20 h-20 rounded-full transition-all duration-300 ease-out hover:scale-125 focus:outline-none group"
+            title="💬 AI Chatbot - Ask AcademiGuard"
           >
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[11px] font-bold">
-              AI
+            {/* Animated background rings */}
+            <span className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-400 to-indigo-400 opacity-30 animate-pulse blur-md"></span>
+
+            {/* Outer rotating ring */}
+            <span
+              className="absolute -inset-2 rounded-full border-2 border-transparent border-t-purple-400 border-r-indigo-500 opacity-60 animate-spin"
+              style={{ animationDuration: "3s" }}
+            ></span>
+
+            {/* Middle pulsing ring */}
+            <span className="absolute -inset-1 rounded-full border-2 border-purple-300/40 animate-pulse"></span>
+
+            {/* Main button background */}
+            <span className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-600 via-purple-500 to-indigo-600 shadow-2xl shadow-purple-600/70"></span>
+
+            {/* Inner glow */}
+            <span className="absolute inset-1 rounded-full bg-gradient-to-tr from-purple-500/20 to-indigo-400/20"></span>
+
+            {/* Bouncing notification badge */}
+            <span
+              className="absolute -top-2 -right-2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-pink-600 text-2xl shadow-xl shadow-red-500/60 animate-bounce border-4 border-white"
+              style={{ boxShadow: "0 0 25px rgba(239, 68, 68, 0.9)" }}
+            >
+              💬
             </span>
-            <span>Ask AcademiGuard</span>
+
+            {/* Main icon container */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {/* Large prominent chat icon */}
+              <svg
+                className="w-10 h-10 text-white drop-shadow-xl animate-bounce"
+                style={{ animationDelay: "0.2s" }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+            </div>
+
+            {/* Hover shine effect */}
+            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-tr from-white/20 to-transparent"></span>
           </button>
         )}
 
