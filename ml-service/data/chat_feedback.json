@@ -40,5 +40,12 @@
     "last_question": "Can I use Visa or MasterCard?",
     "last_answer": "Yes, Visa and MasterCard are accepted. Please check with the Finance Department for the complete list of accepted payment methods.",
     "created_at": 1772652321.937
+  },
+  {
+    "rating": 4.0,
+    "comment": "good",
+    "last_question": "Show announcements",
+    "last_answer": "Of course. I'll navigate you to Announcements now.",
+    "created_at": 1772879066.511
   }
 ]
