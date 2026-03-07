@@ -152,7 +152,8 @@ def generate_llm_advice(student_data, status_label, syllabus_context):
     
     RULES FOR YOUR RESPONSE:
     1. SUMMARY: Write 2 powerful sentences. Acknowledge their Status and their lowest grade.
-    2. WELLNESS SUMMARY: Write 1-2 empathetic sentences acknowledging their current stress level, sleep, and study habits.
+    2. WELLNESS SUMMARY: Write 1-2 empathetic sentences. 
+       CRITICAL LOGIC RULE: 6 to 7 hours of sleep is healthy. Less than 6 is "inadequate". More than 7 is "oversleeping". You MUST evaluate their exact sleep number logically before commenting on it.
     3. ACADEMIC TIPS (Point-wise): Recommend a specific, NAMED psychological study framework (e.g., "The Feynman Technique"). Provide exactly 2-3 specific bullet points. CRITICAL: You MUST explicitly tell them how to apply it to the "Key Concepts" provided above.
     4. WELLNESS TIPS (Point-wise): Provide exactly 2-3 actionable, short bullet points based strictly on their reported Stress Level, Sleep, and Study Hours.
     5. ACTION ITEMS: Provide exactly 3 short tasks. Begin each with "Step 1:", "Step 2:", and "Step 3:". These steps MUST mention specific actions related to the "Key Concepts".
