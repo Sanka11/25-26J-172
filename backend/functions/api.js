@@ -198,6 +198,39 @@ const { getGruHistory } = require("./src/http/getGruHistoryController");
 
 app.get("/api/ml/gru-history", getGruHistory);
 
+// ----------------------------------------------------
+// Add Weekly Record 
+// ----------------------------------------------------
+const {
+  addStudentWeeklyRecord,
+} = require("./src/http/addStudentWeeklyRecordController");
+
+app.post("/api/student/add-week", addStudentWeeklyRecord);
+
+// ----------------------------------------------------
+// Add 10 weeks for testing
+// ----------------------------------------------------
+const {
+  addTenWeeks,
+} = require("./src/http/addTenWeeksController");
+
+app.post("/api/student/add-10-weeks", addTenWeeks);
+
+// ----------------------------------------------------
+// Run GRU for selected student
+// ----------------------------------------------------
+const {
+  runGruForStudent,
+} = require("./src/http/runGruForStudentController");
+
+app.get("/api/gru/run/:studentId", runGruForStudent);
+
+
+const { runRlForStudent } = require("./src/http/runRlForStudentController");
+
+app.get("/api/rl/run/:studentId", runRlForStudent);
+
+
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function
