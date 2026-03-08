@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   GraduationCap,
@@ -20,6 +19,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { startOfWeek } from "date-fns";
 import WorkloadCalendar from "../componets/WorkloadCalendar";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -62,16 +62,35 @@ const groupTimetableByDay = (timetable) => {
   return Object.values(grouped).sort((a, b) => a.day - b.day);
 };
 
+// function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
+//   if (!semesterStartDate) return 1;
+//   const start = new Date(semesterStartDate);
+//   const today = new Date(targetDate);
+//   start.setHours(0, 0, 0, 0);
+//   today.setHours(0, 0, 0, 0);
+//   const diffDays = Math.floor(
+//     (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+//   );
+//   return Math.max(1, Math.floor(diffDays / 7) + 1);
+// }
 function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
   if (!semesterStartDate) return 1;
-  const start = new Date(semesterStartDate);
-  const today = new Date(targetDate);
+
+  // Align both dates to the start of their weeks (Monday)
+  const start = startOfWeek(new Date(semesterStartDate), { weekStartsOn: 1 });
+  const target = startOfWeek(new Date(targetDate), { weekStartsOn: 1 });
+
   start.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
   const diffDays = Math.floor(
-    (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    (target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
   );
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
+
+  const rawWeek = Math.floor(diffDays / 7) + 1;
+
+  // Cap the result between Week 1 and Week 17 so it matches the Calendar bounds
+  return Math.min(Math.max(1, rawWeek), 17);
 }
 
 function getAcademicPeriod(semesterStartDate) {
@@ -125,25 +144,42 @@ function calculateWorkloadStats(weeklyWorkload) {
 }
 
 /* ---------------- PDF GENERATION ---------------- */
+
 const generatePDF = (reminder, userEmail, academicPeriod) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  doc.setFillColor(239, 68, 68);
-  doc.rect(0, 0, pageWidth, 40, "F");
+  // --- 1. HEADER SECTION ---
+  // Background rectangle for header (Using Indigo-600 to match your UI)
+  doc.setFillColor(79, 70, 229);
+  doc.rect(0, 0, pageWidth, 45, "F");
+
+  // Title (Bug Fix: Removed the emoji which caused the garbled text)
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
+  doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text("📚 Busy Week Study Plan", pageWidth / 2, 25, { align: "center" });
+  doc.text("Busy Week Study Plan", pageWidth / 2, 22, { align: "center" });
 
-  doc.setTextColor(0, 0, 0);
+  // Subtitle
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    `Academic Semester: ${academicPeriod?.semester || "Current"}`,
+    pageWidth / 2,
+    32,
+    { align: "center" },
+  );
+
+  // --- 2. STUDENT DETAILS SECTION ---
+  doc.setTextColor(50, 50, 50);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text(`Week ${reminder.targetBusyWeek} Study Schedule`, 20, 55);
+  doc.text(`Week ${reminder.targetBusyWeek} Schedule`, 20, 60);
 
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(`Student: ${userEmail || "Student"}`, 20, 65);
+  doc.text(`Student: ${userEmail || "Student"}`, 20, 70);
 
   const weekStartDateString = reminder.targetWeekStart
     ? new Date(reminder.targetWeekStart).toLocaleDateString("en-US", {
@@ -153,51 +189,110 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
         day: "numeric",
       })
     : "TBD";
-  doc.text(`Week Starts: ${weekStartDateString}`, 20, 75);
-  doc.text(`Total Hours: ${reminder.targetTotalHours} hours`, 20, 85);
+  doc.text(`Week Starts: ${weekStartDateString}`, 20, 78);
 
+  // Total Hours
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(220, 38, 38); // Red text to highlight the heavy workload
+  doc.text(
+    `Total Estimated Workload: ${reminder.targetTotalHours} hours`,
+    20,
+    86,
+  );
+
+  // Reset text color for the table
+  doc.setTextColor(50, 50, 50);
+
+  // --- 3. TIMETABLE SECTION ---
   if (reminder.timetable && reminder.timetable.length > 0) {
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Recommended Daily Timetable", 20, 100);
-
     const tableData = [];
     const groupedData = groupTimetableByDay(reminder.timetable);
 
     groupedData.forEach((group) => {
       group.tasks.forEach((t, idx) => {
+        // If the AI generated focus topics, inject them into the task column
+        let taskDescription = t.task;
+        if (t.focusTopics) {
+          taskDescription += `\n\nFocus Areas: ${t.focusTopics}`;
+        }
+
         tableData.push([
-          idx === 0 ? `Day ${group.day}` : "",
+          idx === 0 ? `Day ${group.day}` : "", // Only show Day on the first row of the group
           t.subject,
-          t.task,
+          taskDescription,
           `${t.hours}h`,
         ]);
       });
     });
 
     autoTable(doc, {
-      startY: 105,
-      head: [["Day", "Subject", "Task", "Duration"]],
+      startY: 95,
+      head: [["Day", "Subject", "Assigned Task", "Time"]],
       body: tableData,
-      theme: "striped",
+      theme: "grid",
       headStyles: {
-        fillColor: [239, 68, 68],
+        fillColor: [79, 70, 229], // Indigo
         textColor: [255, 255, 255],
         fontStyle: "bold",
+        halign: "center",
       },
-      styles: { fontSize: 10, cellPadding: 5 },
+      bodyStyles: {
+        textColor: [60, 60, 60],
+        valign: "top",
+      },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 50 },
+        0: { cellWidth: 20, fontStyle: "bold", halign: "center" },
+        1: { cellWidth: 45, fontStyle: "bold" },
         2: { cellWidth: "auto" },
-        3: { cellWidth: 25 },
+        3: {
+          cellWidth: 20,
+          halign: "center",
+          fontStyle: "bold",
+          textColor: [220, 38, 38],
+        },
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251], // Very light gray for alternating rows
+      },
+      margin: { top: 95, left: 20, right: 20 },
+      didParseCell: function (data) {
+        // Make grouped rows look cleaner by removing the top border for empty day cells
+        if (
+          data.section === "body" &&
+          data.column.index === 0 &&
+          data.cell.raw === ""
+        ) {
+          data.cell.styles.lineWidth = {
+            top: 0,
+            right: 0.1,
+            bottom: 0.1,
+            left: 0.1,
+          };
+        }
       },
     });
+  } else {
+    doc.setFont("helvetica", "italic");
+    doc.text("No specific timetable data available for this week.", 20, 100);
   }
 
+  // --- 4. FOOTER SECTION ---
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      `Generated by Smart Study Planner - Page ${i} of ${pageCount}`,
+      pageWidth / 2,
+      pageHeight - 10,
+      { align: "center" },
+    );
+  }
+
+  // Save the PDF
   doc.save(`Week-${reminder.targetBusyWeek}-Study-Plan.pdf`);
 };
-
 /* ---------------- DASHBOARD COMPONENT ---------------- */
 
 const StudentDashboard = () => {
