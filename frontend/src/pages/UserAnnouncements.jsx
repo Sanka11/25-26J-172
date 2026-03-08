@@ -101,10 +101,10 @@ export default function UserAnnouncements() {
 
         {/* Active Reminders Section */}
         {reminders.length > 0 && (
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-purple-300 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-md">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-lg">
                   <svg
                     className="w-6 h-6 text-white"
                     fill="currentColor"
@@ -112,16 +112,16 @@ export default function UserAnnouncements() {
                   >
                     <path
                       fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                      d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"
                       clipRule="evenodd"
                     />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-amber-900">
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                     ⚡ Important Reminders
                   </h3>
-                  <p className="text-sm text-amber-800 mt-0.5">
+                  <p className="text-sm text-slate-600 mt-0.5">
                     {reminders.length} active{" "}
                     {reminders.length === 1 ? "reminder" : "reminders"}{" "}
                     requiring your attention
@@ -129,7 +129,7 @@ export default function UserAnnouncements() {
                 </div>
               </div>
               {loading && (
-                <div className="flex items-center gap-2 text-sm text-amber-700">
+                <div className="flex items-center gap-2 text-sm text-indigo-700">
                   <svg
                     className="animate-spin h-4 w-4"
                     fill="none"
@@ -159,36 +159,36 @@ export default function UserAnnouncements() {
                 <div
                   key={a.id}
                   onClick={(e) => handleCardClick(e, a)}
-                  className="group rounded-xl bg-white border-2 border-amber-200 px-4 py-3 shadow-md hover:shadow-xl hover:border-amber-300 transition-all duration-200 cursor-pointer"
+                  className="group rounded-xl bg-white border-2 border-purple-200 px-5 py-4 shadow-md hover:shadow-xl hover:border-purple-400 transition-all duration-200 cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                      <div className="mt-0.5 flex-shrink-0 w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                      <p className="font-bold text-amber-900 text-base leading-tight">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="mt-1 flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 animate-pulse shadow-lg"></div>
+                      <p className="font-bold text-purple-900 text-base leading-tight">
                         {a.title}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {a.remind_until && (
-                        <span className="text-sm text-amber-700 bg-amber-100 px-2 py-1 rounded-md font-medium whitespace-nowrap">
+                        <span className="text-sm text-white bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap shadow-md">
                           📅 {formatDateOnly(a.remind_until)}
                         </span>
                       )}
                       {renderCountdownBadge(a, now)}
                     </div>
                   </div>
-                  <p className="text-base text-amber-900/90 leading-relaxed mb-2 pl-4">
+                  <p className="text-base text-slate-700 leading-relaxed mb-3 pl-5">
                     {a.message}
                   </p>
                   {Array.isArray(a.attachments) && a.attachments.length > 0 && (
-                    <div className="mt-2 pl-4 space-y-1.5">
+                    <div className="mt-3 pl-5 space-y-2">
                       {a.attachments.map((att, idx) => (
                         <div
                           key={`${att.url}-${idx}`}
-                          className="flex items-center gap-2 text-sm bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200"
+                          className="flex items-center gap-2 text-sm bg-gradient-to-r from-purple-50 to-indigo-50 px-3 py-2 rounded-lg border border-purple-200"
                         >
                           <svg
-                            className="w-4 h-4 text-amber-600 flex-shrink-0"
+                            className="w-4 h-4 text-purple-600 flex-shrink-0"
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
@@ -198,14 +198,14 @@ export default function UserAnnouncements() {
                               clipRule="evenodd"
                             />
                           </svg>
-                          <span className="text-amber-800 font-semibold">
+                          <span className="text-purple-700 font-semibold">
                             {att.label || "Attachment"}:
                           </span>
                           <a
                             href={att.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-blue-600 hover:text-blue-800 underline truncate font-medium"
+                            className="text-indigo-600 hover:text-indigo-800 underline truncate font-medium"
                           >
                             {att.url}
                           </a>
@@ -216,7 +216,7 @@ export default function UserAnnouncements() {
                   <button
                     type="button"
                     onClick={() => openDetails(a)}
-                    className="mt-2 ml-4 inline-flex items-center gap-1 text-sm font-semibold text-amber-700 hover:text-amber-900 group-hover:underline"
+                    className="mt-3 ml-5 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 group-hover:underline"
                   >
                     <span>View full details</span>
                     <svg
@@ -240,49 +240,55 @@ export default function UserAnnouncements() {
         )}
 
         {/* All Announcements Section */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md">
-              <svg
-                className="w-6 h-6 text-white"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">
-                All Announcements
-              </h3>
-              <p className="text-sm text-slate-500">
-                {announcements.length}{" "}
-                {announcements.length === 1 ? "announcement" : "announcements"}{" "}
-                available
-              </p>
+        <div className="bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 rounded-2xl shadow-xl border-2 border-purple-200 p-6">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-lg">
+                <svg
+                  className="w-6 h-6 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                  <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                  All Announcements
+                </h3>
+                <p className="text-sm text-slate-600 mt-0.5">
+                  {announcements.length}{" "}
+                  {announcements.length === 1
+                    ? "announcement"
+                    : "announcements"}{" "}
+                  available
+                </p>
+              </div>
             </div>
           </div>
 
           {announcements.length === 0 && !loading ? (
-            <div className="text-center py-12">
-              <svg
-                className="mx-auto h-16 w-16 text-slate-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                />
-              </svg>
-              <p className="mt-4 text-base text-slate-500 font-medium">
+            <div className="text-center py-16">
+              <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+                <svg
+                  className="w-10 h-10 text-purple-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                  />
+                </svg>
+              </div>
+              <p className="mt-4 text-lg text-slate-700 font-semibold">
                 No announcements yet
               </p>
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-2 text-sm text-slate-500">
                 Check back later for updates from your instructors
               </p>
             </div>
@@ -292,20 +298,20 @@ export default function UserAnnouncements() {
                 <div
                   key={a.id}
                   onClick={(e) => handleCardClick(e, a)}
-                  className="group rounded-xl border-2 border-slate-200 px-4 py-3 bg-gradient-to-br from-slate-50 to-blue-50/30 hover:from-blue-50 hover:to-indigo-50 hover:border-blue-300 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+                  className="group rounded-xl border-2 border-purple-200 px-5 py-4 bg-white hover:bg-gradient-to-br hover:from-purple-50 hover:to-indigo-50 hover:border-purple-400 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 flex-shrink-0"></div>
                         <p className="font-bold text-slate-900 text-base truncate">
                           {a.title}
                         </p>
                       </div>
                       {a.remind_until && (
-                        <p className="text-sm text-slate-500 flex items-center gap-1.5 ml-3.5">
+                        <p className="text-sm text-slate-600 flex items-center gap-2 ml-5">
                           <svg
-                            className="w-3.5 h-3.5"
+                            className="w-4 h-4 text-purple-600"
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
@@ -315,28 +321,29 @@ export default function UserAnnouncements() {
                               clipRule="evenodd"
                             />
                           </svg>
-                          Deadline: {formatDateOnly(a.remind_until)}
+                          <span className="font-semibold">Deadline:</span>{" "}
+                          {formatDateOnly(a.remind_until)}
                         </p>
                       )}
                     </div>
                     {isActiveReminder(a) && (
-                      <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1 text-sm font-bold text-white shadow-sm">
+                      <span className="inline-flex items-center rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-1.5 text-sm font-bold text-white shadow-md whitespace-nowrap">
                         🔔 Reminder
                       </span>
                     )}
                   </div>
-                  <p className="text-base text-slate-600 leading-relaxed line-clamp-2 ml-3.5">
+                  <p className="text-base text-slate-700 leading-relaxed line-clamp-2 ml-5">
                     {a.message}
                   </p>
                   {Array.isArray(a.attachments) && a.attachments.length > 0 && (
-                    <div className="mt-2 ml-3.5 space-y-1.5">
+                    <div className="mt-3 ml-5 space-y-2">
                       {a.attachments.map((att, idx) => (
                         <div
                           key={`${att.url}-${idx}`}
-                          className="flex items-center gap-2 text-sm bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200"
+                          className="flex items-center gap-2 text-sm bg-gradient-to-r from-purple-50 to-indigo-50 px-3 py-2 rounded-lg border border-purple-200"
                         >
                           <svg
-                            className="w-4 h-4 text-blue-600 flex-shrink-0"
+                            className="w-4 h-4 text-purple-600 flex-shrink-0"
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
@@ -353,7 +360,7 @@ export default function UserAnnouncements() {
                             href={att.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-blue-600 hover:text-blue-800 underline truncate font-medium"
+                            className="text-indigo-600 hover:text-indigo-800 underline truncate font-medium"
                           >
                             {att.url}
                           </a>
@@ -364,7 +371,7 @@ export default function UserAnnouncements() {
                   <button
                     type="button"
                     onClick={() => openDetails(a)}
-                    className="mt-2 ml-3.5 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800 group-hover:underline"
+                    className="mt-3 ml-5 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 group-hover:underline"
                   >
                     <span>View details</span>
                     <svg

@@ -28,9 +28,11 @@ from app.services.struggle_service import predict_struggle
 # ----------------------------
 # Risk SERVICES
 # ----------------------------
-from app.services.risk_service import predict_risk_score
-from app.services.risk_service import predict_risk_score
-from app.schemas.risk import RiskRequest, RiskResponse
+from app.services.risk_service import predict_risk_score, predict_risk_with_shap
+from app.schemas.risk import (
+    RiskRequest, RiskResponse,
+    StudentRiskInput, StudentRiskResponse
+)
 
 # ----------------------------
 # RAG MODULES
@@ -46,14 +48,28 @@ from app.vector_store import add_documents
 # ----------------------------
 from app.services.student_profile_service import get_profile_manager
 from app.services.chat_history_service import get_history_manager
+from app.services.personalized_intervention_service import (
+    get_personalized_intervention_service,
+)
 
 # ----------------------------
 # Disengagement Router
 # ----------------------------
-from app.disengagement.router import router as disengagement_router
+#from app.disengagement.router import router as disengagement_router
 
 
 app = FastAPI(title="AcademiGuard ML Service")
+
+# ----------------------------
+# CORS MIDDLEWARE (MUST BE BEFORE ROUTERS)
+# ----------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(disengagement_router)
 
@@ -83,17 +99,6 @@ def _save_feedback_items(items: list) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
-# ----------------------------
-# CORS MIDDLEWARE
-# ----------------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # -----------------------------------------------------------
 # EXISTING ENDPOINTS (DO NOT REMOVE)
 # -----------------------------------------------------------
@@ -105,8 +110,36 @@ def health():
 
 @app.post("/predict-risk", response_model=RiskResponse)
 def predict_risk(payload: RiskRequest):
+    """Legacy endpoint — kept for backward compatibility."""
     score = predict_risk_score(payload)
     return RiskResponse(risk_score=score)
+
+
+@app.post("/predict-risk/shap")
+def predict_risk_shap(payload: StudentRiskInput):
+    """SHAP-based risk prediction. Returns score + full explanation."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    return predict_risk_with_shap(data)
+
+
+@app.post("/predict-risk/shap/{student_id}")
+def predict_risk_shap_for_student(student_id: str, payload: StudentRiskInput):
+    """SHAP risk prediction for a specific student ID."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    return predict_risk_with_shap(data, student_id=student_id)
+
+
+@app.post("/predict-risk/next-semester")
+def predict_next_semester(payload: StudentRiskInput):
+    """What-if prediction — result is NEVER stored."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    result = predict_risk_with_shap(data)
+    result["is_hypothetical"] = True
+    result["note"] = "Simulation only. Results are not saved."
+    return result
     
 @app.post("/recommendations", response_model=RecommendationResponse)
 def get_student_recommendations(request: RecommendationRequest):
@@ -228,7 +261,8 @@ async def upload_pdf(
 
     # ----------- Chunk -----------
     print(f"Chunking text...")
-    chunks = chunk_text(text, chunk_size=1000, overlap=200)
+    # Use section-aware chunking with smaller chunk size for more relevance
+    chunks = chunk_text(text, chunk_size=600, overlap=100, section_aware=True)
     if not chunks:
         print(f"ERROR: No chunks produced")
         raise HTTPException(status_code=400, detail="Chunking produced no chunks")
@@ -637,6 +671,39 @@ def sync_student_from_firebase(user_id: str):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error syncing from Firebase: {str(e)}")
+
+
+@app.get("/student/intervention-reminder/{student_id}")
+def get_personalized_intervention_reminder(student_id: str):
+    """reminders for a student.
+
+    The endpoint reads current metrics from Firebase-backed students data,
+    classifies performance using configured thresholds, and generates dynamic
+    reminder statements for chatbot onboarding.
+    """
+    try:
+        service = get_personalized_intervention_service()
+        result = service.generate_personalized_intervention(student_id)
+        return {
+            "status": "success",
+            **result,
+        }
+    except ValueError as e:
+        # Return 200 fallback so frontend can continue with local Firebase lookup
+        # and we avoid repeated 404 noise in ML service logs.
+        return {
+            "status": "not_found",
+            "student_id": student_id,
+            "classification": None,
+            "reminders": [],
+            "reminder_message": "",
+            "detail": str(e),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating personalized intervention reminder: {str(e)}",
+        )
 
 
 # ========================================
