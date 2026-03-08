@@ -4,7 +4,7 @@ import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
 import { chatHistoryService } from "../services/chatHistoryService";
-import { useAuth } from "../context/AuthContext";
+import { ROLES, useAuth } from "../context/AuthContext";
 import { db } from "../config/firebase";
 import {
   collection,
@@ -217,6 +217,8 @@ const buildInterventionFromMetrics = (metrics) => {
 export default function Chat({ onClose }) {
   const { currentUser, userData } = useAuth();
   const navigate = useNavigate();
+  const canUploadPdf =
+    userData?.role === ROLES.ADMIN || userData?.role === ROLES.SUPER_ADMIN;
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([
     {
@@ -234,6 +236,7 @@ export default function Chat({ onClose }) {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -695,6 +698,20 @@ export default function Chat({ onClose }) {
     return () => clearTimeout(timeout);
   }, [typingState]);
 
+  // Close command menu when clicking outside
+  useEffect(() => {
+    if (!showCommandMenu) return;
+
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".command-menu-container")) {
+        setShowCommandMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showCommandMenu]);
+
   const formatTime = (iso) => {
     if (!iso) return "";
     try {
@@ -755,6 +772,10 @@ export default function Chat({ onClose }) {
 
   const handlePdfSelect = async (file) => {
     if (!file) return;
+    if (!canUploadPdf) {
+      setError("PDF upload is available only for admins.");
+      return;
+    }
     setPdfProcessing(true);
     setError("");
     try {
@@ -998,6 +1019,76 @@ export default function Chat({ onClose }) {
                 <path d="M9 21h6" />
               </svg>
             </button>
+            <div className="relative command-menu-container">
+              <button
+                type="button"
+                onClick={() => setShowCommandMenu(!showCommandMenu)}
+                aria-label="Quick navigation commands"
+                title="Quick navigation commands"
+                className={`inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 text-[11px] font-semibold ${
+                  showCommandMenu
+                    ? "bg-blue-50 text-blue-600 border-blue-200"
+                    : "bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-4 w-4"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M3 12h18" />
+                  <path d="M3 18h18" />
+                </svg>
+              </button>
+              {showCommandMenu && (
+                <div className="absolute bottom-10 left-0 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <h3 className="text-xs font-semibold text-slate-700">
+                      Quick Navigation
+                    </h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Click any command to navigate
+                    </p>
+                  </div>
+                  <div className="py-1">
+                    {APP_AUTOMATION_COMMANDS.map((cmd, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          navigate(cmd.route);
+                          setShowCommandMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2 group"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 flex-shrink-0"
+                        >
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                        <div>
+                          <div className="text-xs font-medium text-slate-700 group-hover:text-blue-600">
+                            {cmd.label}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {cmd.route}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() =>
@@ -1020,29 +1111,34 @@ export default function Chat({ onClose }) {
                 <path d="M8 5l1.2-2h5.6L16 5" />
               </svg>
             </button>
-            <button
-              type="button"
-              onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
-              aria-label="Upload PDF"
-              title="Upload PDF"
-              className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-4 w-4"
+            {canUploadPdf && (
+              <button
+                type="button"
+                onClick={() =>
+                  pdfInputRef.current && pdfInputRef.current.click()
+                }
+                aria-label="Upload PDF"
+                title="Upload PDF"
+                className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
               >
-                <path d="M7 3h7l5 5v13H7z" />
-                <path d="M14 3v5h5" />
-                <path d="M9 14h6" />
-                <path d="M9 17h6" />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-4 w-4"
+                >
+                  <path d="M7 3h7l5 5v13H7z" />
+                  <path d="M14 3v5h5" />
+                  <path d="M9 14h6" />
+                  <path d="M9 17h6" />
+                </svg>
+              </button>
+            )}
             <span className="ml-1 hidden md:inline">
-              Powered by PDFs, voice, and images.
+              Powered by{" "}
+              {canUploadPdf ? "PDFs, voice, and images" : "voice and images"}.
             </span>
           </div>
           <button
@@ -1067,25 +1163,27 @@ export default function Chat({ onClose }) {
             }
           }}
         />
-        <input
-          ref={pdfInputRef}
-          type="file"
-          accept=".pdf"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              handlePdfSelect(file);
-              e.target.value = "";
-            }
-          }}
-        />
+        {canUploadPdf && (
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                handlePdfSelect(file);
+                e.target.value = "";
+              }
+            }}
+          />
+        )}
         {imageProcessing && (
           <p className="text-[10px] text-slate-400">
             Extracting text from image…
           </p>
         )}
-        {pdfProcessing && (
+        {canUploadPdf && pdfProcessing && (
           <p className="text-[10px] text-slate-400">
             Extracting text from PDF…
           </p>
