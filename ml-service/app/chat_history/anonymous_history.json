@@ -610,5 +610,11 @@
     "datetime": "2026-03-08T20:16:48.852456",
     "question": "what is group activities",
     "answer": "As AcademiGuard, I can help you with your questions about this course.\n\nThe event described as \"Camera Roll 'Show and Tell'\" is a group activity where students share pictures from their phones with each other. This is typically allowed in a learning environment, but there's an explicit rule: no copying of images or sharing of original content without permission."
+  },
+  {
+    "timestamp": 1772983181.213047,
+    "datetime": "2026-03-08T20:49:41.213047",
+    "question": "what is mashine learning?",
+    "answer": "Machine Learning refers to a subset of artificial intelligence that enables computers to learn from data without being explicitly programmed, allowing them to improve their performance and make predictions on new, unseen information.\n\nIn simpler terms, machine learning helps computers figure out patterns in data on their own, making them smarter and more accurate over time."
   }
 ]
