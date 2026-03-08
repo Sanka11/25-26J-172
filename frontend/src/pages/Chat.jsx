@@ -238,6 +238,7 @@ export default function Chat({ onClose }) {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
+  const [expandedPdfId, setExpandedPdfId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -618,7 +619,7 @@ export default function Chat({ onClose }) {
       }
 
       const data = await res.json();
-      const answerText = data.answer || "No answer returned.";
+      const answerText = data.answer || "Download PDF";
       const assistantId = `assistant-${Date.now()}`;
 
       // Add an empty assistant message and then fill it word-by-word
@@ -893,6 +894,14 @@ export default function Chat({ onClose }) {
     window.speechSynthesis.speak(utterance);
   };
 
+  const handlePdfPreview = (messageId) => {
+    if (expandedPdfId === messageId) {
+      setExpandedPdfId(null);
+    } else {
+      setExpandedPdfId(messageId);
+    }
+  };
+
   return (
     <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
@@ -959,85 +968,188 @@ export default function Chat({ onClose }) {
                   AG
                 </div>
               )}
-              <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
-                  msg.sender === "user"
-                    ? "bg-blue-600 text-white rounded-br-sm"
-                    : msg.isPersonalizedReminder
-                      ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
-                      : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
-                }`}
-              >
-                {msg.isPersonalizedReminder && msg.classification && (
-                  <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                    {msg.classification}
-                  </p>
-                )}
-                <div className="flex items-start justify-between gap-2">
-                  <p className="whitespace-pre-line flex-1">{msg.text}</p>
-                  {msg.sender === "assistant" && msg.text && (
-                    <button
-                      type="button"
-                      onClick={() => handleTextToSpeech(msg.id, msg.text)}
-                      className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
-                        speakingMessageId === msg.id
-                          ? "text-blue-600 bg-blue-50"
-                          : "text-slate-500 hover:text-blue-600"
-                      }`}
-                      title={
-                        speakingMessageId === msg.id
-                          ? "Stop speaking"
-                          : "Read aloud"
-                      }
-                    >
-                      {speakingMessageId === msg.id ? (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4"
-                        >
-                          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                        </svg>
-                      ) : (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4"
-                        >
-                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                        </svg>
-                      )}
-                    </button>
+              {msg.text && (
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
+                    msg.sender === "user"
+                      ? "bg-blue-600 text-white rounded-br-sm"
+                      : msg.isPersonalizedReminder
+                        ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
+                        : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                  }`}
+                >
+                  {msg.isPersonalizedReminder && msg.classification && (
+                    <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      {msg.classification}
+                    </p>
                   )}
-                </div>
-
-                {/* Show download button for PDF requests */}
-                {msg.sender === "assistant" &&
-                  msg.download_url &&
-                  msg.downloadable_pdf && (
-                    <div className="mt-2 pt-2 border-t border-slate-200">
-                      <a
-                        href={msg.download_url}
-                        download
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="whitespace-pre-line flex-1">{msg.text}</p>
+                    {msg.sender === "assistant" && msg.text && (
+                      <button
+                        type="button"
+                        onClick={() => handleTextToSpeech(msg.id, msg.text)}
+                        className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
+                          speakingMessageId === msg.id
+                            ? "text-blue-600 bg-blue-50"
+                            : "text-slate-500 hover:text-blue-600"
+                        }`}
+                        title={
+                          speakingMessageId === msg.id
+                            ? "Stop speaking"
+                            : "Read aloud"
+                        }
                       >
-                        📥 Download {msg.downloadable_pdf}
-                      </a>
-                    </div>
-                  )}
+                        {speakingMessageId === msg.id ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-4 w-4"
+                          >
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-4 w-4"
+                          >
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
-                {msg.createdAt && (
-                  <p
-                    className={`mt-1 text-[10px] opacity-70 ${
-                      msg.sender === "user" ? "text-blue-100" : "text-slate-500"
-                    }`}
-                  >
-                    {formatTime(msg.createdAt)}
-                  </p>
+              {/* Show PDF section for PDF requests */}
+              {msg.sender === "assistant" &&
+                msg.is_pdf_request &&
+                msg.download_url &&
+                msg.downloadable_pdf && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                    <div className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg p-2.5 border border-blue-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">📄</span>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700">
+                              {msg.downloadable_pdf}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              PDF Document
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePdfPreview(msg.id)}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-white border border-slate-300 text-slate-700 px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-50 transition-colors"
+                        >
+                          {expandedPdfId === msg.id ? (
+                            <>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5"
+                              >
+                                <path d="M7 10l5 5 5-5z" />
+                              </svg>
+                              Hide Preview
+                            </>
+                          ) : (
+                            <>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5"
+                              >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                              </svg>
+                              Preview
+                            </>
+                          )}
+                        </button>
+                        <a
+                          href={msg.download_url}
+                          download
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-3.5 w-3.5"
+                          >
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                          </svg>
+                          Download
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* PDF Preview */}
+                    {expandedPdfId === msg.id && (
+                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+                        <div className="text-center mb-2">
+                          <p className="text-xs font-semibold text-slate-600">
+                            PDF Preview
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Click download to open full document
+                          </p>
+                        </div>
+                        <div className="bg-white rounded border border-slate-200 p-2 text-center">
+                          <p className="text-xs text-slate-600 mb-2">
+                            📖 {msg.downloadable_pdf}
+                          </p>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            This PDF document contains important academic
+                            policies and procedures. Click the download button
+                            to view the complete file in your PDF reader.
+                          </p>
+                          <a
+                            href={msg.download_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                          >
+                            Open PDF
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              className="h-3 w-3"
+                            >
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3v10m0 0l-3-3m3 3l3-3" />
+                            </svg>
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </div>
+
+              {msg.createdAt && (
+                <p
+                  className={`mt-1 text-[10px] opacity-70 ${
+                    msg.sender === "user" ? "text-blue-100" : "text-slate-500"
+                  }`}
+                >
+                  {formatTime(msg.createdAt)}
+                </p>
+              )}
               {msg.sender === "user" && (
                 <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
                   You
