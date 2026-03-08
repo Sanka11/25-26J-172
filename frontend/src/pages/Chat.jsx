@@ -237,6 +237,7 @@ export default function Chat({ onClose }) {
   const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
@@ -712,6 +713,15 @@ export default function Chat({ onClose }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showCommandMenu]);
 
+  // Cleanup speech synthesis on component unmount
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   const formatTime = (iso) => {
     if (!iso) return "";
     try {
@@ -818,6 +828,12 @@ export default function Chat({ onClose }) {
       console.error("Failed to clear chat history:", error);
     }
 
+    // Stop any ongoing speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingMessageId(null);
+
     // Reset local state
     setMessages([
       {
@@ -830,6 +846,51 @@ export default function Chat({ onClose }) {
     setQuestion("");
     setError("");
     setTypingState(null);
+  };
+
+  const handleTextToSpeech = (messageId, text) => {
+    // Check if browser supports speech synthesis
+    if (!("speechSynthesis" in window)) {
+      setError("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    // If already speaking this message, stop it
+    if (speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+
+    // Create new utterance
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0; // Normal speed
+    utterance.pitch = 1.0; // Normal pitch
+    utterance.volume = 1.0; // Full volume
+    utterance.lang = "en-US"; // English
+
+    // Update state when speech starts
+    utterance.onstart = () => {
+      setSpeakingMessageId(messageId);
+    };
+
+    // Clear state when speech ends
+    utterance.onend = () => {
+      setSpeakingMessageId(null);
+    };
+
+    // Handle errors
+    utterance.onerror = (event) => {
+      console.error("Speech synthesis error:", event);
+      setSpeakingMessageId(null);
+      setError("Failed to play audio. Please try again.");
+    };
+
+    // Speak the text
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
@@ -912,7 +973,45 @@ export default function Chat({ onClose }) {
                     {msg.classification}
                   </p>
                 )}
-                <p className="whitespace-pre-line">{msg.text}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="whitespace-pre-line flex-1">{msg.text}</p>
+                  {msg.sender === "assistant" && msg.text && (
+                    <button
+                      type="button"
+                      onClick={() => handleTextToSpeech(msg.id, msg.text)}
+                      className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
+                        speakingMessageId === msg.id
+                          ? "text-blue-600 bg-blue-50"
+                          : "text-slate-500 hover:text-blue-600"
+                      }`}
+                      title={
+                        speakingMessageId === msg.id
+                          ? "Stop speaking"
+                          : "Read aloud"
+                      }
+                    >
+                      {speakingMessageId === msg.id ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                        >
+                          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                        >
+                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
 
                 {/* Show download button for PDF requests */}
                 {msg.sender === "assistant" &&
