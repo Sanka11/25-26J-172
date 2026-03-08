@@ -1,5 +1,4 @@
 // Quiz controllers
-
 const {
   createQuiz,
   submitQuiz,
@@ -18,16 +17,23 @@ const {
   generateBusyWeekReminders,
   getEnrolledSubjects,
 } = require("./src/http/workloadController");
+
 // recommendation savindi
 const { getRecommendations } = require("./src/http/recommendationProxy");
 const { dailyWorkloadEmailScheduler } = require("./src/http/emailScheduler");
 
 // ML controllers
-const { predictRisk } = require("./src/http/mlProxy");
+const {
+  predictRisk,
+  predictRiskShap,
+  predictNextSemester,
+  getBulkRisk,
+} = require("./src/http/mlProxy");
 
 // Student risk explainability controller
 const {
   getStudentRiskExplanation,
+  updateStudentMarks,
 } = require("./src/http/studentRiskExplanation");
 
 // Student risk history (temporal tracking)
@@ -49,9 +55,16 @@ const {
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
 
+// Academic data (deadlines)
+const {
+  getAllDeadlines,
+  getModuleInfo,
+  getUpcomingDeadlines,
+} = require("./src/http/academicDataController");
 
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
+
 // -------------------------------
 // Recommendation savindi
 // -------------------------------
@@ -67,7 +80,7 @@ exports.getQuizByLevel = getQuizByLevel;
 exports.fetchQuizByUser = fetchQuizByUser;
 
 // -------------------------------
-// workload savindi
+// Workload savindi
 // -------------------------------
 exports.generateLectureAlerts = generateLectureAlerts;
 exports.getWeeklyWorkload = getWeeklyWorkload;
@@ -83,11 +96,15 @@ exports.dailyWorkloadEmailScheduler = dailyWorkloadEmailScheduler;
 // ML exports
 // -------------------------------
 exports.predictRisk = predictRisk;
+exports.predictRiskShap = predictRiskShap;
+exports.predictNextSemester = predictNextSemester;
+exports.getBulkRisk = getBulkRisk;
 
 // -------------------------------
 // Student risk APIs
 // -------------------------------
 exports.getStudentRiskExplanation = getStudentRiskExplanation;
+exports.updateStudentMarks = updateStudentMarks;
 exports.getStudentRiskHistory = getStudentRiskHistory;
 
 // -------------------------------
@@ -106,14 +123,9 @@ exports.getChatFeedbackStats = getChatFeedbackStats;
 exports.listChatFeedback = listChatFeedback;
 exports.deleteChatFeedback = deleteChatFeedback;
 
-// academic data (deadlines)
-
-const {
-  getAllDeadlines,
-  getModuleInfo,
-  getUpcomingDeadlines,
-} = require("./src/http/academicDataController");
-
+// -------------------------------
+// Academic data APIs
+// -------------------------------
 exports.getAllDeadlines = getAllDeadlines;
 exports.getModuleInfo = getModuleInfo;
 exports.getUpcomingDeadlines = getUpcomingDeadlines;

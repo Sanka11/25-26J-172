@@ -5,7 +5,6 @@ import { useAuth, ROLES } from "../context/AuthContext";
 export default function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
-
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -14,6 +13,7 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
     role: ROLES.STUDENT,
+    studentId: "",
   });
 
   const handleSignup = async () => {
@@ -21,7 +21,10 @@ export default function Signup() {
       alert("Passwords do not match");
       return;
     }
-
+    if (form.role === ROLES.STUDENT && !form.studentId.trim()) {
+      alert("Student ID is required for student accounts");
+      return;
+    }
     try {
       await signup(form);
       alert("Account Created Successfully!");
@@ -44,35 +47,30 @@ export default function Signup() {
           className="w-full p-2 border rounded"
           onChange={(e) => setForm({ ...form, firstName: e.target.value })}
         />
-
         <input
           type="text"
           placeholder="Last Name"
           className="w-full p-2 border rounded"
           onChange={(e) => setForm({ ...form, lastName: e.target.value })}
         />
-
         <input
           type="text"
           placeholder="Contact Number"
           className="w-full p-2 border rounded"
           onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
         />
-
         <input
           type="email"
           placeholder="Email"
           className="w-full p-2 border rounded"
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
-
         <input
           type="password"
           placeholder="Password"
           className="w-full p-2 border rounded"
           onChange={(e) => setForm({ ...form, password: e.target.value })}
         />
-
         <input
           type="password"
           placeholder="Re-enter Password"
@@ -92,6 +90,16 @@ export default function Signup() {
           <option value={ROLES.ADMIN}>Admin</option>
           <option value={ROLES.SUPER_ADMIN}>Super Admin</option>
         </select>
+
+        {/* Student ID — only shown for students */}
+        {form.role === ROLES.STUDENT && (
+          <input
+            type="text"
+            placeholder="Student ID (e.g. S1000)"
+            className="w-full p-2 border rounded"
+            onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+          />
+        )}
 
         <button
           onClick={handleSignup}

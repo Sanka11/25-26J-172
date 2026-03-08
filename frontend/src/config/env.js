@@ -1,5 +1,4 @@
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
 // savindi
@@ -36,6 +35,11 @@ const DELETE_CHAT_FEEDBACK_URL = `${BASE_URL}/deleteChatFeedback`;
 
 // Prediction APIs
 const PREDICT_RISK_URL = `${BASE_URL}/predictRisk`;
+const PREDICT_RISK_SHAP_URL = `${BASE_URL}/predictRiskShap`;
+const PREDICT_NEXT_SEMESTER_URL = `${BASE_URL}/predictNextSemester`;
+const GET_BULK_RISK_URL = `${BASE_URL}/getBulkRisk`;
+const GET_STUDENT_RISK_URL = `${BASE_URL}/getStudentRiskExplanation`;
+const UPDATE_STUDENT_MARKS_URL = `${BASE_URL}/updateStudentMarks`;
 
 // Local ML Service
 const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
@@ -54,6 +58,11 @@ export const appConfig = {
 
   // ML
   PREDICT_RISK_URL,
+  PREDICT_RISK_SHAP_URL,
+  PREDICT_NEXT_SEMESTER_URL,
+  GET_BULK_RISK_URL,
+  GET_STUDENT_RISK_URL,
+  UPDATE_STUDENT_MARKS_URL,
   ML_BASE_URL,
   ML_UPLOAD_URL,
   ML_CHAT_URL,
@@ -78,7 +87,6 @@ export const appConfig = {
   CAREER_READINESS_URL,
   PREDICT_STRUGGLE_URL,
   GET_STUDENT_ENROLLMENT_URL,
-  
 
   // Announcements
   CREATE_ANNOUNCEMENT_URL,
