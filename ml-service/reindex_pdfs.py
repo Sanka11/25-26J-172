@@ -55,8 +55,8 @@ try:
             
             print(f"  ✓ Extracted {len(text)} characters")
             
-            # 2. Chunk text
-            chunks = chunk_text(text, chunk_size=1000, overlap=200)
+            # 2. Chunk text with section-aware chunking
+            chunks = chunk_text(text, chunk_size=600, overlap=100, section_aware=True)
             if not chunks:
                 print(f"  ✗ No chunks created\n")
                 continue

@@ -13,6 +13,8 @@ import { ROLES } from "./context/AuthContext";
 
 /* ================= Pages ================= */
 import RiskDemo from "./pages/RiskDemo";
+import StudentRiskDashboard from "./pages/StudentRiskDashboard";
+import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
 
 //savindi
 import WorkloadDashboard from "./pages/StudentDashboard";
@@ -89,11 +91,11 @@ function AppLayout() {
             My Risk Timeline
           </Link>
           <Link
-          to="/admin/disengagementhub"
-          className="block text-center px-3 py-2 rounded bg-slate-800"
-        >
-          Disengagement Center
-        </Link>
+            to="/admin/disengagementhub"
+            className="block text-center px-3 py-2 rounded bg-slate-800"
+          >
+            Disengagement Center
+          </Link>
         </nav>
       </aside>
 
@@ -171,7 +173,7 @@ function MainShell() {
           path="/admin/adminworkload"
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
-              <AdminWorkloadTracker/>
+              <AdminWorkloadTracker />
             </ProtectedRoute>
           }
         />
@@ -243,19 +245,21 @@ function MainShell() {
           }
         />
         <Route
-        path="admin/disengagementhub"
-        element={
-          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
-            <DisengagementHub />
-          </ProtectedRoute>
-        }
-      />
-                {/* SHARED ROUTES */}
+          path="admin/disengagementhub"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <DisengagementHub />
+            </ProtectedRoute>
+          }
+        />
+        {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
+        <Route path="/my-risk" element={<StudentRiskDashboard />} />
+        <Route path="/lecturer-risk" element={<LecturerRiskDashboard />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
-     
+
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />
         {/* 404 */}

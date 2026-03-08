@@ -1296,7 +1296,7 @@ const RecommendationDashboard = () => {
             {/* Left Column */}
             <div className="lg:col-span-1 space-y-6">
               {/* Wellness Check Card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up delay-200 hover:shadow-lg transition-all duration-300">
+              {/* <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up delay-200 hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center space-x-2 mb-6">
                   <span className="text-2xl">🌱</span>
                   <h2 className="text-xl font-bold text-gray-800">
@@ -1376,6 +1376,164 @@ const RecommendationDashboard = () => {
                     onClick={fetchAIInsights}
                     disabled={loading}
                     className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-bold shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {loading ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        <span>Analyzing Data...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"
+                          ></path>
+                        </svg>
+                        <span>Generate Insights</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div> */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up delay-200 hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center space-x-2 mb-6">
+                  <span className="text-2xl">🌱</span>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    Weekly Check-in
+                  </h2>
+                </div>
+
+                <div className="space-y-8">
+                  {" "}
+                  {/* Increased spacing for better readability */}
+                  {/* --- STUDY HOURS --- */}
+                  <div className="group">
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <span className="text-gray-600 font-bold group-hover:text-blue-600 transition-colors flex items-center gap-2">
+                          📚 Study Time
+                        </span>
+                        <span className="text-xs text-gray-400 font-medium">
+                          Avg:{" "}
+                          <strong className="text-blue-500">
+                            {(checkInData.study_hours_per_week / 7).toFixed(1)}h
+                          </strong>{" "}
+                          per day
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 shadow-sm">
+                          {checkInData.study_hours_per_week}h / week
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      name="study_hours_per_week"
+                      min="0"
+                      max="40"
+                      value={checkInData.study_hours_per_week}
+                      onChange={handleInputChange}
+                      className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 font-bold uppercase">
+                      <span>0h</span>
+                      <span>20h</span>
+                      <span>40h</span>
+                    </div>
+                  </div>
+                  {/* --- STRESS LEVEL --- */}
+                  <div className="group">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-gray-600 font-bold group-hover:text-orange-600 transition-colors flex items-center gap-2">
+                        ⚡ Stress Level
+                      </span>
+                      <div className="flex items-center space-x-1.5 bg-orange-50 px-3 py-1 rounded-lg border border-orange-100 shadow-sm">
+                        <span className="text-lg">
+                          {getStressEmoji(checkInData.stress_level)}
+                        </span>
+                        <span className="font-black text-orange-700">
+                          {checkInData.stress_level}/10
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      name="stress_level"
+                      min="1"
+                      max="10"
+                      value={checkInData.stress_level}
+                      onChange={handleInputChange}
+                      className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500 hover:accent-orange-600 transition-all"
+                    />
+                    <p className="text-xs font-bold text-orange-600/70 mt-2 text-right">
+                      {getStressDescription(checkInData.stress_level)}
+                    </p>
+                  </div>
+                  {/* --- SLEEP HOURS --- */}
+                  <div className="group">
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <span className="text-gray-600 font-bold group-hover:text-purple-600 transition-colors flex items-center gap-2">
+                          🌙 Sleep Duration
+                        </span>
+                        <span className="text-xs text-gray-400 font-medium">
+                          Tracked{" "}
+                          <strong className="text-purple-500">per night</strong>
+                        </span>
+                      </div>
+                      <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-sm">
+                        {checkInData.sleep_hours}h / night
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      name="sleep_hours"
+                      min="0"
+                      max="12"
+                      step="0.5"
+                      value={checkInData.sleep_hours}
+                      onChange={handleInputChange}
+                      className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-600 transition-all"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 font-bold uppercase">
+                      <span>0h</span>
+                      <span>6h</span>
+                      <span>12h</span>
+                    </div>
+                  </div>
+                  {/* --- BUTTON --- */}
+                  <button
+                    onClick={fetchAIInsights}
+                    disabled={loading}
+                    className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-4 rounded-xl font-bold shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                   >
                     {loading ? (
                       <>

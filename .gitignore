@@ -57,6 +57,11 @@ ml-service/venv/
 *.npy
 *.save
 *.npz
+*.pkl
+*.csv
+clean_structure.txt
+project_structure.txt
+structure.txt
 
 # -------------------------------
 # Chroma / Vector DB files

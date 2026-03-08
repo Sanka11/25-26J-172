@@ -40,6 +40,11 @@ const DELETE_CHAT_FEEDBACK_URL = `${BASE_URL}/deleteChatFeedback`;
 
 // Prediction APIs
 const PREDICT_RISK_URL = `${BASE_URL}/predictRisk`;
+const PREDICT_RISK_SHAP_URL = `${BASE_URL}/predictRiskShap`;
+const PREDICT_NEXT_SEMESTER_URL = `${BASE_URL}/predictNextSemester`;
+const GET_BULK_RISK_URL = `${BASE_URL}/getBulkRisk`;
+const GET_STUDENT_RISK_URL = `${BASE_URL}/getStudentRiskExplanation`;
+const UPDATE_STUDENT_MARKS_URL = `${BASE_URL}/updateStudentMarks`;
 
 // Local ML Service
 const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
@@ -48,6 +53,7 @@ const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
 const ML_FEEDBACK_STATS_URL = `${ML_BASE_URL}/feedback/stats`;
 const ML_LIST_DOCS_URL = `${ML_BASE_URL}/documents`;
+const ML_INTERVENTION_REMINDER_URL = `${ML_BASE_URL}/student/intervention-reminder`;
 
 // Academic APIs
 const GET_ALL_DEADLINES_URL = `${BASE_URL}/getAllDeadlines`;
@@ -59,12 +65,18 @@ export const appConfig = {
 
   // ML
   PREDICT_RISK_URL,
+  PREDICT_RISK_SHAP_URL,
+  PREDICT_NEXT_SEMESTER_URL,
+  GET_BULK_RISK_URL,
+  GET_STUDENT_RISK_URL,
+  UPDATE_STUDENT_MARKS_URL,
   ML_BASE_URL,
   ML_UPLOAD_URL,
   ML_CHAT_URL,
   ML_FEEDBACK_URL,
   ML_FEEDBACK_STATS_URL,
   ML_LIST_DOCS_URL,
+  ML_INTERVENTION_REMINDER_URL,
 
   // Quiz savindi
   CREATE_QUIZ_URL,
