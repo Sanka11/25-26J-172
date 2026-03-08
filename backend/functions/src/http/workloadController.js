@@ -9,10 +9,17 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Initialize Groq as a constant
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+// Initialize Groq conditionally (only if API key is available)
+let groq = null;
+if (process.env.GROQ_API_KEY) {
+  groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
+  });
+} else {
+  console.warn(
+    "GROQ_API_KEY not found - AI timetable generation will be unavailable",
+  );
+}
 
 /**
  * Generate Weekly Workload purely from SUBJECT data
@@ -423,6 +430,12 @@ Example:
 
           try {
             console.log("Calling Groq API for advanced timetable...");
+
+            if (!groq) {
+              throw new Error(
+                "Groq API not configured - GROQ_API_KEY is missing",
+              );
+            }
 
             const completion = await groq.chat.completions.create({
               model: "llama-3.3-70b-versatile",

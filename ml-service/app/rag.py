@@ -477,22 +477,53 @@ def _suggest_pdfs(question: str) -> list:
     """Suggest relevant PDFs based on question keywords"""
     q = question.lower()
     keyword_to_pdf = {
-        # Library policies
-        ("policy", "policies", "regulation", "guidelines", "rules", "borrowing", "late", "fine", "overdue"): "library_policies.pdf",
-        ("library", "book", "borrow", "reserve", "collection"): "library_policies.pdf",
+        # Rules and regulations
+        ("rule", "rulebook", "conduct", "regulation", "handbook", "code"): "SLIIT Rule Book.pdf",
+        ("plagiarism", "cheating", "integrity", "citation", "honesty"): "Academic Integrity Policy for Students .pdf",
+        ("scholarship", "scheme", "financial aid", "grant", "sponsorship", "fund"): "SLIIT_Scholarship_Scheme.pdf",
         
-        # Academic integrity
-        ("plagiarism", "plagiarise", "plagiarize", "integrity", "cheating", "dishonesty", "cite", "citation"): "academic_integrity.pdf",
-        ("honesty", "ethics", "academic", "conduct", "misconduct"): "academic_integrity.pdf",
+        # Library and resources
+        ("library", "borrowing", "book", "loan", "overdue", "late fee", "borrow"): "Library Rules final -17th July 2024.pdf",
         
-        # Student handbook
-        ("student", "handbook", "code of conduct", "dress code", "behavior", "attendance"): "student_handbook.pdf",
+        # Academic progress
+        ("progression", "academic", "criteria", "gpa", "fail", "repeat", "standing"): "Academic Progression Criteria (2022 Regular Intake onwards).pdf",
+        ("progression", "changes", "2027", "requirement"): "2027 onwards_ Changes to Progression Rules.pdf",
         
-        # Fee structure
-        ("fee", "fees", "tuition", "cost", "payment", "financial", "scholarship"): "fee_structure.pdf",
+        # Dress code
+        ("dress", "attire", "clothing", "uniform", "appearance"): "Dress_Code_for_SLIIT_Students.pdf",
         
-        # Academic calendar
-        ("semester", "calendar", "term", "break", "holiday", "schedule"): "academic_calendar.pdf",
+        # Computer labs
+        ("computer", "lab", "laboratory"): "Computer Laboratory Usage rules and regulations.pdf",
+        
+        # IT policies
+        ("it policy", "acceptable", "technology", "computer use", "internet"): "Acceptable IT Use Policy For Students of SLIIT and SLIIT Subsidiaries V1.1.pdf",
+        
+        # Emergency
+        ("emergency", "response", "procedures", "disaster", "crisis"): "Emergency Response Procedures.pdf",
+        
+        # Lost and found
+        ("lost", "found", "missing", "item"): "Lost and Found Policy_Student Notice.pdf",
+        
+        # Medical
+        ("medical", "emergency", "health", "first aid"): "Medical Emergency _Poster April 2024.pdf",
+        
+        # ERP
+        ("erp", "system", "enterprise"): "ERP  - 27 FEB 2025.pdf",
+        
+        # Events
+        ("event", "activities", "psychology"): "Events-and-Activites-Psychology-Dep-2022-23.pdf",
+        
+        # Calendar
+        ("calendar", "semester", "schedule", "term", "break", "holiday"): "academic_calendar.pdf",
+        
+        # Lecturer contact
+        ("lecturer", "email", "contact", "teacher", "instructor"): "academic_lecturer_data_corrected_emails.pdf",
+        
+        # Fees
+        ("fee", "cost", "payment", "tuition"): "fee_structure.pdf",
+        
+        # Bank details
+        ("bank", "details", "transaction", "payment", "account", "banking"): "Bank Details for student transactions new.pdf",
     }
     
     suggested = set()
@@ -517,49 +548,64 @@ def _find_matching_pdf_files(question: str) -> list:
     all_files = [f for f in os.listdir(uploaded_pdfs_dir) if f.lower().endswith('.pdf')]
     
     q_lower = question.lower()
-    matching_files = []
+    
+    # Comprehensive keyword-to-file mappings for all uploaded PDFs
+    keyword_mappings = {
+        "SLIIT Rule Book.pdf": ["rule", "rulebook", "student", "conduct", "regulation", "handbook", "code", "violation"],
+        "SLIIT_Scholarship_Scheme.pdf": ["scholarship", "scholarships", "scheme", "financial aid", "grant", "sponsorship", "fund", "tuition", "fee waiver"],
+        "Library Rules final -17th July 2024.pdf": ["library", "borrowing", "book", "loan", "overdue", "late fee", "rules", "borrow", "return"],
+        "Academic Integrity Policy for Students .pdf": ["plagiarism", "integrity", "cheating", "citation", "academic honesty", "dishonesty", "original", "copy"],
+        "Dress_Code_for_SLIIT_Students.pdf": ["dress", "attire", "clothing", "uniform", "code", "appearance", "dress code"],
+        "Academic Progression Criteria (2022 Regular Intake onwards).pdf": ["progression", "academic", "criteria", "gpa", "fail", "repeat", "standing"],
+        "2027 onwards_ Changes to Progression Rules.pdf": ["progression", "rules", "changes", "criteria", "requirement", "2027"],
+        "Computer Laboratory Usage rules and regulations.pdf": ["computer", "lab", "laboratory", "lab usage", "rules", "regulation"],
+        "Acceptable IT Use Policy For Students of SLIIT and SLIIT Subsidiaries V1.1.pdf": ["it policy", "acceptable", "technology", "computer use", "internet", "acceptable use"],
+        "Emergency Response Procedures.pdf": ["emergency", "response", "procedures", "disaster", "crisis", "safety"],
+        "Lost and Found Policy_Student Notice.pdf": ["lost", "found", "lost and found", "missing", "item", "property"],
+        "Medical Emergency _Poster April 2024.pdf": ["medical", "emergency", "health", "first aid", "accident"],
+        "ERP  - 27 FEB 2025.pdf": ["erp", "system", "enterprise", "resource", "planning"],
+        "Events-and-Activites-Psychology-Dep-2022-23.pdf": ["event", "activities", "psychology", "department"],
+        "academic_calendar.pdf": ["calendar", "semester", "schedule", "term", "break", "holiday", "date"],
+        "academic_integrity.pdf": ["plagiarism", "integrity", "cheating", "citation", "honesty"],
+        "fee_structure.pdf": ["fee", "cost", "payment", "tuition", "charge"],
+        "library_policies.pdf": ["library", "borrowing", "book", "policy"],
+        "student_handbook.pdf": ["handbook", "conduct", "dress", "behavior", "attendance"],
+        "academic_lecturer_data_corrected_emails.pdf": ["lecturer", "email", "contact", "teacher", "instructor", "professor"],
+        "HH Poster.pdf": ["hh", "poster", "notice"],
+        "Bank Details for student transactions new.pdf": ["bank", "details", "transaction", "payment", "account", "student", "banking"],
+    }
     
     # Score each file based on keyword matches
     file_scores = {}
     
-    # Define keyword-to-file mappings for real content
-    keyword_mappings = {
-        "Library Rules final -17th July 2024.pdf": ["library", "borrowing", "book", "loan", "overdue", "late fee", "rules"],
-        "Academic Integrity Policy for Students .pdf": ["plagiarism", "integrity", "cheating", "citation", "academic honesty", "dishonesty"],
-        "Dress_Code_for_SLIIT_Students.pdf": ["dress", "attire", "clothing"],
-        "SLIIT Rule Book.pdf": ["rule", "student", "conduct", "regulation", "handbook"],
-        "Computer Laboratory Usage rules and regulations.pdf": ["computer", "lab", "laboratory"],
-        "Acceptable IT Use Policy For Students of SLIIT and SLIIT Subsidiaries V1.1.pdf": ["it", "acceptable", "technology", "computer use"],
-    }
-    
-    # Check direct keyword mappings
     for pdf_name, keywords in keyword_mappings.items():
         if pdf_name in all_files:
+            # Find matching keywords in question
             score = sum(1 for kw in keywords if kw in q_lower)
+            # Bonus points if PDF name itself contains question words
+            if any(word in q_lower for word in pdf_name.lower().split()):
+                score += 2
             if score > 0:
                 file_scores[pdf_name] = score
     
-    # Also add generated PDFs if nothing matches
-    generated_pdfs = {
-        "library_policies.pdf": ["library", "borrowing", "book", "fee"],
-        "academic_integrity.pdf": ["plagiarism", "integrity", "cheating"],
-        "student_handbook.pdf": ["conduct", "dress", "behavior", "attendance"],
-        "fee_structure.pdf": ["fee", "cost", "payment", "tuition"],
-        "academic_calendar.pdf": ["calendar", "semester", "schedule"],
-    }
-    
-    for pdf_name, keywords in generated_pdfs.items():
-        if pdf_name in all_files and pdf_name not in file_scores:
-            score = sum(1 for kw in keywords if kw in q_lower)
+    # If no matches found, try fuzzy matching with filenames
+    if not file_scores:
+        for pdf_file in all_files:
+            # Remove .pdf extension and split by common delimiters
+            pdf_base = pdf_file.lower().replace('.pdf', '').replace('_', ' ').replace('-', ' ')
+            words = pdf_base.split()
+            
+            # Score based on word matches
+            score = sum(1 for word in words if word in q_lower and len(word) > 2)
             if score > 0:
-                file_scores[pdf_name] = score
+                file_scores[pdf_file] = score
     
-    # Sort by score and return
+    # Sort by score and return, highest first
     if file_scores:
         sorted_files = sorted(file_scores.items(), key=lambda x: x[1], reverse=True)
-        matching_files = [f[0] for f in sorted_files]
+        return [f[0] for f in sorted_files]
     
-    return matching_files
+    return []
 
 
 def _get_default_policy_content(question: str) -> tuple:
@@ -842,7 +888,13 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     small_talk_answer = _check_small_talk(question)
     if small_talk_answer is not None:
         print(f"[RAG] Matched small-talk pattern")
-        return {"answer": small_talk_answer, "sources": None}
+        return {
+            "answer": small_talk_answer,
+            "sources": None,
+            "suggested_pdfs": [],
+            "source_pdfs": [],
+            "is_pdf_request": False,
+        }
 
     # 2) Check if question is about deadlines, modules, or LIC
     question_lower = question.lower()
@@ -853,7 +905,11 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
         keyword in question_lower
         for keyword in ["pdf", "give me", "show me", "rules", "policy", "policies", 
                        "document", "file", "download", "fee", "fees", "fee structure",
-                       "academic calendar", "calendar", "conduct code", "integrity policy"]
+                       "academic calendar", "calendar", "conduct code", "integrity policy",
+                       "scholarship", "scholarships", "scheme", "library", "book", "dress code",
+                       "progression", "criteria", "computer lab", "it policy", "emergency",
+                       "medical", "lost and found", "erp", "event", "activities", "lecturer",
+                       "email", "contact", "handbook", "rulebook", "bank", "details", "transaction"]
     )
     
     is_deadline_q = _is_deadline_date_question(question_lower)
@@ -878,6 +934,8 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             "source_pdfs": ["SLIIT Rule Book.pdf"],
             "suggested_pdfs": ["SLIIT Rule Book.pdf"],
             "is_pdf_request": False,
+            "downloadable_pdf": "SLIIT Rule Book.pdf",
+            "download_url": _build_download_url("SLIIT Rule Book.pdf"),
         }
 
     # Deterministic high-accuracy answer for the most common typo/definition case.
@@ -888,6 +946,8 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             "source_pdfs": [],
             "suggested_pdfs": ["academic_integrity.pdf"],
             "is_pdf_request": False,
+            "downloadable_pdf": "academic_integrity.pdf",
+            "download_url": _build_download_url("academic_integrity.pdf"),
         }
     
     # Deterministic answer for yes/no questions about payments and fees
@@ -900,6 +960,8 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 "source_pdfs": [],
                 "suggested_pdfs": ["fee_structure.pdf"],
                 "is_pdf_request": False,
+                "downloadable_pdf": "fee_structure.pdf",
+                "download_url": _build_download_url("fee_structure.pdf"),
             }
     
     print(f"[RAG] Classification: is_pdf_request={is_pdf_request}, is_definition_q={is_definition_q}, is_integrity_q={is_integrity_q}, is_deadline_q={is_deadline_q}, is_lic_q={is_lic_q}, is_yesno_q={is_yesno_q}")
@@ -1010,14 +1072,20 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     
     # Handle explicit PDF requests - return document content directly
     if is_pdf_request and pdf_context.strip():
-        # User is asking for PDFs specifically, return the raw document content
-        return {
-            "answer": f"**{', '.join(suggested_pdfs) if suggested_pdfs else 'Document Content'}**\n\n{pdf_context}",
+        # User is asking for PDFs specifically, return only the PDF card
+        pdf_result = {
+            "answer": "",
             "sources": results,
             "source_pdfs": source_pdfs,
             "suggested_pdfs": suggested_pdfs,
             "is_pdf_request": True
         }
+        # Add download URL for PDF requests
+        if suggested_pdfs and len(suggested_pdfs) > 0:
+            best_pdf = suggested_pdfs[0]
+            pdf_result["downloadable_pdf"] = best_pdf
+            pdf_result["download_url"] = _build_download_url(best_pdf)
+        return pdf_result
     
     if (is_deadline_q or (has_module_code and not is_definition_q)) and academic_context.strip():
         # For deadlines or module-specific questions, use only academic data.
@@ -1046,13 +1114,19 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 f"Question: {question}\n\nProvide a brief, direct answer."
             )
             answer = call_ollama(prompt)
-            return {
+            local_result = {
                 "answer": answer,
                 "sources": results,
                 "source_pdfs": local_pdf_sources,
                 "suggested_pdfs": suggested_pdfs,
                 "is_pdf_request": is_pdf_request
             }
+            # Add download URL for PDF requests
+            if suggested_pdfs and len(suggested_pdfs) > 0:
+                best_pdf = suggested_pdfs[0]
+                local_result["downloadable_pdf"] = best_pdf
+                local_result["download_url"] = _build_download_url(best_pdf)
+            return local_result
 
         # Special handling for PDF requests without results
         if is_pdf_request:
@@ -1065,7 +1139,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 download_url = _build_download_url(best_pdf)
                 
                 result = {
-                    "answer": f"Here's the PDF you requested:\n\n📄 **{best_pdf}**",
+                    "answer": "",
                     "sources": results,
                     "suggested_pdfs": matching_pdfs,
                     "is_pdf_request": is_pdf_request,
@@ -1077,7 +1151,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 # Fallback to generated policy content if no actual PDFs match
                 fallback, pdf_name = _get_default_policy_content(question)
                 result = {
-                    "answer": fallback,
+                    "answer": "",
                     "sources": results,
                     "suggested_pdfs": suggested_pdfs,
                     "is_pdf_request": is_pdf_request,
@@ -1097,12 +1171,18 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             fallback = "I couldn't find that information in the documents or academic database. Please try asking about assignment deadlines, module details, or academic integrity policies."
             print(f"[RAG] Using generic fallback")
         
-        return {
+        fallback_result = {
             "answer": fallback,
             "sources": results,
             "suggested_pdfs": suggested_pdfs,
-            "is_pdf_request": is_pdf_request
+            "is_pdf_request": is_pdf_request,
+            "source_pdfs": []
         }
+        # Add download URL if we have suggested PDFs
+        if suggested_pdfs and len(suggested_pdfs) > 0:
+            fallback_result["downloadable_pdf"] = suggested_pdfs[0]
+            fallback_result["download_url"] = _build_download_url(suggested_pdfs[0])
+        return fallback_result
     
     # Special handling for LIC queries - tell LLM to return exact format
     personalized_instructions = _build_personalized_system_instructions(user_id)
@@ -1139,10 +1219,18 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
 
     answer = _friendly_answer(answer)
     
-    return {
+    result = {
         "answer": answer,
         "sources": results,
         "source_pdfs": source_pdfs,
         "suggested_pdfs": suggested_pdfs,
         "is_pdf_request": is_pdf_request
     }
+    
+    # Add download URL for PDF requests
+    if is_pdf_request and suggested_pdfs and len(suggested_pdfs) > 0:
+        best_suggested_pdf = suggested_pdfs[0]
+        result["downloadable_pdf"] = best_suggested_pdf
+        result["download_url"] = _build_download_url(best_suggested_pdf)
+    
+    return result

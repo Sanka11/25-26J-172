@@ -60,7 +60,18 @@ from app.services.personalized_intervention_service import (
 
 app = FastAPI(title="AcademiGuard ML Service")
 
-#app.include_router(disengagement_router)
+# ----------------------------
+# CORS MIDDLEWARE (MUST BE BEFORE ROUTERS)
+# ----------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(disengagement_router)
 
 
 def _feedback_file_path() -> str:
@@ -87,17 +98,6 @@ def _save_feedback_items(items: list) -> None:
     path = _feedback_file_path()
     with open(path, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
-
-# ----------------------------
-# CORS MIDDLEWARE
-# ----------------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # -----------------------------------------------------------
 # EXISTING ENDPOINTS (DO NOT REMOVE)
