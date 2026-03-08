@@ -8,6 +8,43 @@ export default function PdfUpload() {
   const [documents, setDocuments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState("");
+  const [activeMlBaseUrl, setActiveMlBaseUrl] = useState(appConfig.ML_BASE_URL);
+
+  const getMlBaseCandidates = () => {
+    const candidates = new Set([activeMlBaseUrl, appConfig.ML_BASE_URL]);
+
+    // Local development may expose either hostname even on the same machine.
+    [activeMlBaseUrl, appConfig.ML_BASE_URL].forEach((base) => {
+      if (!base) return;
+      candidates.add(base.replace("127.0.0.1", "localhost"));
+      candidates.add(base.replace("localhost", "127.0.0.1"));
+    });
+
+    return Array.from(candidates).filter(Boolean);
+  };
+
+  const fetchWithMlFallback = async (path, options) => {
+    const bases = getMlBaseCandidates();
+    let lastNetworkError = null;
+
+    for (const base of bases) {
+      const url = `${base}${path}`;
+      try {
+        const response = await fetch(url, options);
+        setActiveMlBaseUrl(base);
+        return response;
+      } catch (err) {
+        lastNetworkError = err;
+      }
+    }
+
+    throw (
+      lastNetworkError ||
+      new Error(
+        "Could not connect to ML service. Check if it is running on port 8000.",
+      )
+    );
+  };
 
   // Validate file is PDF
   const validatePDF = (file) => {
@@ -32,7 +69,7 @@ export default function PdfUpload() {
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      const response = await fetch(appConfig.ML_UPLOAD_URL, {
+      const response = await fetchWithMlFallback("/upload_pdf", {
         method: "POST",
         body: formData,
       });
@@ -42,7 +79,7 @@ export default function PdfUpload() {
         setUploadStatus(
           `Upload failed (status ${response.status}):\n${
             text || "No error body returned."
-          }`
+          }`,
         );
         setUploadPhase("error");
         return;
@@ -54,7 +91,7 @@ export default function PdfUpload() {
       } catch (parseErr) {
         console.error(parseErr);
         setUploadStatus(
-          "Upload succeeded but the server returned invalid JSON. Check ML service logs."
+          "Upload succeeded but the server returned invalid JSON. Check ML service logs.",
         );
         setUploadPhase("error");
         return;
@@ -76,11 +113,11 @@ export default function PdfUpload() {
     try {
       setDocsLoading(true);
       setDocsError("");
-      const res = await fetch(appConfig.ML_LIST_DOCS_URL);
+      const res = await fetchWithMlFallback("/documents");
       if (!res.ok) {
         const text = await res.text();
         throw new Error(
-          `Failed to load documents (${res.status}): ${text || ""}`
+          `Failed to load documents (${res.status}): ${text || ""}`,
         );
       }
       const data = await res.json();
@@ -88,7 +125,8 @@ export default function PdfUpload() {
     } catch (err) {
       console.error("Load documents error:", err);
       setDocsError(
-        err?.message || "Failed to load uploaded document list from ML service."
+        err?.message ||
+          "Failed to load uploaded document list from ML service.",
       );
       setDocuments([]);
     } finally {
@@ -103,8 +141,8 @@ export default function PdfUpload() {
 
   const handleViewDocument = (doc) => {
     if (!doc?.doc_id) return;
-    const url = `${appConfig.ML_BASE_URL}/documents/${encodeURIComponent(
-      doc.doc_id
+    const url = `${activeMlBaseUrl}/documents/${encodeURIComponent(
+      doc.doc_id,
     )}`;
     window.open(url, "_blank");
   };
@@ -113,22 +151,22 @@ export default function PdfUpload() {
     if (!doc?.doc_id) return;
     const label = doc.pdf_name || doc.doc_id;
     const confirmed = window.confirm(
-      `Delete document "${label}"? This cannot be undone.`
+      `Delete document "${label}"? This cannot be undone.`,
     );
     if (!confirmed) return;
 
     try {
-      const res = await fetch(
-        `${appConfig.ML_BASE_URL}/documents/${encodeURIComponent(doc.doc_id)}`,
+      const res = await fetchWithMlFallback(
+        `/documents/${encodeURIComponent(doc.doc_id)}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!res.ok) {
         const text = await res.text();
         throw new Error(
-          `Failed to delete document (${res.status}): ${text || ""}`
+          `Failed to delete document (${res.status}): ${text || ""}`,
         );
       }
 
