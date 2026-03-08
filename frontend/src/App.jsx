@@ -15,6 +15,7 @@ import { ROLES } from "./context/AuthContext";
 import RiskDemo from "./pages/RiskDemo";
 import StudentRiskDashboard from "./pages/StudentRiskDashboard";
 import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
+import XAIAdminDashboard from "./pages/XAIAdminDashboard";
 
 //savindi
 import WorkloadDashboard from "./pages/StudentDashboard";
@@ -50,6 +51,7 @@ import GruSingleStudent from "./pages/gru/GruSingleStudent";
 import RlBatchRun from "./pages/rl/RlBatchRun";
 import RlHistory from "./pages/rl/RlHistory";
 import DisengagementHub from "./pages/DisengagementHub";
+import StudentBehaviourDemo from "./pages/gru/StudentBehaviourDemo";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -234,6 +236,15 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/gru/student-behaviour"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <StudentBehaviourDemo />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="admin/disengagementhub"
           element={
@@ -245,6 +256,7 @@ function MainShell() {
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/my-risk" element={<StudentRiskDashboard />} />
+        <Route path="/xai-admin" element={<XAIAdminDashboard />} />
         <Route path="/lecturer-risk" element={<LecturerRiskDashboard />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
