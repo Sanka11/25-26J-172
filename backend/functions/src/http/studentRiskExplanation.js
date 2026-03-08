@@ -3,7 +3,7 @@ const functions = require("firebase-functions");
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
 const axios = require("axios");
-const { ML_SERVICE_URL } = require("../config");
+const { ML_XAI_BASE_URL } = require("../config");
 
 const db = admin.firestore();
 
@@ -83,7 +83,7 @@ exports.updateStudentMarks = onRequest(async (req, res) => {
 
     // 3. Recalculate risk via ML service
     const mlResponse = await axios.post(
-      `${ML_SERVICE_URL}/predict-risk/shap/${studentId}`,
+      `${ML_XAI_BASE_URL}/predict-risk/shap/${studentId}`,
       studentData,
       { timeout: 30000 },
     );

@@ -101,6 +101,136 @@ const { uploadWeeklyCsv } = require("./src/http/uploadWeeklyCsvController");
 app.post("/api/upload-weekly-csv", uploadWeeklyCsv);
 
 // ----------------------------------------------------
+// CSV Upload – Student Master Data (FILE UPLOAD)
+// ----------------------------------------------------
+const {
+  uploadStudentCsv,
+} = require("./src/http/uploadStudentCsvController");
+
+const {
+  uploadStudentWeeklyCsv,
+} = require("./src/http/uploadStudentWeeklyCsvController");
+
+app.post("/api/upload-student-csv", uploadStudentCsv);
+
+app.post("/api/upload-student-weekly-csv", uploadStudentWeeklyCsv);
+
+// ----------------------------------------------------
+// Test GRU inference (Firestore → ML-service)
+// ----------------------------------------------------
+const {
+  testGruInference,
+} = require("./src/http/testGruInferenceController");
+
+app.get("/api/test-gru-inference/:studentId", testGruInference);
+
+// // ----------------------------------------------------
+// // ML – GRU + RL combined prediction (NEW)
+// // ----------------------------------------------------
+// const {
+//   gruRlPredict,
+// } = require("./src/http/gruRlPredictController");
+
+// app.post("/api/ml/gru-rl-predict", gruRlPredict);
+
+
+// ----------------------------------------------------
+// GRU batch run – all students (NEW)
+// ----------------------------------------------------
+const {
+  runGruBatch,
+} = require("./src/http/runGruBatchController");
+
+app.post("/api/ml/run-gru-batch", runGruBatch);
+
+// ----------------------------------------------------
+// Test GRU history → RL input
+// ----------------------------------------------------
+const {
+  testGruHistoryForRl,
+} = require("./src/http/testGruHistoryForRlController");
+
+app.get("/api/test-gru-history-rl/:studentId", testGruHistoryForRl);
+
+const {
+  predictGruOnly,
+} = require("./src/http/predictGruOnlyController");
+
+app.get("/api/gru/predict/:studentId", predictGruOnly);
+
+const {
+  getLatestGruWithTrend,
+} = require("./src/http/getLatestGruWithTrendController");
+
+app.get(
+  "/api/gru/latest-with-trend/:studentId",
+  getLatestGruWithTrend
+);
+
+const {
+  gruRlPredict,
+} = require("./src/http/gruRlPredictController");
+
+app.get("/api/gru-rl/predict/:studentId", gruRlPredict);
+
+const {
+  runRlBatch,
+} = require("./src/http/runRlBatchController");
+
+app.post("/api/run-rl-batch", runRlBatch);
+
+const { runBatchRl } = require("./src/http/runBatchRlController");
+app.post("/api/run-batch-rl", runBatchRl);
+
+
+// --- RL HISTORY CONTROLLER ---
+const { getRlHistory } = require("./src/http/getRlHistoryController");
+
+// Get ALL students
+app.get("/api/ml/rl-history", getRlHistory);
+
+// Get SINGLE student
+app.get("/api/ml/rl-history/:studentId", getRlHistory);
+
+const { getGruHistory } = require("./src/http/getGruHistoryController");
+
+app.get("/api/ml/gru-history", getGruHistory);
+
+// ----------------------------------------------------
+// Add Weekly Record 
+// ----------------------------------------------------
+const {
+  addStudentWeeklyRecord,
+} = require("./src/http/addStudentWeeklyRecordController");
+
+app.post("/api/student/add-week", addStudentWeeklyRecord);
+
+// ----------------------------------------------------
+// Add 10 weeks for testing
+// ----------------------------------------------------
+const {
+  addTenWeeks,
+} = require("./src/http/addTenWeeksController");
+
+app.post("/api/student/add-10-weeks", addTenWeeks);
+
+// ----------------------------------------------------
+// Run GRU for selected student
+// ----------------------------------------------------
+const {
+  runGruForStudent,
+} = require("./src/http/runGruForStudentController");
+
+app.get("/api/gru/run/:studentId", runGruForStudent);
+
+
+const { runRlForStudent } = require("./src/http/runRlForStudentController");
+
+app.get("/api/rl/run/:studentId", runRlForStudent);
+
+
+
+// ----------------------------------------------------
 // Export Firebase HTTPS function
 // ----------------------------------------------------
 exports.api = onRequest(app);
