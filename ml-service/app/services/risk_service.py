@@ -117,7 +117,7 @@ def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
             "display_name": _get_display_name(feat),
             "impact":       round(float(impact), 4),
             "direction":    "increases_risk",
-            "value":        float(raw_data.get(feat, 0)) if feat in raw_data else None,
+            "value":        (float(raw_data.get(feat)) if isinstance(raw_data.get(feat), (int, float)) else None) if feat in raw_data else None,
         })
 
     protective_factors = []
@@ -127,7 +127,7 @@ def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
             "display_name": _get_display_name(feat),
             "impact":       round(float(impact), 4),
             "direction":    "decreases_risk",
-            "value":        float(raw_data.get(feat, 0)) if feat in raw_data else None,
+            "value":        (float(raw_data.get(feat)) if isinstance(raw_data.get(feat), (int, float)) else None) if feat in raw_data else None,
         })
 
     # Human-readable summary sentences
