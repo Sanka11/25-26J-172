@@ -12,6 +12,12 @@ from .services.academic_service import (
     get_module_details,
 )
 from .services.student_profile_service import get_profile_manager
+from .services.web_search_service import (
+    perform_web_search,
+    format_web_results,
+    web_search_service,
+)
+from .config import RAG_SIMILARITY_THRESHOLD
 
 
 SYSTEM_INSTRUCTIONS = """
@@ -147,6 +153,84 @@ def _build_web_context(web_results: list, max_results: int = 4) -> str:
         link = (item.get("link") or "").strip()
         lines.append(f"[{idx}] {title}\n{snippet}\nSource: {link}")
     return "\n\n".join(lines)
+
+
+def _check_rag_relevance(results: dict, threshold: float = None) -> bool:
+    """
+    Check if RAG retrieval results meet the similarity threshold.
+    
+    Args:
+        results: ChromaDB query results with distances
+        threshold: Maximum distance for relevance (lower is better)
+                  If None, uses RAG_SIMILARITY_THRESHOLD from config
+    
+    Returns:
+        True if results are relevant (distance below threshold), False otherwise
+    """
+    if threshold is None:
+        threshold = RAG_SIMILARITY_THRESHOLD
+    
+    # Check if we have any results
+    if not results or not results.get('documents') or not results['documents'][0]:
+        print(f"[RAG] No documents retrieved - failing relevance check")
+        return False
+    
+    # Get distances (ChromaDB L2 distance: lower = more similar)
+    distances = results.get('distances', [[]])[0] if results.get('distances') else []
+    
+    if not distances:
+        print(f"[RAG] No distance scores available - cannot determine relevance")
+        # If no distances, check if we have documents and assume relevant
+        return len(results['documents'][0]) > 0
+    
+    # Check if the best (minimum) distance is below threshold
+    min_distance = min(distances) if distances else float('inf')
+    is_relevant = min_distance <= threshold
+    
+    print(f"[RAG] Relevance check: min_distance={min_distance:.3f}, "
+          f"threshold={threshold:.3f}, relevant={is_relevant}")
+    
+    return is_relevant
+
+
+def _generate_web_search_answer(question: str, web_results: list, user_id: str = None) -> str:
+    """
+    Generate an answer from web search results using LLM.
+    
+    Args:
+        question: User's question
+        web_results: List of web search result dictionaries
+        user_id: Optional user ID for personalization
+    
+    Returns:
+        Generated answer string
+    """
+    if not web_results:
+        return "I couldn't find relevant information in the PDFs or web. Please try rephrasing your question."
+    
+    # Format web results for LLM
+    web_context = _build_web_context(web_results, max_results=3)
+    
+    # Build personalized prompt
+    personalized_instructions = _build_personalized_system_instructions(user_id)
+    
+    prompt = (
+        f"{personalized_instructions}\n\n"
+        "The information wasn't found in the PDF documents, so I searched the web.\n"
+        "Use the web search results below to answer the question accurately and concisely.\n\n"
+        f"Web Search Results:\n{web_context}\n\n"
+        f"Question: {question}\n\n"
+        "Provide a clear, student-friendly answer in 2-4 sentences. "
+        "Focus on the most relevant information from the search results."
+    )
+    
+    try:
+        answer = call_ollama(prompt)
+        return answer.strip() if answer else "I couldn't generate an answer from the web results."
+    except Exception as e:
+        print(f"[RAG] Error generating web search answer: {e}")
+        return "I found some web results but couldn't process them properly."
+
 
 
 def _extract_definition_term(question: str) -> str:
@@ -1154,6 +1238,37 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     
     print(f"[RAG] Primary retrieval found {len(results.get('documents', [[]])[0])} chunks")
     
+    # HYBRID RETRIEVAL: Check if RAG results meet similarity threshold
+    rag_is_relevant = _check_rag_relevance(results, threshold=RAG_SIMILARITY_THRESHOLD)
+    
+    if not rag_is_relevant:
+        print(f"[RAG] Results below similarity threshold - attempting web search fallback")
+        
+        # Attempt web search for general queries (not PDF-specific requests)
+        if not is_pdf_request:
+            web_results = perform_web_search(question, num_results=3)
+            
+            if web_results:
+                print(f"[RAG] Web search returned {len(web_results)} results")
+                
+                # Generate answer from web results
+                web_answer = _generate_web_search_answer(question, web_results, user_id)
+                
+                # Get source information for citation
+                web_sources = web_search_service.get_result_sources(web_results)
+                
+                return {
+                    "answer": _friendly_answer(web_answer),
+                    "sources": results,
+                    "source_pdfs": [],
+                    "suggested_pdfs": suggested_pdfs,
+                    "is_pdf_request": False,
+                    "web_sources": web_sources,
+                    "answer_source": "web_search",
+                }
+            else:
+                print(f"[RAG] Web search failed or returned no results")
+    
     # 4) Build prompt context with strict relevance filtering
     context_texts = []
     if results.get("documents") and results["documents"][0]:
@@ -1231,30 +1346,32 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 local_result["download_url"] = _build_download_url(best_pdf)
             return local_result
 
-        # If no local PDF context exists, fall back to Google search for general queries.
+        # HYBRID RETRIEVAL: If no local PDF context exists, fall back to Google search
         if not is_pdf_request:
-            web_results = _google_search(question, num_results=5)
+            print(f"[RAG] No PDF context - using web search as fallback")
+            web_results = perform_web_search(question, num_results=3)
+            
             if web_results:
-                web_context = _build_web_context(web_results, max_results=4)
-                personalized_instructions = _build_personalized_system_instructions(user_id)
-                prompt = (
-                    f"{personalized_instructions}\n\n"
-                    "Use the web search results below to answer the user's question accurately. "
-                    "If details conflict, prefer the most credible and specific source.\n\n"
-                    f"Web Results:\n{web_context}\n\n"
-                    f"Question: {question}\n\n"
-                    "Answer in 2-4 short sentences and keep it clear for a student."
-                )
-                web_answer = call_ollama(prompt)
+                print(f"[RAG] Web search returned {len(web_results)} results")
+                
+                # Generate answer from web results
+                web_answer = _generate_web_search_answer(question, web_results, user_id)
+                
+                # Get source information for citation
+                web_sources = web_search_service.get_result_sources(web_results)
+                
                 return {
                     "answer": _friendly_answer(web_answer),
                     "sources": results,
                     "source_pdfs": [],
                     "suggested_pdfs": suggested_pdfs,
                     "is_pdf_request": False,
-                    "web_sources": web_results[:3],
-                    "answer_source": "google_search",
+                    "web_sources": web_sources,
+                    "answer_source": "web_search",
                 }
+            else:
+                print(f"[RAG] Web search failed or returned no results")
+
 
         # Special handling for PDF requests without results
         if is_pdf_request:
