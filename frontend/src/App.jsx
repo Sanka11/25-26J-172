@@ -48,6 +48,7 @@ import GruSingleStudent from "./pages/gru/GruSingleStudent";
 import RlBatchRun from "./pages/rl/RlBatchRun";
 import RlHistory from "./pages/rl/RlHistory";
 import DisengagementHub from "./pages/DisengagementHub";
+import StudentBehaviourDemo from "./pages/gru/StudentBehaviourDemo";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -229,6 +230,15 @@ function MainShell() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
               <RlHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/gru/student-behaviour"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <StudentBehaviourDemo />
             </ProtectedRoute>
           }
         />
