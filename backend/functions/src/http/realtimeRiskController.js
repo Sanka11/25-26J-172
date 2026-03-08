@@ -1,6 +1,6 @@
 const admin = require("../firebase");
 const axios = require("axios");
-const { ML_SERVICE_URL } = require("../config");
+const { ML_XAI_BASE_URL } = require("../config");
 
 /**
  * POST /api/student/update-metrics
@@ -26,14 +26,14 @@ exports.updateStudentMetrics = async (req, res) => {
        ====================================================== */
     try {
       const mlResponse = await axios.post(
-        ML_SERVICE_URL,
+        ML_XAI_BASE_URL,
         {
           student_id,
           gpa,
           attendance_rate,
           assignments_completed,
         },
-        { timeout: 3000 }
+        { timeout: 3000 },
       );
 
       // normalize safely (0–100 → 0–1)

@@ -14,7 +14,7 @@ const predictRisk = onRequest(async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   try {
     const response = await axios.post(
-      `${ML_SERVICE_URL}/predict-risk`,
+      `${ML_XAI_BASE_URL}/predict-risk`,
       req.body,
     );
     return res.status(200).json(response.data);
@@ -38,8 +38,8 @@ const predictRiskShap = onRequest(async (req, res) => {
     const { studentId, ...academicData } = req.body;
 
     const endpoint = studentId
-      ? `${ML_SERVICE_URL}/predict-risk/shap/${studentId}`
-      : `${ML_SERVICE_URL}/predict-risk/shap`;
+      ? `${ML_XAI_BASE_URL}/predict-risk/shap/${studentId}`
+      : `${ML_XAI_BASE_URL}/predict-risk/shap`;
 
     const response = await axios.post(endpoint, academicData, {
       timeout: 30000,
@@ -89,7 +89,7 @@ const predictNextSemester = onRequest(async (req, res) => {
 
   try {
     const response = await axios.post(
-      `${ML_SERVICE_URL}/predict-risk/next-semester`,
+      `${ML_XAI_BASE_URL}/predict-risk/next-semester`,
       req.body,
       { timeout: 30000 },
     );
