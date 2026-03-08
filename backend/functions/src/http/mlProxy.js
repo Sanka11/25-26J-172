@@ -1,7 +1,7 @@
 // backend/functions/src/http/mlProxy.js
 const { onRequest } = require("firebase-functions/v2/https");
 const axios = require("axios");
-const { ML_SERVICE_URL } = require("../config");
+const { ML_XAI_BASE_URL } = require("../config");
 
 // ── Keep old endpoint — backward compat ──
 const predictRisk = onRequest(async (req, res) => {
