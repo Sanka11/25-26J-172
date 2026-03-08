@@ -1,6 +1,9 @@
 // backend/functions/src/http/testWeeklyController.js
 
-const { getStudentWeeklyActivity } = require("../ml/studentWeeklyReader");
+const {
+  getStudentWeeklyActivityV2: getStudentWeeklyActivity,
+} = require("../ml/studentWeeklyReaderV2");
+
 const { callDisengagementML } = require("./disengagementService");
 const { saveStudentRiskResult } = require("../ml/studentRiskWriter");
 const { getLastStudentRisk } = require("../ml/studentRiskReader");
@@ -22,7 +25,7 @@ async function testWeeklyPipeline(req, res) {
     const { studentId } = req.params;
 
     // --------------------------------------------------
-    // 1️⃣ Fetch last N weeks (up to 10)
+    // 1️⃣ Fetch last 10 weeks from student_weekly_records
     // --------------------------------------------------
     const weeks = await getStudentWeeklyActivity(studentId, 10);
 
@@ -38,7 +41,7 @@ async function testWeeklyPipeline(req, res) {
     }
 
     // --------------------------------------------------
-    // 2️⃣ Read previous saved risk (state feedback)
+    // 2️⃣ Read previous saved risk (RL state feedback)
     // --------------------------------------------------
     const previousRisk = await getLastStudentRisk(studentId);
 
@@ -55,29 +58,38 @@ async function testWeeklyPipeline(req, res) {
       previousRisk?.fatigue_level ?? 0;
 
     // --------------------------------------------------
-    // 3️⃣ Build ML payload (REAL STATE)
+    // 3️⃣ BUILD ML PAYLOAD (EXACT GRU TRAINING FIELDS)
     // --------------------------------------------------
     const mlPayload = {
       last_10_weeks: weeks.map(w => ({
-        login_freq: w.login_freq,
-        session_duration: w.session_duration,
-        inactivity_days: w.inactivity_days,
-        assignment_completion: w.assignment_completion,
-        quiz_score: w.quiz_score,
-        forum_posts: w.forum_posts,
-        video_watch_ratio: w.video_watch_ratio,
-        late_submissions: w.late_submissions,
-        alert_interactions: w.alert_interactions,
-        help_requests: w.help_requests,
+        // 🔥 EXACT feature names used in training
+        login_count: Number(w.login_count) || 0,
+        avg_session_duration_min: Number(w.avg_session_duration_min) || 0,
+        total_active_time_min: Number(w.total_active_time_min) || 0,
+        days_since_last_login: Number(w.days_since_last_login) || 0,
+        page_views: Number(w.page_views) || 0,
+        assignments_submitted: Number(w.assignments_submitted) || 0,
+        on_time_submissions: Number(w.on_time_submissions) || 0,
+        late_submissions: Number(w.late_submissions) || 0,
+        alerts_responded: Number(w.alerts_responded) || 0,
+        response_rate: Number(w.response_rate) || 0,
       })),
+
+      // RL state
       last_action: lastAction,
       no_response_streak: noResponseStreak,
       fatigue_level: fatigueLevel,
-      risk_trend: "UNKNOWN", // temporary, computed after GRU
+      risk_trend: "UNKNOWN",
     };
 
+    // 🔍 DEBUG (keep for now)
+    console.log(
+      "ML INPUT SAMPLE:",
+      JSON.stringify(mlPayload.last_10_weeks[0], null, 2)
+    );
+
     // --------------------------------------------------
-    // 4️⃣ Call FastAPI (GRU + RL)
+    // 4️⃣ Call ML Service (GRU + RL)
     // --------------------------------------------------
     const mlResult = await callDisengagementML(mlPayload);
 
@@ -90,7 +102,7 @@ async function testWeeklyPipeline(req, res) {
     );
 
     // --------------------------------------------------
-    // 5️⃣ Save updated state for NEXT run
+    // 5️⃣ Save updated state for next run
     // --------------------------------------------------
     await saveStudentRiskResult(studentId, {
       reconstruction_error: currentReconstructionError,
@@ -103,11 +115,11 @@ async function testWeeklyPipeline(req, res) {
           ? noResponseStreak + 1
           : 0,
       fatigue_level: fatigueLevel,
-      week: weeks[0]?.week,
+      week: weeks[weeks.length - 1]?.week,
     });
 
     // --------------------------------------------------
-    // 6️⃣ Return BOTH outputs
+    // 6️⃣ Return response
     // --------------------------------------------------
     return res.json({
       current_output: {
@@ -120,25 +132,21 @@ async function testWeeklyPipeline(req, res) {
 
       detailed_output: {
         student_id: studentId,
-
         data_summary: {
           weeks_available: weeks.length,
           weeks_used_for_prediction: weeks.length,
         },
-
         gru_model_output: {
           previous_reconstruction_error: previousReconstructionError,
           current_reconstruction_error: currentReconstructionError,
           risk_trend: riskTrend,
           current_risk_level: mlResult.risk_level,
         },
-
         rl_state: {
           last_action: lastAction,
           no_response_streak: noResponseStreak,
           fatigue_level: fatigueLevel,
         },
-
         decision: {
           recommended_action: mlResult.recommended_action,
           decision_reason: mlResult.decision_reason,

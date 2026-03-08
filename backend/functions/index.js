@@ -6,7 +6,11 @@ const {
   getQuizByLevel,
   fetchQuizByUser,
 } = require("./src/http/quizController");
-
+const {
+  getAllWorkloads,
+  updateTaskCompletion,
+  triggerManualWarningEmail,
+} = require("./src/http/adminWorkloadController");
 const {
   generateWorkload,
   generateLectureAlerts,
@@ -54,7 +58,6 @@ const {
   listChatFeedback,
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
-
 // Academic data (deadlines)
 const {
   getAllDeadlines,
@@ -82,6 +85,10 @@ exports.fetchQuizByUser = fetchQuizByUser;
 // -------------------------------
 // Workload savindi
 // -------------------------------
+exports.getAllWorkloads = getAllWorkloads;
+exports.updateTaskCompletion = updateTaskCompletion;
+exports.triggerManualWarningEmail = triggerManualWarningEmail;
+
 exports.generateLectureAlerts = generateLectureAlerts;
 exports.getWeeklyWorkload = getWeeklyWorkload;
 exports.generateOverloadReminders = generateOverloadReminders;

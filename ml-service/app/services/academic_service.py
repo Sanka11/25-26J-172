@@ -2,7 +2,10 @@
 import requests
 import os
 
-FIREBASE_BASE_URL = "http://localhost:5001/demiguard-3b4e8/us-central1"
+FIREBASE_BASE_URL = os.getenv(
+    "FIREBASE_BASE_URL",
+    "http://localhost:5002/demiguard-3b4e8/us-central1",
+)
 
 def get_academic_deadlines():
     """Fetch all deadlines from Firebase"""
