@@ -3,7 +3,7 @@ import { fetchStudentRisk } from "../services/api/riskApi";
 import { useAuth } from "../context/AuthContext";
 
 export default function LiveRiskDashboard() {
-  const { user } = useAuth(); // ✅ logged-in user (optional)
+  const { userData } = useAuth(); // ✅ Use Firestore user data
 
   const [studentId, setStudentId] = useState("");
   const [data, setData] = useState(null);
@@ -11,13 +11,13 @@ export default function LiveRiskDashboard() {
   const [error, setError] = useState("");
 
   /* -----------------------------
-     Auto-fill from login (if any)
+     Auto-fill from login
   ----------------------------- */
   useEffect(() => {
-    if (user?.id) {
-      setStudentId(user.id);
+    if (userData?.student_id) {
+      setStudentId(userData.student_id);
     }
-  }, [user]);
+  }, [userData]);
 
   const handleFetch = async () => {
     if (!studentId) {
@@ -31,6 +31,7 @@ export default function LiveRiskDashboard() {
 
     try {
       const res = await fetchStudentRisk(studentId);
+      console.log("REAL-TIME RESPONSE:", res); // 🔎 Debug
       setData(res);
     } catch (err) {
       console.error(err);
@@ -53,7 +54,7 @@ export default function LiveRiskDashboard() {
         </p>
       </div>
 
-      {/* Input */}
+      {/* Input Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4 max-w-xl">
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -62,13 +63,13 @@ export default function LiveRiskDashboard() {
           <input
             type="text"
             value={studentId}
-            disabled={!!user} // ✅ locked when logged in
+            disabled={!!userData}
             onChange={(e) => setStudentId(e.target.value)}
             className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-              user ? "bg-slate-100 cursor-not-allowed" : ""
+              userData ? "bg-slate-100 cursor-not-allowed" : ""
             }`}
           />
-          {user && (
+          {userData && (
             <p className="text-[11px] text-slate-500 mt-1">
               Student ID loaded from logged-in session
             </p>
@@ -103,8 +104,8 @@ export default function LiveRiskDashboard() {
                 data.risk_level === "High"
                   ? "bg-red-100 text-red-700"
                   : data.risk_level === "Medium"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : "bg-green-100 text-green-700"
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-green-100 text-green-700"
               }`}
             >
               {data.risk_level} Risk
@@ -118,32 +119,43 @@ export default function LiveRiskDashboard() {
             </span>
           </p>
 
-          <div>
-            <p className="text-xs font-semibold text-slate-800 mb-1">
-              Explanation
-            </p>
-            <p className="text-sm text-slate-700">{data.explanation.summary}</p>
+          {/* Explanation Section (Safe Rendering) */}
+          {data.explanation && (
+            <div>
+              <p className="text-xs font-semibold text-slate-800 mb-1">
+                Explanation
+              </p>
+              <p className="text-sm text-slate-700">
+                {data.explanation.summary}
+              </p>
 
-            <ul className="mt-2 list-disc list-inside text-sm text-slate-600">
-              {data.explanation.key_factors.map((factor, idx) => (
-                <li key={idx}>{factor}</li>
-              ))}
-            </ul>
-          </div>
+              {data.explanation.key_factors && (
+                <ul className="mt-2 list-disc list-inside text-sm text-slate-600">
+                  {data.explanation.key_factors.map((factor, idx) => (
+                    <li key={idx}>{factor}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-            <p className="text-xs font-semibold text-slate-800">
-              Recommended Action
-            </p>
-            <p className="text-sm text-slate-700">
-              {data.explanation.recommended_action}
-            </p>
-          </div>
+          {data.explanation?.recommended_action && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+              <p className="text-xs font-semibold text-slate-800">
+                Recommended Action
+              </p>
+              <p className="text-sm text-slate-700">
+                {data.explanation.recommended_action}
+              </p>
+            </div>
+          )}
 
-          <div className="text-[11px] text-slate-500">
-            Model: {data.model_info.model_name} | Accuracy:{" "}
-            {data.model_info.accuracy} | Generated at: {data.timestamp}
-          </div>
+          {data.model_info && (
+            <div className="text-[11px] text-slate-500">
+              Model: {data.model_info.model_name} | Accuracy:{" "}
+              {data.model_info.accuracy} | Generated at: {data.timestamp}
+            </div>
+          )}
         </div>
       )}
     </div>

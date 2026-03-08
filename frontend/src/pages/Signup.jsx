@@ -1,108 +1,3 @@
-// import { useState } from "react";
-// import { useNavigate } from "react-router-dom";
-// import { useAuth, ROLES } from "../context/AuthContext";
-
-// export default function Signup() {
-//   const { signup } = useAuth();
-//   const navigate = useNavigate();
-
-//   const [form, setForm] = useState({
-//     firstName: "",
-//     lastName: "",
-//     contactNo: "",
-//     email: "",
-//     password: "",
-//     confirmPassword: "",
-//     role: ROLES.STUDENT,
-//   });
-
-//   const handleSignup = async () => {
-//     if (form.password !== form.confirmPassword) {
-//       alert("Passwords do not match");
-//       return;
-//     }
-
-//     try {
-//       await signup(form);
-//       alert("Account Created Successfully!");
-//       navigate("/login");
-//     } catch (err) {
-//       alert(err.message);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen flex items-center justify-center bg-slate-100">
-//       <div className="bg-white p-6 rounded-xl shadow w-96 space-y-3">
-//         <h2 className="text-xl font-semibold text-center">
-//           AcademiGuard Signup
-//         </h2>
-
-//         <input
-//           type="text"
-//           placeholder="First Name"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-//         />
-
-//         <input
-//           type="text"
-//           placeholder="Last Name"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-//         />
-
-//         <input
-//           type="text"
-//           placeholder="Contact Number"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
-//         />
-
-//         <input
-//           type="email"
-//           placeholder="Email"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, email: e.target.value })}
-//         />
-
-//         <input
-//           type="password"
-//           placeholder="Password"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, password: e.target.value })}
-//         />
-
-//         <input
-//           type="password"
-//           placeholder="Re-enter Password"
-//           className="w-full p-2 border rounded"
-//           onChange={(e) =>
-//             setForm({ ...form, confirmPassword: e.target.value })
-//           }
-//         />
-
-//         <select
-//           className="w-full p-2 border rounded"
-//           onChange={(e) => setForm({ ...form, role: e.target.value })}
-//         >
-//           <option value={ROLES.STUDENT}>Student</option>
-//           <option value={ROLES.LECTURER}>Lecturer</option>
-//           <option value={ROLES.STAFF}>Staff</option>
-//           <option value={ROLES.ADMIN}>Admin</option>
-//           <option value={ROLES.SUPER_ADMIN}>Super Admin</option>
-//         </select>
-
-//         <button
-//           onClick={handleSignup}
-//           className="w-full bg-green-600 text-white py-2 rounded"
-//         >
-//           Create Account
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth, ROLES } from "../context/AuthContext";
@@ -111,7 +6,6 @@ import { motion } from "framer-motion";
 export default function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
-
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -120,6 +14,7 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
     role: ROLES.STUDENT,
+    studentId: "",
   });
 
   const handleSignup = async () => {
@@ -127,7 +22,10 @@ export default function Signup() {
       alert("Passwords do not match");
       return;
     }
-
+    if (form.role === ROLES.STUDENT && !form.studentId.trim()) {
+      alert("Student ID is required for student accounts");
+      return;
+    }
     try {
       await signup(form);
       alert("Account Created Successfully!");
@@ -137,7 +35,6 @@ export default function Signup() {
     }
   };
 
-  // Helper for shared input styling
   const inputClasses =
     "w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:bg-white transition-all shadow-inner";
   const labelClasses =
@@ -145,7 +42,7 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* Left Side: 3D Image & Branding */}
+      {/* Left Side */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-blue-50 items-center justify-center overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop"
@@ -153,7 +50,6 @@ export default function Signup() {
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/90 to-blue-600/80 mix-blend-multiply"></div>
-
         <motion.div
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
@@ -212,7 +108,7 @@ export default function Signup() {
               />
             </div>
 
-            {/* Email (Full Width) */}
+            {/* Email */}
             <div className="sm:col-span-2">
               <label className={labelClasses}>Email Address</label>
               <input
@@ -236,7 +132,7 @@ export default function Signup() {
               />
             </div>
 
-            {/* Role Select */}
+            {/* Role */}
             <div>
               <label className={labelClasses}>Account Role</label>
               <select
@@ -251,6 +147,21 @@ export default function Signup() {
                 <option value={ROLES.SUPER_ADMIN}>Super Admin</option>
               </select>
             </div>
+
+            {/* Student ID — only for students */}
+            {form.role === ROLES.STUDENT && (
+              <div className="sm:col-span-2">
+                <label className={labelClasses}>Student ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. S1000"
+                  className={inputClasses}
+                  onChange={(e) =>
+                    setForm({ ...form, studentId: e.target.value })
+                  }
+                />
+              </div>
+            )}
 
             {/* Password */}
             <div>
