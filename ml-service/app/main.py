@@ -55,7 +55,7 @@ from app.services.personalized_intervention_service import (
 # ----------------------------
 # Disengagement Router
 # ----------------------------
-#from app.disengagement.router import router as disengagement_router
+from app.disengagement.router import router as disengagement_router
 
 
 app = FastAPI(title="AcademiGuard ML Service")
