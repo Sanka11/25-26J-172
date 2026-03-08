@@ -33,3 +33,13 @@ OLLAMA_MODEL = "llama3.2:1b"
 
 # generation timeout (seconds)
 OLLAMA_TIMEOUT = 120
+
+# Hybrid Retrieval Configuration
+# ChromaDB uses L2 distance (lower is better/more similar)
+# Typical range: 0.0 (identical) to 2.0+ (very different)
+# Threshold for considering RAG results as "relevant"
+# If minimum distance > threshold, fall back to web search
+RAG_SIMILARITY_THRESHOLD = 1.2  # Adjust based on your needs
+# 0.8 = very strict (only very similar docs)
+# 1.2 = moderate (default, balanced)
+# 1.5 = lenient (accepts more distant matches)

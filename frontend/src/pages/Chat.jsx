@@ -3,6 +3,7 @@ import { appConfig } from "../config/env";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
 import FeedbackModal from "./FeedbackModal";
+import DocumentsList from "../componets/DocumentsList";
 import { chatHistoryService } from "../services/chatHistoryService";
 import { ROLES, useAuth } from "../context/AuthContext";
 import { db } from "../config/firebase";
@@ -239,7 +240,13 @@ export default function Chat({ onClose }) {
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const [expandedPdfId, setExpandedPdfId] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [activeRagPdf, setActiveRagPdf] = useState(null);
+  const [showPdfUploadModal, setShowPdfUploadModal] = useState(false);
   const messagesEndRef = useRef(null);
+  const questionInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const pdfInputRef = useRef(null);
   const historyLoadedRef = useRef(false);
@@ -357,6 +364,78 @@ export default function Chat({ onClose }) {
     return null;
   };
 
+  // Fetch uploaded documents from ML service
+  const fetchDocuments = async () => {
+    try {
+      setDocsLoading(true);
+      const res = await fetch(appConfig.ML_LIST_DOCS_URL);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch documents: ${res.status}`);
+      }
+      const data = await res.json();
+      const docs = Array.isArray(data.documents) ? data.documents : [];
+      setDocuments(docs);
+      console.log(`[DOCS] Fetched ${docs.length} documents`);
+    } catch (err) {
+      console.error("[DOCS] Failed to fetch documents:", err);
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  // Upload PDF to ML service
+  const uploadPdfDocument = async (file) => {
+    if (!file) return;
+    if (!canUploadPdf) {
+      setError("PDF upload is available only for admins.");
+      return;
+    }
+
+    setPdfProcessing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(appConfig.ML_UPLOAD_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(
+          `Upload failed (${res.status}): ${text || "Unknown error"}`,
+        );
+      }
+
+      const result = await res.json();
+      console.log("[PDF UPLOAD] Success:", result);
+      setError("");
+      setShowPdfUploadModal(false);
+
+      // Refresh documents list
+      await fetchDocuments();
+
+      // Add success message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `pdf-upload-${Date.now()}`,
+          sender: "assistant",
+          text: `✅ PDF "${file.name}" uploaded successfully and added to the knowledge base! I can now answer questions about this document.`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      console.error("[PDF UPLOAD] Error:", err);
+      setError(err.message || "Failed to upload PDF");
+    } finally {
+      setPdfProcessing(false);
+    }
+  };
+
   // Load chat history from Firebase on mount (only once)
   useEffect(() => {
     if (historyLoadedRef.current) return; // Already loaded
@@ -383,6 +462,11 @@ export default function Chat({ onClose }) {
       }
     };
     loadHistory();
+  }, []);
+
+  // Fetch documents on component mount
+  useEffect(() => {
+    fetchDocuments();
   }, []);
 
   // Save messages to Firebase whenever they change (except initial load)
@@ -902,6 +986,20 @@ export default function Chat({ onClose }) {
     }
   };
 
+  const handleDocumentOpen = (doc) => {
+    setActiveRagPdf({
+      docId: doc?.doc_id || "",
+      pdfName: doc?.pdf_name || doc?.doc_id || "Document.pdf",
+    });
+    setShowDocuments(false);
+    setTimeout(() => questionInputRef.current?.focus(), 0);
+  };
+
+  const clearActiveRagPdf = () => {
+    setActiveRagPdf(null);
+    setTimeout(() => questionInputRef.current?.focus(), 0);
+  };
+
   return (
     <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
@@ -952,235 +1050,369 @@ export default function Chat({ onClose }) {
         messages={messages}
       />
 
-      {/* Conversation area */}
-      <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
-        {Array.from(new Set(messages.map((m) => m.id)))
-          .map((id) => messages.find((m) => m.id === id))
-          .map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${
-                msg.sender === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              {msg.sender === "assistant" && (
-                <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
-                  AG
-                </div>
-              )}
-              {msg.text && (
-                <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
-                    msg.sender === "user"
-                      ? "bg-blue-600 text-white rounded-br-sm"
-                      : msg.isPersonalizedReminder
-                        ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
-                        : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
-                  }`}
+      {/* PDF Upload Modal */}
+      {showPdfUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200">
+            {/* Modal Header */}
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50">
+              <div>
+                <p className="text-lg font-semibold text-slate-900">
+                  Upload PDF
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Add PDF to knowledge base for RAG
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPdfUploadModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-4 space-y-4">
+              {/* Drag & Drop Area */}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) uploadPdfDocument(file);
+                }}
+                className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-10 w-10 text-slate-300 mx-auto mb-2"
                 >
-                  {msg.isPersonalizedReminder && msg.classification && (
-                    <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                      {msg.classification}
-                    </p>
-                  )}
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="whitespace-pre-line flex-1">{msg.text}</p>
-                    {msg.sender === "assistant" && msg.text && (
-                      <button
-                        type="button"
-                        onClick={() => handleTextToSpeech(msg.id, msg.text)}
-                        className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
-                          speakingMessageId === msg.id
-                            ? "text-blue-600 bg-blue-50"
-                            : "text-slate-500 hover:text-blue-600"
-                        }`}
-                        title={
-                          speakingMessageId === msg.id
-                            ? "Stop speaking"
-                            : "Read aloud"
-                        }
-                      >
-                        {speakingMessageId === msg.id ? (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-4 w-4"
-                          >
-                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                          </svg>
-                        ) : (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-4 w-4"
-                          >
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                          </svg>
-                        )}
-                      </button>
-                    )}
-                  </div>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <p className="text-sm font-semibold text-slate-700 mb-1">
+                  Drag PDF here or click to browse
+                </p>
+                <p className="text-xs text-slate-500">
+                  Only PDF files are supported
+                </p>
+
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadPdfDocument(file);
+                  }}
+                  className="hidden"
+                />
+
+                <button
+                  onClick={() => pdfInputRef.current?.click()}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-semibold transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
+                  </svg>
+                  Choose File
+                </button>
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                  <p className="text-xs font-medium text-red-700">{error}</p>
                 </div>
               )}
 
-              {/* Show PDF section for PDF requests */}
-              {msg.sender === "assistant" &&
-                msg.is_pdf_request &&
-                msg.download_url &&
-                msg.downloadable_pdf && (
-                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-                    <div className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg p-2.5 border border-blue-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">📄</span>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-700">
-                              {msg.downloadable_pdf}
-                            </p>
-                            <p className="text-[10px] text-slate-500">
-                              PDF Document
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+              {pdfProcessing && (
+                <div className="text-center py-4">
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                    <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse [animation-delay:0.1s]" />
+                    <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse [animation-delay:0.2s]" />
+                  </div>
+                  <p className="text-xs text-slate-500">Uploading PDF...</p>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-500 text-center">
+                📄 PDFs are processed, chunked, embedded, and stored in vector
+                database
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-slate-200 px-6 py-3 flex gap-3 bg-slate-50">
+              <button
+                onClick={() => setShowPdfUploadModal(false)}
+                disabled={pdfProcessing}
+                className="flex-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 py-2 text-sm font-semibold transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conversation area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Messages Container */}
+        <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
+          {Array.from(new Set(messages.map((m) => m.id)))
+            .map((id) => messages.find((m) => m.id === id))
+            .map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${
+                  msg.sender === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                {msg.sender === "assistant" && (
+                  <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
+                    AG
+                  </div>
+                )}
+                {msg.text && (
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
+                      msg.sender === "user"
+                        ? "bg-blue-600 text-white rounded-br-sm"
+                        : msg.isPersonalizedReminder
+                          ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
+                          : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                    }`}
+                  >
+                    {msg.isPersonalizedReminder && msg.classification && (
+                      <p className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        {msg.classification}
+                      </p>
+                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="whitespace-pre-line flex-1">{msg.text}</p>
+                      {msg.sender === "assistant" && msg.text && (
                         <button
                           type="button"
-                          onClick={() => handlePdfPreview(msg.id)}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-white border border-slate-300 text-slate-700 px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-50 transition-colors"
+                          onClick={() => handleTextToSpeech(msg.id, msg.text)}
+                          className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
+                            speakingMessageId === msg.id
+                              ? "text-blue-600 bg-blue-50"
+                              : "text-slate-500 hover:text-blue-600"
+                          }`}
+                          title={
+                            speakingMessageId === msg.id
+                              ? "Stop speaking"
+                              : "Read aloud"
+                          }
                         >
-                          {expandedPdfId === msg.id ? (
-                            <>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                className="h-3.5 w-3.5"
-                              >
-                                <path d="M7 10l5 5 5-5z" />
-                              </svg>
-                              Hide Preview
-                            </>
-                          ) : (
-                            <>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                className="h-3.5 w-3.5"
-                              >
-                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                              </svg>
-                              Preview
-                            </>
-                          )}
-                        </button>
-                        <a
-                          href={msg.download_url}
-                          download
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-3.5 w-3.5"
-                          >
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                          </svg>
-                          Download
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* PDF Preview */}
-                    {expandedPdfId === msg.id && (
-                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
-                        <div className="text-center mb-2">
-                          <p className="text-xs font-semibold text-slate-600">
-                            PDF Preview
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            Click download to open full document
-                          </p>
-                        </div>
-                        <div className="bg-white rounded border border-slate-200 p-2 text-center">
-                          <p className="text-xs text-slate-600 mb-2">
-                            📖 {msg.downloadable_pdf}
-                          </p>
-                          <p className="text-[10px] text-slate-500 mb-2">
-                            This PDF document contains important academic
-                            policies and procedures. Click the download button
-                            to view the complete file in your PDF reader.
-                          </p>
-                          <a
-                            href={msg.download_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
-                          >
-                            Open PDF
+                          {speakingMessageId === msg.id ? (
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
                               viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              className="h-3 w-3"
+                              fill="currentColor"
+                              className="h-4 w-4"
                             >
-                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3v10m0 0l-3-3m3 3l3-3" />
+                              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                             </svg>
-                          </a>
-                        </div>
-                      </div>
-                    )}
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-4 w-4"
+                            >
+                              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
-              {msg.createdAt && (
-                <p
-                  className={`mt-1 text-[10px] opacity-70 ${
-                    msg.sender === "user" ? "text-blue-100" : "text-slate-500"
-                  }`}
-                >
-                  {formatTime(msg.createdAt)}
-                </p>
-              )}
-              {msg.sender === "user" && (
-                <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
-                  You
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Show PDF section for PDF requests */}
+                {msg.sender === "assistant" &&
+                  msg.is_pdf_request &&
+                  msg.download_url &&
+                  msg.downloadable_pdf && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <div className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg p-2.5 border border-blue-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">📄</span>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700">
+                                {msg.downloadable_pdf}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                PDF Document
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePdfPreview(msg.id)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-white border border-slate-300 text-slate-700 px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-50 transition-colors"
+                          >
+                            {expandedPdfId === msg.id ? (
+                              <>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  className="h-3.5 w-3.5"
+                                >
+                                  <path d="M7 10l5 5 5-5z" />
+                                </svg>
+                                Hide Preview
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  className="h-3.5 w-3.5"
+                                >
+                                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                                Preview
+                              </>
+                            )}
+                          </button>
+                          <a
+                            href={msg.download_url}
+                            download
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-3.5 w-3.5"
+                            >
+                              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Download
+                          </a>
+                        </div>
+                      </div>
 
-        {loading && (
-          <div className="flex items-center justify-start mt-1">
-            <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
-              AG
-            </div>
-            <div className="max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
-              <div className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.15s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.3s]" />
+                      {/* PDF Preview */}
+                      {expandedPdfId === msg.id && (
+                        <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+                          <div className="text-center mb-2">
+                            <p className="text-xs font-semibold text-slate-600">
+                              PDF Preview
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              Click download to open full document
+                            </p>
+                          </div>
+                          <div className="bg-white rounded border border-slate-200 p-2 text-center">
+                            <p className="text-xs text-slate-600 mb-2">
+                              📖 {msg.downloadable_pdf}
+                            </p>
+                            <p className="text-[10px] text-slate-500 mb-2">
+                              This PDF document contains important academic
+                              policies and procedures. Click the download button
+                              to view the complete file in your PDF reader.
+                            </p>
+                            <a
+                              href={msg.download_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                            >
+                              Open PDF
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="h-3 w-3"
+                              >
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3v10m0 0l-3-3m3 3l3-3" />
+                              </svg>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                {msg.createdAt && (
+                  <p
+                    className={`mt-1 text-[10px] opacity-70 ${
+                      msg.sender === "user" ? "text-blue-100" : "text-slate-500"
+                    }`}
+                  >
+                    {formatTime(msg.createdAt)}
+                  </p>
+                )}
+                {msg.sender === "user" && (
+                  <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
+                    You
+                  </div>
+                )}
+              </div>
+            ))}
+
+          {loading && (
+            <div className="flex items-center justify-start mt-1">
+              <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
+                AG
+              </div>
+              <div className="max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.15s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.3s]" />
+                </div>
               </div>
             </div>
+          )}
+
+          {error && (
+            <div className="mt-1 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+              <p className="text-[11px] font-medium text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* dummy div for scroll-into-view */}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Documents Sidebar */}
+        {showDocuments && (
+          <div className="border-l border-slate-200 w-80 bg-white flex flex-col flex-shrink-0 overflow-hidden">
+            <DocumentsList
+              documents={documents}
+              loading={docsLoading}
+              onRefresh={fetchDocuments}
+              onUploadClick={() => setShowPdfUploadModal(true)}
+              onDocumentOpen={handleDocumentOpen}
+              showUploadButton={canUploadPdf}
+            />
           </div>
         )}
-
-        {error && (
-          <div className="mt-1 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-            <p className="text-[11px] font-medium text-red-700">{error}</p>
-          </div>
-        )}
-
-        {/* dummy div for scroll-into-view */}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
@@ -1189,6 +1421,7 @@ export default function Chat({ onClose }) {
         className="border-t border-slate-200 px-3 py-3 rounded-b-2xl bg-white space-y-2"
       >
         <textarea
+          ref={questionInputRef}
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20"
           placeholder="Type your message..."
           value={question}
@@ -1203,6 +1436,35 @@ export default function Chat({ onClose }) {
             }
           }}
         />
+        {activeRagPdf && (
+          <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5">
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold text-blue-800">
+                Using PDF: {activeRagPdf.pdfName}
+              </p>
+              <p className="text-[10px] text-blue-700">RAG context selected</p>
+            </div>
+            <button
+              type="button"
+              onClick={clearActiveRagPdf}
+              className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-blue-300 bg-white text-blue-700 hover:bg-blue-100"
+              title="Clear selected PDF"
+              aria-label="Clear selected PDF"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-3.5 w-3.5"
+              >
+                <path d="M18 6L6 18" />
+                <path d="M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 text-[10px] text-slate-400">
             <button
@@ -1230,6 +1492,32 @@ export default function Chat({ onClose }) {
                 <path d="M9 21h6" />
               </svg>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowDocuments(!showDocuments)}
+              aria-label="View available PDFs"
+              title="View available PDFs"
+              className={`inline-flex items-center justify-center h-7 w-7 rounded-full border border-slate-300 text-[11px] font-semibold ${
+                showDocuments
+                  ? "bg-blue-50 text-blue-600 border-blue-200"
+                  : "bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+              >
+                <path d="M7 3h7l5 5v13H7z" />
+                <path d="M14 3v5h5" />
+                <path d="M9 14h6" />
+                <path d="M9 17h6" />
+              </svg>
+            </button>
+
             <div className="relative command-menu-container">
               <button
                 type="button"
