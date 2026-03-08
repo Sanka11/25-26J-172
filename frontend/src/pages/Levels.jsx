@@ -151,7 +151,7 @@ export default function Levels({ userId = "student_002" }) {
             const completedCount = getCompletedQuizzesCount(level);
             const totalQuestions = levelQuizzes.reduce(
               (sum, q) => sum + (q.question_count || 0),
-              0
+              0,
             );
 
             return (
@@ -284,10 +284,10 @@ export default function Levels({ userId = "student_002" }) {
                         {isCompleted
                           ? "Completed"
                           : isCurrent
-                          ? `Continue (${completedCount}/${quizCount})`
-                          : isLocked
-                          ? "Locked"
-                          : "Start"}
+                            ? `Continue (${completedCount}/${quizCount})`
+                            : isLocked
+                              ? "Locked"
+                              : "Start"}
                       </button>
                     </div>
                   </div>
@@ -345,7 +345,7 @@ export default function Levels({ userId = "student_002" }) {
         </div>
       </div>
 
-      <style jsx global>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

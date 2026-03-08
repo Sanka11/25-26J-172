@@ -2,6 +2,11 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
 // savindi
+//ssavindi admin 
+const GET_ALL_WORKLOADS_URL = `${BASE_URL}/getAllWorkloads`;
+const UPDATE_TASK_COMPLETION_URL = `${BASE_URL}/updateTaskCompletion`;
+const TRIGGER_WARNING_EMAIL_URL = `${BASE_URL}/triggerManualWarningEmail`;
+//savindi student
 const GENERATE_WORKLOAD_URL = `${BASE_URL}/generateWorkload`;
 const CAREER_READINESS_URL = `${BASE_URL}/careerReadinessProxy`;
 const GET_RECOMMENDATIONS_URL = `${BASE_URL}/getRecommendations`;
@@ -46,7 +51,9 @@ const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
 const ML_UPLOAD_URL = `${ML_BASE_URL}/upload_pdf`;
 const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
+const ML_FEEDBACK_STATS_URL = `${ML_BASE_URL}/feedback/stats`;
 const ML_LIST_DOCS_URL = `${ML_BASE_URL}/documents`;
+const ML_INTERVENTION_REMINDER_URL = `${ML_BASE_URL}/student/intervention-reminder`;
 
 // Academic APIs
 const GET_ALL_DEADLINES_URL = `${BASE_URL}/getAllDeadlines`;
@@ -67,7 +74,9 @@ export const appConfig = {
   ML_UPLOAD_URL,
   ML_CHAT_URL,
   ML_FEEDBACK_URL,
+  ML_FEEDBACK_STATS_URL,
   ML_LIST_DOCS_URL,
+  ML_INTERVENTION_REMINDER_URL,
 
   // Quiz savindi
   CREATE_QUIZ_URL,
@@ -82,6 +91,12 @@ export const appConfig = {
   GET_ACTIVE_REMINDERS_URL,
   DISMISS_REMINDER_URL,
   // savindi
+  GET_ALL_WORKLOADS_URL,
+  UPDATE_TASK_COMPLETION_URL,
+  TRIGGER_WARNING_EMAIL_URL,
+
+
+
   GENERATE_WORKLOAD_URL,
   GET_RECOMMENDATIONS_URL,
   CAREER_READINESS_URL,

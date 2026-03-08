@@ -1,3 +1,5 @@
+# app/disengagement/rl_inference.py
+
 import joblib
 import numpy as np
 from pathlib import Path
@@ -21,11 +23,16 @@ INV_ACTION_MAP = config["INV_ACTION_MAP"]
 # =========================
 # GUARDRAILS
 # =========================
-def forced_action(last_action, no_resp):
+def forced_action(last_action: str, no_resp: int):
+    """
+    Hard safety rules (same as training-time behavior)
+    """
     if last_action == "PEER_CHEER" and no_resp >= 3:
         return "HUMAN_ESCALATION", "FORCED_HUMAN_ESCALATION"
+
     if no_resp >= 2:
         return "PEER_CHEER", "FORCED_PEER_CHEER"
+
     return None, None
 
 
@@ -39,12 +46,20 @@ def rl_decide_action(
     no_response_streak: int,
     fatigue_level: int
 ) -> dict:
-    
-    # 🔒 SAFETY NET (ADD THIS)
+    """
+    RL v2 inference function
+    (trend-aware, Q-table based, with guardrails)
+    """
+
+    # -------------------------
+    # SAFETY NET
+    # -------------------------
     if risk_trend not in TREND_MAP:
         risk_trend = "STABLE"
 
+    # -------------------------
     # 1️⃣ Guardrails first
+    # -------------------------
     forced, reason = forced_action(last_action, no_response_streak)
     if forced:
         return {
@@ -54,7 +69,9 @@ def rl_decide_action(
             "q_value": None
         }
 
+    # -------------------------
     # 2️⃣ Build RL state
+    # -------------------------
     state = (
         RISK_MAP[current_risk],
         TREND_MAP[risk_trend],
@@ -63,6 +80,9 @@ def rl_decide_action(
         min(fatigue_level, 2)
     )
 
+    # -------------------------
+    # 3️⃣ Q-table decision
+    # -------------------------
     q_values = Q_table.get(state, np.zeros(len(ACTION_MAP)))
     action_idx = int(np.argmax(q_values))
 
