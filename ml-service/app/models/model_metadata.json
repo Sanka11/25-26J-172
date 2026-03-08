@@ -1,0 +1,9 @@
+{
+  "model_type": "HybridEnsemble_RF_XGB_LGBM",
+  "accuracy": 0.978,
+  "roc_auc": 0.9964,
+  "cv_auc_mean": 0.9949,
+  "cv_auc_std": 0.0018,
+  "n_features": 17,
+  "version": "v4_hybrid"
+}
