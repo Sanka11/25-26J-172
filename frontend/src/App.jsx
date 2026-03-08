@@ -15,6 +15,7 @@ import { ROLES } from "./context/AuthContext";
 import RiskDemo from "./pages/RiskDemo";
 import StudentRiskDashboard from "./pages/StudentRiskDashboard";
 import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
+import XAIAdminDashboard from "./pages/XAIAdminDashboard";
 
 //savindi
 import WorkloadDashboard from "./pages/StudentDashboard";
@@ -255,6 +256,7 @@ function MainShell() {
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/my-risk" element={<StudentRiskDashboard />} />
+        <Route path="/xai-admin" element={<XAIAdminDashboard />} />
         <Route path="/lecturer-risk" element={<LecturerRiskDashboard />} />
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
