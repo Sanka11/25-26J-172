@@ -1,6 +1,7 @@
 import re
 import os
 import difflib
+import requests
 from urllib.parse import quote
 from .embeddings import embed_texts
 from .vector_store import query, list_documents, keyword_search
@@ -78,6 +79,8 @@ SMALL_TALK_PATTERNS = [
 
 
 ML_PUBLIC_BASE_URL = os.getenv("ML_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "").strip()
+GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "").strip()
 
 
 STOP_WORDS = {
@@ -96,6 +99,93 @@ INTEGRITY_TERMS = {
 def _build_download_url(pdf_filename: str) -> str:
     encoded_name = quote(pdf_filename)
     return f"{ML_PUBLIC_BASE_URL}/documents/{encoded_name}"
+
+
+def _google_search(question: str, num_results: int = 5) -> list:
+    """Search the web via Google Custom Search API for non-RAG fallback."""
+    if not GOOGLE_CSE_API_KEY or not GOOGLE_CSE_CX:
+        print("[GOOGLE] Skipped: GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX not configured")
+        return []
+
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key": GOOGLE_CSE_API_KEY,
+                "cx": GOOGLE_CSE_CX,
+                "q": question,
+                "num": max(1, min(num_results, 10)),
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        items = response.json().get("items", []) or []
+        results = []
+        for item in items:
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                }
+            )
+        print(f"[GOOGLE] Retrieved {len(results)} web results")
+        return results
+    except Exception as e:
+        print(f"[GOOGLE] Search failed: {e}")
+        return []
+
+
+def _build_web_context(web_results: list, max_results: int = 4) -> str:
+    if not web_results:
+        return ""
+
+    lines = []
+    for idx, item in enumerate(web_results[:max_results], start=1):
+        title = (item.get("title") or "").strip()
+        snippet = (item.get("snippet") or "").strip()
+        link = (item.get("link") or "").strip()
+        lines.append(f"[{idx}] {title}\n{snippet}\nSource: {link}")
+    return "\n\n".join(lines)
+
+
+def _extract_definition_term(question: str) -> str:
+    q = (question or "").strip()
+    if not q:
+        return ""
+    patterns = [
+        r"^\s*what\s+is\s+(.*)$",
+        r"^\s*define\s+(.*)$",
+        r"^\s*meaning\s+of\s+(.*)$",
+        r"^\s*explain\s+(.*)$",
+    ]
+    for pattern in patterns:
+        match = re.match(pattern, q, flags=re.IGNORECASE)
+        if match:
+            term = (match.group(1) or "").strip(" ?.!,:;")
+            return term
+    return q.strip(" ?.!,:;")
+
+
+def _build_general_definition_answer(question: str) -> str:
+    term = _extract_definition_term(question)
+    if not term:
+        return "Please tell me the exact term you want defined."
+
+    prompt = (
+        "You are a concise dictionary assistant. "
+        "Define the term in 1-2 short sentences with clear language for students. "
+        "Do not mention documents or policies unless the term itself is a policy term.\n\n"
+        f"Term: {term}"
+    )
+    try:
+        answer = call_ollama(prompt)
+        if answer and answer.strip():
+            return answer.strip()
+    except Exception as e:
+        print(f"[RAG] General definition fallback failed: {e}")
+
+    return f"{term} is a concept that can be explained in simple terms."
 
 
 def _correct_typos(text: str) -> str:
@@ -900,16 +990,23 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     question_lower = question.lower()
     academic_context = ""
     
-    # Check if user is asking for a PDF directly
+    # Only treat as a PDF request when user explicitly asks for a file/PDF/download.
     is_pdf_request = any(
         keyword in question_lower
-        for keyword in ["pdf", "give me", "show me", "rules", "policy", "policies", 
-                       "document", "file", "download", "fee", "fees", "fee structure",
-                       "academic calendar", "calendar", "conduct code", "integrity policy",
-                       "scholarship", "scholarships", "scheme", "library", "book", "dress code",
-                       "progression", "criteria", "computer lab", "it policy", "emergency",
-                       "medical", "lost and found", "erp", "event", "activities", "lecturer",
-                       "email", "contact", "handbook", "rulebook", "bank", "details", "transaction"]
+        for keyword in [
+            "pdf",
+            "download",
+            "download pdf",
+            "give me pdf",
+            "show me pdf",
+            "send pdf",
+            "provide pdf",
+            "share pdf",
+            "open pdf",
+            "pdf file",
+            "document file",
+            "attach file",
+        ]
     )
     
     is_deadline_q = _is_deadline_date_question(question_lower)
@@ -928,41 +1025,47 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     # Deterministic handling for core SLIIT rulebook policy questions.
     rulebook_answer = _get_rulebook_policy_answer(question_lower)
     if rulebook_answer:
-        return {
+        result = {
             "answer": rulebook_answer,
             "sources": None,
             "source_pdfs": ["SLIIT Rule Book.pdf"],
             "suggested_pdfs": ["SLIIT Rule Book.pdf"],
             "is_pdf_request": False,
-            "downloadable_pdf": "SLIIT Rule Book.pdf",
-            "download_url": _build_download_url("SLIIT Rule Book.pdf"),
         }
+        if is_pdf_request:
+            result["downloadable_pdf"] = "SLIIT Rule Book.pdf"
+            result["download_url"] = _build_download_url("SLIIT Rule Book.pdf")
+        return result
 
     # Deterministic high-accuracy answer for the most common typo/definition case.
     if is_definition_q and _is_integrity_question(question_lower):
-        return {
+        result = {
             "answer": "Plagiarism means using someone else's words, ideas, or work as your own without proper credit. To avoid it, cite your sources clearly and use quotation marks for exact copied text.",
             "sources": None,
             "source_pdfs": [],
             "suggested_pdfs": ["academic_integrity.pdf"],
             "is_pdf_request": False,
-            "downloadable_pdf": "academic_integrity.pdf",
-            "download_url": _build_download_url("academic_integrity.pdf"),
         }
+        if is_pdf_request:
+            result["downloadable_pdf"] = "academic_integrity.pdf"
+            result["download_url"] = _build_download_url("academic_integrity.pdf")
+        return result
     
     # Deterministic answer for yes/no questions about payments and fees
     if is_yesno_q:
         yesno_answer = _get_yesno_answer(question_lower)
         if yesno_answer:
-            return {
+            result = {
                 "answer": yesno_answer,
                 "sources": None,
                 "source_pdfs": [],
                 "suggested_pdfs": ["fee_structure.pdf"],
                 "is_pdf_request": False,
-                "downloadable_pdf": "fee_structure.pdf",
-                "download_url": _build_download_url("fee_structure.pdf"),
             }
+            if is_pdf_request:
+                result["downloadable_pdf"] = "fee_structure.pdf"
+                result["download_url"] = _build_download_url("fee_structure.pdf")
+            return result
     
     print(f"[RAG] Classification: is_pdf_request={is_pdf_request}, is_definition_q={is_definition_q}, is_integrity_q={is_integrity_q}, is_deadline_q={is_deadline_q}, is_lic_q={is_lic_q}, is_yesno_q={is_yesno_q}")
     
@@ -1122,11 +1225,36 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                 "is_pdf_request": is_pdf_request
             }
             # Add download URL for PDF requests
-            if suggested_pdfs and len(suggested_pdfs) > 0:
+            if is_pdf_request and suggested_pdfs and len(suggested_pdfs) > 0:
                 best_pdf = suggested_pdfs[0]
                 local_result["downloadable_pdf"] = best_pdf
                 local_result["download_url"] = _build_download_url(best_pdf)
             return local_result
+
+        # If no local PDF context exists, fall back to Google search for general queries.
+        if not is_pdf_request:
+            web_results = _google_search(question, num_results=5)
+            if web_results:
+                web_context = _build_web_context(web_results, max_results=4)
+                personalized_instructions = _build_personalized_system_instructions(user_id)
+                prompt = (
+                    f"{personalized_instructions}\n\n"
+                    "Use the web search results below to answer the user's question accurately. "
+                    "If details conflict, prefer the most credible and specific source.\n\n"
+                    f"Web Results:\n{web_context}\n\n"
+                    f"Question: {question}\n\n"
+                    "Answer in 2-4 short sentences and keep it clear for a student."
+                )
+                web_answer = call_ollama(prompt)
+                return {
+                    "answer": _friendly_answer(web_answer),
+                    "sources": results,
+                    "source_pdfs": [],
+                    "suggested_pdfs": suggested_pdfs,
+                    "is_pdf_request": False,
+                    "web_sources": web_results[:3],
+                    "answer_source": "google_search",
+                }
 
         # Special handling for PDF requests without results
         if is_pdf_request:
@@ -1165,7 +1293,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             fallback = _get_integrity_fallback(question)
             print(f"[RAG] Using integrity fallback")
         elif is_definition_q:
-            fallback = "I couldn't find a definition for that in the available documents. Please try rephrasing your question or contact academic support."
+            fallback = _build_general_definition_answer(question)
             print(f"[RAG] Using definition fallback")
         else:
             fallback = "I couldn't find that information in the documents or academic database. Please try asking about assignment deadlines, module details, or academic integrity policies."
@@ -1178,8 +1306,8 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             "is_pdf_request": is_pdf_request,
             "source_pdfs": []
         }
-        # Add download URL if we have suggested PDFs
-        if suggested_pdfs and len(suggested_pdfs) > 0:
+        # Add download URL only for explicit PDF requests.
+        if is_pdf_request and suggested_pdfs and len(suggested_pdfs) > 0:
             fallback_result["downloadable_pdf"] = suggested_pdfs[0]
             fallback_result["download_url"] = _build_download_url(suggested_pdfs[0])
         return fallback_result
@@ -1213,7 +1341,8 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             else:
                 answer = "I'm unable to provide a definitive answer. Please contact the Finance Department or relevant department for accurate information."
         elif is_definition_q:
-            answer = "Here is a simple definition: this is an academic policy term, and I can explain it in one sentence if you tell me the exact term."
+            # Do a proper general definition fallback instead of a placeholder sentence.
+            answer = _build_general_definition_answer(question)
         else:
             answer = "I’m sorry, I couldn’t generate a reliable answer for that question. Please try rephrasing it in one short sentence."
 
