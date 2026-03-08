@@ -57,6 +57,7 @@ export const AuthProvider = ({ children }) => {
       contactNo,
       email,
       role,
+      student_id: formData.studentId || null,
       createdAt: new Date(),
     });
   };
