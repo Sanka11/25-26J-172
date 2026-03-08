@@ -496,5 +496,47 @@
     "datetime": "2026-03-08T08:47:35.191127",
     "question": "give me Bank Details for student transactions pdf?",
     "answer": ""
+  },
+  {
+    "timestamp": 1772953374.7511904,
+    "datetime": "2026-03-08T12:32:54.751190",
+    "question": "give me sliit rule book pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953392.6004972,
+    "datetime": "2026-03-08T12:33:12.600497",
+    "question": "give me sliit library rule book pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953413.5653062,
+    "datetime": "2026-03-08T12:33:33.565306",
+    "question": "give me sliit scholarship pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953972.0999365,
+    "datetime": "2026-03-08T12:42:52.099936",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772956228.5598521,
+    "datetime": "2026-03-08T13:20:28.559852",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772956834.6160088,
+    "datetime": "2026-03-08T13:30:34.616008",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772957955.6532795,
+    "datetime": "2026-03-08T13:49:15.653279",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
   }
 ]
