@@ -1,29 +1,144 @@
 // backend/functions/src/http/mlProxy.js
-const functions = require("firebase-functions");
+const { onRequest } = require("firebase-functions/v2/https");
 const axios = require("axios");
-const {ML_SERVICE_URL} = require("../config");
+const { ML_SERVICE_URL } = require("../config");
 
-const predictRisk = functions.https.onRequest(async (req, res) => {
+// ── Keep old endpoint — backward compat ──
+const predictRisk = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    return res.status(204).send("");
+  }
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   try {
-    // Only allow POST requests
-    if (req.method !== "POST") {
-      return res.status(405).send("Method Not Allowed");
-    }
-
-    const payload = req.body; // expects JSON with student_id, gpa, attendance_rate, assignments_completed
-
-    // Call ML service
     const response = await axios.post(
-      ML_SERVICE_URL,
-      payload
+      `${ML_SERVICE_URL}/predict-risk`,
+      req.body,
     );
-
-    // ML returns: { risk_score: number }
     return res.status(200).json(response.data);
   } catch (error) {
     console.error("ML proxy error:", error.message);
-    return res.status(500).json({error: "ML service error"});
+    return res.status(500).json({ error: "ML service error" });
   }
 });
 
-module.exports = {predictRisk};
+// ── NEW: SHAP risk prediction ──
+const predictRiskShap = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "POST");
+    return res.status(204).send("");
+  }
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+  try {
+    const { studentId, ...academicData } = req.body;
+
+    const endpoint = studentId
+      ? `${ML_SERVICE_URL}/predict-risk/shap/${studentId}`
+      : `${ML_SERVICE_URL}/predict-risk/shap`;
+
+    const response = await axios.post(endpoint, academicData, {
+      timeout: 30000,
+    });
+
+    // Cache in Firestore if studentId provided
+    if (studentId) {
+      try {
+        const admin = require("../firebase");
+        const db = admin.firestore();
+        await db
+          .collection("student_risk_predictions")
+          .doc(studentId)
+          .set(
+            {
+              ...response.data,
+              cached_at: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+      } catch (cacheErr) {
+        console.warn("Cache write failed (non-fatal):", cacheErr.message);
+      }
+    }
+
+    return res.status(200).json(response.data);
+  } catch (error) {
+    console.error("SHAP risk error:", error.message);
+    if (error.response) {
+      return res
+        .status(error.response.status)
+        .json({ error: error.response.data });
+    }
+    return res.status(500).json({ error: "ML service unavailable" });
+  }
+});
+
+// ── NEW: Next semester what-if prediction ──
+const predictNextSemester = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "POST");
+    return res.status(204).send("");
+  }
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/predict-risk/next-semester`,
+      req.body,
+      { timeout: 30000 },
+    );
+    return res.status(200).json(response.data);
+  } catch (error) {
+    console.error("Next semester error:", error.message);
+    return res.status(500).json({ error: "ML service unavailable" });
+  }
+});
+
+// ── NEW: Bulk risk for lecturer/admin ──
+const getBulkRisk = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "GET");
+    return res.status(204).send("");
+  }
+  if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
+
+  try {
+    const admin = require("../firebase");
+    const db = admin.firestore();
+
+    const snapshot = await db.collection("student_risk_predictions").get();
+
+    const students = snapshot.docs.map((doc) => ({
+      student_id: doc.id,
+      ...doc.data(),
+      cached_at: doc.data().cached_at?.toDate?.()?.toISOString() || null,
+    }));
+
+    // Sort: High first, Medium second, Low last
+    const levelOrder = { High: 0, Medium: 1, Low: 2 };
+    students.sort(
+      (a, b) =>
+        (levelOrder[a.risk_level] ?? 3) - (levelOrder[b.risk_level] ?? 3),
+    );
+
+    return res.status(200).json({ students, total: students.length });
+  } catch (error) {
+    console.error("Bulk risk error:", error.message);
+    return res.status(500).json({ error: "Failed to fetch risk data" });
+  }
+});
+
+module.exports = {
+  predictRisk,
+  predictRiskShap,
+  predictNextSemester,
+  getBulkRisk,
+};

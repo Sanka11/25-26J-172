@@ -27,9 +27,11 @@ from app.services.struggle_service import predict_struggle
 # ----------------------------
 # Risk SERVICES
 # ----------------------------
-from app.services.risk_service import predict_risk_score
-from app.services.risk_service import predict_risk_score
-from app.schemas.risk import RiskRequest, RiskResponse
+from app.services.risk_service import predict_risk_score, predict_risk_with_shap
+from app.schemas.risk import (
+    RiskRequest, RiskResponse,
+    StudentRiskInput, StudentRiskResponse
+)
 
 # ----------------------------
 # RAG MODULES
@@ -64,8 +66,36 @@ def health():
 
 @app.post("/predict-risk", response_model=RiskResponse)
 def predict_risk(payload: RiskRequest):
+    """Legacy endpoint — kept for backward compatibility."""
     score = predict_risk_score(payload)
     return RiskResponse(risk_score=score)
+
+
+@app.post("/predict-risk/shap")
+def predict_risk_shap(payload: StudentRiskInput):
+    """SHAP-based risk prediction. Returns score + full explanation."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    return predict_risk_with_shap(data)
+
+
+@app.post("/predict-risk/shap/{student_id}")
+def predict_risk_shap_for_student(student_id: str, payload: StudentRiskInput):
+    """SHAP risk prediction for a specific student ID."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    return predict_risk_with_shap(data, student_id=student_id)
+
+
+@app.post("/predict-risk/next-semester")
+def predict_next_semester(payload: StudentRiskInput):
+    """What-if prediction — result is NEVER stored."""
+    data = payload.dict()
+    data["Stress_Level_1-10"] = data.pop("Stress_Level")
+    result = predict_risk_with_shap(data)
+    result["is_hypothetical"] = True
+    result["note"] = "Simulation only. Results are not saved."
+    return result
     
 @app.post("/recommendations", response_model=RecommendationResponse)
 def get_student_recommendations(request: RecommendationRequest):
