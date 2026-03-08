@@ -1,39 +1,9 @@
 {
-  "model_name": "RandomForestClassifier",
-  "version": "v3_final",
-  "accuracy": 0.933,
-  "roc_auc": 0.9879,
-  "feature_count": 22,
-  "categorical_cols": [
-    "Gender",
-    "Department",
-    "Extracurricular_Activities",
-    "Internet_Access_at_Home",
-    "Parent_Education_Level",
-    "Family_Income_Level"
-  ],
-  "feature_columns": [
-    "Age",
-    "Attendance_pct",
-    "Midterm_Score",
-    "Final_Score",
-    "Assignments_Avg",
-    "Quizzes_Avg",
-    "Participation_Score",
-    "Projects_Score",
-    "Study_Hours_per_Week",
-    "Stress_Level_1-10",
-    "Sleep_Hours_per_Night",
-    "Gender_Male",
-    "Department_CS",
-    "Department_Engineering",
-    "Department_Mathematics",
-    "Extracurricular_Activities_Yes",
-    "Internet_Access_at_Home_Yes",
-    "Parent_Education_Level_High School",
-    "Parent_Education_Level_Master's",
-    "Parent_Education_Level_PhD",
-    "Family_Income_Level_Low",
-    "Family_Income_Level_Medium"
-  ]
+  "model_type": "HybridEnsemble_RF_XGB_LGBM",
+  "accuracy": 0.978,
+  "roc_auc": 0.9964,
+  "cv_auc_mean": 0.9949,
+  "cv_auc_std": 0.0018,
+  "n_features": 17,
+  "version": "v4_hybrid"
 }
