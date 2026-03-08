@@ -88,15 +88,39 @@ def delete_documents(doc_id: str):
 
 
 def query(text_embedding, n_results=4):
+    """
+    Query the vector database for similar documents.
+    
+    Args:
+        text_embedding: Query embedding vector
+        n_results: Number of results to return
+    
+    Returns:
+        Dictionary containing documents, metadatas, distances, and ids
+        Note: ChromaDB returns 'distances' where lower is better (more similar)
+    """
     col = get_collection()
 
     results = col.query(
         query_embeddings=[text_embedding.tolist()],
-        n_results=n_results
+        n_results=n_results,
+        include=['documents', 'metadatas', 'distances']  # Explicitly request distances
     )
     
     total_in_collection = len(col.get(include=[])['ids']) if col.get(include=[]) else 0
-    print(f"[VectorDB] Query: Total chunks in DB: {total_in_collection}, Results returned: {len(results.get('documents', [[]])[0])}")
+    distances = results.get('distances', [[]])[0] if results.get('distances') else []
+    
+    # Log distance info for debugging
+    if distances:
+        min_dist = min(distances) if distances else None
+        max_dist = max(distances) if distances else None
+        avg_dist = sum(distances) / len(distances) if distances else None
+        print(f"[VectorDB] Query: Total chunks in DB: {total_in_collection}, "
+              f"Results returned: {len(results.get('documents', [[]])[0])}, "
+              f"Distance range: [{min_dist:.3f}, {max_dist:.3f}], Avg: {avg_dist:.3f}")
+    else:
+        print(f"[VectorDB] Query: Total chunks in DB: {total_in_collection}, "
+              f"Results returned: {len(results.get('documents', [[]])[0])}")
 
     return results
 
