@@ -51,7 +51,7 @@ from app.services.personalized_intervention_service import (
 # ----------------------------
 # Disengagement Router
 # ----------------------------
-# from app.disengagement.router import router as disengagement_router
+from app.disengagement.router import router as disengagement_router
 
 
 app = FastAPI(title="AcademiGuard ML Service")
@@ -67,7 +67,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.include_router(disengagement_router)
+app.include_router(disengagement_router)
 
 
 def _feedback_file_path() -> str:
