@@ -116,3 +116,5 @@ coverage/
 backend/functions/serviceAccountKey.json
 
 backend/funtions/.env
+ml-service/venv_gru/
+ml-service/venv/
