@@ -372,9 +372,8 @@ const NavigationBar = () => {
     { path: "/", label: "Home", exact: true },
     { path: "/risk", label: "Risk Dashboard" },
     { path: "/recommendation", label: "Recommendation" },
-    { path: "/announcements", label: "Announcements" },
-    { path: "/levels", label: "Quizzes" },
     { path: "/WorkloadDashboard", label: "Workload Dashboard" },
+    { path: "/announcements", label: "Announcements" },
   ];
 
   const isActive = (path, exact = false) =>
