@@ -38,6 +38,7 @@ from app.pdf_reader import extract_text_from_pdf_bytes
 from app.chunker import chunk_text
 from app.embeddings import embed_texts
 from app.vector_store import add_documents
+from app.services.web_search_service import web_search_service
 
 # ----------------------------
 # STUDENT PROFILE & PERSONALIZATION
@@ -107,6 +108,24 @@ def _save_feedback_items(items: list) -> None:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/cache/stats")
+def get_cache_stats():
+    """Get web search cache performance statistics."""
+    stats = web_search_service.get_cache_stats()
+    return {
+        "status": "ok",
+        "cache": stats,
+        "configured": web_search_service.is_configured
+    }
+
+
+@app.post("/cache/clear")
+def clear_cache():
+    """Clear web search cache."""
+    web_search_service.clear_cache()
+    return {"status": "ok", "message": "Cache cleared successfully"}
 
 
 # -----------------------------------------------------------
