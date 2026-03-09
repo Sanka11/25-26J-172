@@ -176,6 +176,29 @@ const transporter = nodemailer.createTransport({
 });
 
 // Helper function for the timetable emails
+// const formatTimetableToHTML = (timetable) => {
+//   if (!timetable || timetable.length === 0)
+//     return "<p>No specific tasks scheduled.</p>";
+
+//   let html = `
+//     <table border="1" cellpadding="10" style="border-collapse: collapse; width: 100%; text-align: left; font-family: sans-serif;">
+//       <tr style="background-color: #fef3c7; color: #78350f;">
+//         <th>Day</th><th>Subject</th><th>Task</th><th>Duration</th>
+//       </tr>`;
+
+//   timetable.forEach((item) => {
+//     html += `
+//       <tr>
+//         <td><strong>Day ${item.day}</strong></td>
+//         <td>${item.subject}</td>
+//         <td>${item.task}</td>
+//         <td><span style="background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">${item.hours}h</span></td>
+//       </tr>`;
+//   });
+
+//   html += `</table>`;
+//   return html;
+// };
 const formatTimetableToHTML = (timetable) => {
   if (!timetable || timetable.length === 0)
     return "<p>No specific tasks scheduled.</p>";
@@ -186,15 +209,34 @@ const formatTimetableToHTML = (timetable) => {
         <th>Day</th><th>Subject</th><th>Task</th><th>Duration</th>
       </tr>`;
 
-  timetable.forEach((item) => {
-    html += `
-      <tr>
-        <td><strong>Day ${item.day}</strong></td>
+  // 1. Group the timetable items by their 'day' property
+  const groupedTimetable = timetable.reduce((acc, item) => {
+    if (!acc[item.day]) {
+      acc[item.day] = [];
+    }
+    acc[item.day].push(item);
+    return acc;
+  }, {});
+
+  // 2. Loop through each grouped day
+  for (const [day, tasks] of Object.entries(groupedTimetable)) {
+    tasks.forEach((item, index) => {
+      html += `<tr>`;
+
+      // ONLY print the "Day" cell if it is the very first task of that day.
+      // Use rowspan to stretch it down to match the number of tasks for this day.
+      if (index === 0) {
+        html += `<td rowspan="${tasks.length}" style="vertical-align: middle;"><strong>Day ${day}</strong></td>`;
+      }
+
+      // Print the rest of the columns normally for every row
+      html += `
         <td>${item.subject}</td>
         <td>${item.task}</td>
-        <td><span style="background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">${item.hours}h</span></td>
+        <td><span style="background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; color: #78350f;">${item.hours}h</span></td>
       </tr>`;
-  });
+    });
+  }
 
   html += `</table>`;
   return html;
@@ -434,39 +476,84 @@ const triggerManualWarningEmail = functions.https.onRequest((req, res) => {
       let fieldToUpdate = ""; // Tracks which phase we are sending
 
       if (diffDays > 1) {
-        if (workload.earlyWarningSent) return res.status(400).json({ error: "Early warning already sent!" });
-        
+        if (workload.earlyWarningSent)
+          return res.status(400).json({ error: "Early warning already sent!" });
+
         // ... (Fetch AI Timetable logic remains exactly the same) ...
-        const reminderSnap = await db.collection("busy_week_reminders")
-          .where("studentId", "==", studentId).where("targetBusyWeek", "==", Number(week)).limit(1).get();
-        let timetableHTML = "<p>No AI timetable was generated for this week.</p>";
-        if (!reminderSnap.empty) timetableHTML = formatTimetableToHTML(reminderSnap.docs[0].data().timetable);
+        const reminderSnap = await db
+          .collection("busy_week_reminders")
+          .where("studentId", "==", studentId)
+          .where("targetBusyWeek", "==", Number(week))
+          .limit(1)
+          .get();
+        let timetableHTML =
+          "<p>No AI timetable was generated for this week.</p>";
+        if (!reminderSnap.empty)
+          timetableHTML = formatTimetableToHTML(
+            reminderSnap.docs[0].data().timetable,
+          );
 
         emailSubject = `Action Required: Heavy Workload Approaching (Week ${week})`;
         emailHtml = `<h2>Hi Student,</h2><p>Next week (Week ${week}) is marked as <strong>${workload.status}</strong>.</p> ${timetableHTML}`;
         fieldToUpdate = "earlyWarningSent";
-
       } else if (diffDays === 1) {
-        if (workload.dayBeforeReminderSent) return res.status(400).json({ error: "1-Day reminder already sent!" });
-        
+        if (workload.dayBeforeReminderSent)
+          return res
+            .status(400)
+            .json({ error: "1-Day reminder already sent!" });
+
         // ... (Fetch AI Timetable logic remains exactly the same) ...
-        const reminderSnap = await db.collection("busy_week_reminders")
-          .where("studentId", "==", studentId).where("targetBusyWeek", "==", Number(week)).limit(1).get();
-        let timetableHTML = "<p>No AI timetable was generated for this week.</p>";
-        if (!reminderSnap.empty) timetableHTML = formatTimetableToHTML(reminderSnap.docs[0].data().timetable);
+        const reminderSnap = await db
+          .collection("busy_week_reminders")
+          .where("studentId", "==", studentId)
+          .where("targetBusyWeek", "==", Number(week))
+          .limit(1)
+          .get();
+        let timetableHTML =
+          "<p>No AI timetable was generated for this week.</p>";
+        if (!reminderSnap.empty)
+          timetableHTML = formatTimetableToHTML(
+            reminderSnap.docs[0].data().timetable,
+          );
 
         emailSubject = `Tomorrow: Week ${week} Starts!`;
         emailHtml = `<h2>Hi Student,</h2><p>Your highly demanding week starts tomorrow.</p> ${timetableHTML}`;
         fieldToUpdate = "dayBeforeReminderSent";
 
+        // } else {
+        //   if (workload.missingSubmissionWarningSent) return res.status(400).json({ error: "Missing submission warning already sent!" });
+
+        //   const incompleteTasks = (workload.breakdown || []).filter((t) => t.isCompleted === false);
+        //   if (incompleteTasks.length === 0) return res.status(400).json({ error: "Student completed all tasks." });
+
+        //   let missedTasksHtml = `<ul>`;
+        //   incompleteTasks.forEach((task) => missedTasksHtml += `<li>${task.subjectName}</li>`);
+        //   missedTasksHtml += `</ul>`;
+
+        //   emailSubject = `URGENT ALERT: Missing Submissions for Week ${workload.week}`;
+        //   emailHtml = `<h2>Hi Student,</h2><p>You missed these submissions:</p> ${missedTasksHtml}`;
+        //   fieldToUpdate = "missingSubmissionWarningSent";
+        // }
       } else {
-        if (workload.missingSubmissionWarningSent) return res.status(400).json({ error: "Missing submission warning already sent!" });
-        
-        const incompleteTasks = (workload.breakdown || []).filter((t) => t.isCompleted === false);
-        if (incompleteTasks.length === 0) return res.status(400).json({ error: "Student completed all tasks." });
+        if (workload.missingSubmissionWarningSent)
+          return res
+            .status(400)
+            .json({ error: "Missing submission warning already sent!" });
+
+        // 👇 FIX: Use !== true (or !t.isCompleted) so it catches 'undefined' tasks too!
+        const incompleteTasks = (workload.breakdown || []).filter(
+          (t) => t.isCompleted !== true,
+        );
+
+        if (incompleteTasks.length === 0)
+          return res
+            .status(400)
+            .json({ error: "Student completed all tasks." });
 
         let missedTasksHtml = `<ul>`;
-        incompleteTasks.forEach((task) => missedTasksHtml += `<li>${task.subjectName}</li>`);
+        incompleteTasks.forEach(
+          (task) => (missedTasksHtml += `<li>${task.subjectName}</li>`),
+        );
         missedTasksHtml += `</ul>`;
 
         emailSubject = `URGENT ALERT: Missing Submissions for Week ${workload.week}`;
