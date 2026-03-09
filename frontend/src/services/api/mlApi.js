@@ -47,3 +47,11 @@ export async function updateStudentMarks(studentId, updatedData) {
   });
   return response.data;
 }
+
+// ── NEW: Get student risk history (all semesters grouped by year) ──
+export async function getStudentRiskHistory(studentId) {
+  const response = await axios.get(appConfig.GET_STUDENT_RISK_HISTORY_URL, {
+    params: { studentId },
+  });
+  return response.data;
+}

@@ -7,6 +7,7 @@ const DEFAULTS = {
   Final_Score: 60,
   Assignments_Avg: 60,
   Quizzes_Avg: 60,
+  Participation_Score: 60,
   Projects_Score: 60,
   Study_Hours_per_Week: 10,
   Stress_Level: 5,
@@ -22,6 +23,12 @@ const SLIDERS = [
   { key: "Final_Score", label: "Final Score", min: 0, max: 100 },
   { key: "Assignments_Avg", label: "Assignments Avg", min: 0, max: 100 },
   { key: "Quizzes_Avg", label: "Quizzes Avg", min: 0, max: 100 },
+  {
+    key: "Participation_Score",
+    label: "Class Participation",
+    min: 0,
+    max: 100,
+  },
   { key: "Projects_Score", label: "Projects Score", min: 0, max: 100 },
   { key: "Study_Hours_per_Week", label: "Study Hours/Week", min: 0, max: 40 },
   { key: "Stress_Level", label: "Stress Level (1-10)", min: 1, max: 10 },
@@ -39,10 +46,23 @@ export default function NextSemesterPredictor() {
     setError(null);
     setResult(null);
     try {
+      // Send all 17 fields the ML model requires
       const payload = {
-        ...form,
+        Attendance_pct: Number(form.Attendance_pct),
+        Midterm_Score: Number(form.Midterm_Score),
+        Final_Score: Number(form.Final_Score),
+        Assignments_Avg: Number(form.Assignments_Avg),
+        Quizzes_Avg: Number(form.Quizzes_Avg),
+        Participation_Score: Number(form.Participation_Score),
+        Projects_Score: Number(form.Projects_Score),
+        Study_Hours_per_Week: Number(form.Study_Hours_per_Week),
+        Stress_Level: Number(form.Stress_Level),
+        Sleep_Hours_per_Night: Number(form.Sleep_Hours_per_Night),
+        Department: form.Department,
+        Extracurricular_Activities: form.Extracurricular_Activities,
+        Family_Income_Level: form.Family_Income_Level,
+        // Fixed profile fields
         Age: 21,
-        Participation_Score: 60,
         Gender: "Male",
         Internet_Access_at_Home: "Yes",
         Parent_Education_Level: "Bachelor",
@@ -99,7 +119,16 @@ export default function NextSemesterPredictor() {
             onChange={(e) => setForm({ ...form, Department: e.target.value })}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
           >
-            {["CS", "IT", "SE", "DS", "CE"].map((d) => (
+            {[
+              "CS",
+              "IT",
+              "SE",
+              "DS",
+              "CE",
+              "Mathematics",
+              "Business",
+              "Engineering",
+            ].map((d) => (
               <option key={d}>{d}</option>
             ))}
           </select>
@@ -172,8 +201,7 @@ export default function NextSemesterPredictor() {
             ))}
           </ul>
           <p className="text-xs text-gray-400 mt-3 italic">
-            ⚠️ This is a simulation only. Results are not saved. For
-            recommendations, refer to the Recommendation Module.
+            ⚠️ This is a simulation only. Results are not saved.
           </p>
         </div>
       )}

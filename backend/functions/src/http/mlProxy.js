@@ -101,6 +101,7 @@ const predictNextSemester = onRequest(async (req, res) => {
 });
 
 // ── NEW: Bulk risk for lecturer/admin ──
+// Reads from student_risk_predictions + enriches with student_acc info
 const getBulkRisk = onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -114,13 +115,34 @@ const getBulkRisk = onRequest(async (req, res) => {
     const admin = require("../firebase");
     const db = admin.firestore();
 
+    // Get all risk predictions
     const snapshot = await db.collection("student_risk_predictions").get();
 
-    const students = snapshot.docs.map((doc) => ({
-      student_id: doc.id,
-      ...doc.data(),
-      cached_at: doc.data().cached_at?.toDate?.()?.toISOString() || null,
-    }));
+    // Get all student_acc docs for enrichment (name, department, semester)
+    const accSnapshot = await db.collection("student_acc").get();
+    const accMap = {};
+    accSnapshot.docs.forEach((doc) => {
+      accMap[doc.id] = doc.data();
+    });
+
+    const students = snapshot.docs.map((doc) => {
+      const riskData = doc.data();
+      const accData = accMap[doc.id] || {};
+      return {
+        student_id: doc.id,
+        // Risk data
+        ...riskData,
+        // Enrich with student_acc info
+        first_name: accData.first_name || null,
+        last_name: accData.last_name || null,
+        department: accData.department || riskData.department || null,
+        current_semester:
+          accData.current_semester || riskData.current_semester || null,
+        current_year: accData.current_year || riskData.current_year || null,
+        // Normalize timestamp
+        cached_at: riskData.cached_at?.toDate?.()?.toISOString() || null,
+      };
+    });
 
     // Sort: High first, Medium second, Low last
     const levelOrder = { High: 0, Medium: 1, Low: 2 };
