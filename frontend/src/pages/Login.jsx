@@ -23,12 +23,13 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await login(email, password);
+      // ── Save BEFORE login, not after ──
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", email);
       } else {
         localStorage.removeItem("rememberedEmail");
       }
+      await login(email, password);
     } catch (err) {
       alert("Invalid email or password");
     } finally {

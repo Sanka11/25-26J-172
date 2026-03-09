@@ -2,7 +2,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
 // savindi
-//ssavindi admin 
+//ssavindi admin
 const GET_ALL_WORKLOADS_URL = `${BASE_URL}/getAllWorkloads`;
 const UPDATE_TASK_COMPLETION_URL = `${BASE_URL}/updateTaskCompletion`;
 const TRIGGER_WARNING_EMAIL_URL = `${BASE_URL}/triggerManualWarningEmail`;
@@ -45,6 +45,7 @@ const PREDICT_NEXT_SEMESTER_URL = `${BASE_URL}/predictNextSemester`;
 const GET_BULK_RISK_URL = `${BASE_URL}/getBulkRisk`;
 const GET_STUDENT_RISK_URL = `${BASE_URL}/getStudentRiskExplanation`;
 const UPDATE_STUDENT_MARKS_URL = `${BASE_URL}/updateStudentMarks`;
+const GET_STUDENT_RISK_HISTORY_URL = `${BASE_URL}/getStudentRiskHistory`; // ← NEW
 
 // Local ML Service
 const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
@@ -70,6 +71,7 @@ export const appConfig = {
   GET_BULK_RISK_URL,
   GET_STUDENT_RISK_URL,
   UPDATE_STUDENT_MARKS_URL,
+  GET_STUDENT_RISK_HISTORY_URL, // ← NEW
   ML_BASE_URL,
   ML_UPLOAD_URL,
   ML_CHAT_URL,
@@ -94,8 +96,6 @@ export const appConfig = {
   GET_ALL_WORKLOADS_URL,
   UPDATE_TASK_COMPLETION_URL,
   TRIGGER_WARNING_EMAIL_URL,
-
-
 
   GENERATE_WORKLOAD_URL,
   GET_RECOMMENDATIONS_URL,

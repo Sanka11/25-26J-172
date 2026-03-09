@@ -40,10 +40,8 @@ const {
 const {
   getStudentRiskExplanation,
   updateStudentMarks,
+  getStudentRiskHistory,
 } = require("./src/http/studentRiskExplanation");
-
-// Student risk history (temporal tracking)
-const { getStudentRiskHistory } = require("./src/http/temporalRiskController");
 
 // Announcement controllers
 const {
@@ -60,6 +58,7 @@ const {
   listChatFeedback,
   deleteChatFeedback,
 } = require("./src/http/chatFeedbackController");
+
 // Academic data (deadlines)
 const {
   getAllDeadlines,
