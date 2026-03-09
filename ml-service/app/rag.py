@@ -142,16 +142,16 @@ def _google_search(question: str, num_results: int = 5) -> list:
         return []
 
 
-def _build_web_context(web_results: list, max_results: int = 4) -> str:
+def _build_web_context(web_results: list, max_results: int = 3) -> str:
+    """Build web context efficiently using list comprehension."""
     if not web_results:
         return ""
-
-    lines = []
-    for idx, item in enumerate(web_results[:max_results], start=1):
-        title = (item.get("title") or "").strip()
-        snippet = (item.get("snippet") or "").strip()
-        link = (item.get("link") or "").strip()
-        lines.append(f"[{idx}] {title}\n{snippet}\nSource: {link}")
+    
+    # Use list comprehension for faster processing (reduced max_results from 4 to 3)
+    lines = [
+        f"[{idx}] {item.get('title', '').strip()}\n{item.get('snippet', '').strip()}\nSource: {item.get('link', '').strip()}"
+        for idx, item in enumerate(web_results[:max_results], start=1)
+    ]
     return "\n\n".join(lines)
 
 
@@ -195,7 +195,7 @@ def _check_rag_relevance(results: dict, threshold: float = None) -> bool:
 
 def _generate_web_search_answer(question: str, web_results: list, user_id: str = None) -> str:
     """
-    Generate an answer from web search results using LLM.
+    Generate an answer from web search results using LLM (optimized for speed).
     
     Args:
         question: User's question
@@ -208,20 +208,19 @@ def _generate_web_search_answer(question: str, web_results: list, user_id: str =
     if not web_results:
         return "I couldn't find relevant information in the PDFs or web. Please try rephrasing your question."
     
-    # Format web results for LLM
+    # Format web results for LLM (optimized: max 3 results instead of 4)
     web_context = _build_web_context(web_results, max_results=3)
     
     # Build personalized prompt
     personalized_instructions = _build_personalized_system_instructions(user_id)
     
+    # Optimized prompt: shorter and more direct for faster LLM processing
     prompt = (
         f"{personalized_instructions}\n\n"
-        "The information wasn't found in the PDF documents, so I searched the web.\n"
-        "Use the web search results below to answer the question accurately and concisely.\n\n"
-        f"Web Search Results:\n{web_context}\n\n"
+        "Answer based on these web search results:\n\n"
+        f"{web_context}\n\n"
         f"Question: {question}\n\n"
-        "Provide a clear, student-friendly answer in 2-4 sentences. "
-        "Focus on the most relevant information from the search results."
+        "Provide a clear 2-3 sentence answer using the search results above."
     )
     
     try:
