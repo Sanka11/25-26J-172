@@ -48,7 +48,8 @@ const UPDATE_STUDENT_MARKS_URL = `${BASE_URL}/updateStudentMarks`;
 const GET_STUDENT_RISK_HISTORY_URL = `${BASE_URL}/getStudentRiskHistory`; // ← NEW
 
 // Local ML Service
-const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8000";
+// app.main (chat/pdf endpoints) runs on 8002 by default in local development.
+const ML_BASE_URL = import.meta.env.VITE_ML_BASE_URL || "http://127.0.0.1:8002";
 const ML_UPLOAD_URL = `${ML_BASE_URL}/upload_pdf`;
 const ML_CHAT_URL = `${ML_BASE_URL}/chat`;
 const ML_FEEDBACK_URL = `${ML_BASE_URL}/feedback`;
