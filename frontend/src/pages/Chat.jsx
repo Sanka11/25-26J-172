@@ -17,6 +17,10 @@ import {
   where,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import {
+  validateExtractedImageText,
+  validateImageFile,
+} from "../utils/chatValidations";
 
 // Configure PDF.js worker from npm package
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -925,18 +929,27 @@ export default function Chat({ onClose }) {
 
   const handleImageSelect = async (file) => {
     if (!file) return;
+
+    const fileValidation = validateImageFile(file);
+    if (!fileValidation.valid) {
+      setError(fileValidation.error);
+      return;
+    }
+
     setImageProcessing(true);
     setError("");
     try {
       const { data } = await Tesseract.recognize(file, "eng");
-      const text = (data && data.text && data.text.trim()) || "";
-      if (!text) {
-        setError(
-          "Could not read any text from the image. Please try another image.",
-        );
+      const text = (data && data.text) || "";
+      const textValidation = validateExtractedImageText(text);
+
+      if (!textValidation.valid) {
+        setError(textValidation.error);
       } else {
         setQuestion((prev) =>
-          prev ? `${prev}\n\n[From image]\n${text}` : `[From image]\n${text}`,
+          prev
+            ? `${prev}\n\n[From image]\n${textValidation.sanitized}`
+            : `[From image]\n${textValidation.sanitized}`,
         );
       }
     } catch (err) {
