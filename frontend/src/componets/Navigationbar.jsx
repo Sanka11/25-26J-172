@@ -22,7 +22,6 @@ const NAV_BY_ROLE = {
     { path: "/", label: "Home", exact: true },
     { path: "/my-risk", label: "My Risk" },
     { path: "/recommendation", label: "Recommendations" },
-    { path: "/levels", label: "Quizzes" },
     { path: "/WorkloadDashboard", label: "Workload" },
     { path: "/announcements", label: "Announcements" },
   ],
