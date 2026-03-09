@@ -85,19 +85,15 @@ def _extract_shap_for_risk(shap_values, sample_index: int = 0) -> np.ndarray:
       - 2D array (n_samples, n_features)             → single output
     """
     if isinstance(shap_values, list):
-        # Old format: list of arrays per class
         return shap_values[1][sample_index]
 
     arr = np.array(shap_values)
 
     if arr.ndim == 3:
-        # Shape: (n_samples, n_features, n_classes) — take class 1
         return arr[sample_index, :, 1]
     elif arr.ndim == 2:
-        # Shape: (n_samples, n_features)
         return arr[sample_index]
     else:
-        # Shape: (n_features,)
         return arr
 
 
@@ -105,10 +101,8 @@ def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
     """Build structured SHAP explanation from raw SHAP values."""
     shap_series = pd.Series(shap_vals, index=_feature_columns)
 
-    # Top 5 features INCREASING risk (positive SHAP = pushes toward at-risk)
-    risk_factors_raw    = shap_series[shap_series > 0].nlargest(5)
-    # Top 3 features DECREASING risk (negative SHAP = protective)
-    protective_raw      = shap_series[shap_series < 0].nsmallest(3)
+    risk_factors_raw = shap_series[shap_series > 0].nlargest(5)
+    protective_raw   = shap_series[shap_series < 0].nsmallest(3)
 
     risk_factors = []
     for feat, impact in risk_factors_raw.items():
@@ -130,7 +124,6 @@ def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
             "value":        (float(raw_data.get(feat)) if isinstance(raw_data.get(feat), (int, float)) else None) if feat in raw_data else None,
         })
 
-    # Human-readable summary sentences
     summary_text = []
     for f in risk_factors[:3]:
         summary_text.append(f"{f['display_name']} is contributing to elevated risk.")
@@ -158,8 +151,10 @@ def predict_risk_with_shap(data: dict, student_id: Optional[str] = None) -> dict
     df_input = _build_input_df(data)
 
     # ── Predict probability ──
-    risk_prob       = float(_model.predict_proba(df_input)[0][1])
-    risk_percentage = int(round(risk_prob * 100))
+    risk_prob = float(_model.predict_proba(df_input)[0][1])
+
+    # Enforce minimum 1% — 0% is never realistic
+    risk_percentage = max(1, int(round(risk_prob * 100)))
 
     if risk_prob >= 0.7:
         risk_level = "High"
@@ -172,19 +167,19 @@ def predict_risk_with_shap(data: dict, student_id: Optional[str] = None) -> dict
         risk_color = "green"
 
     # ── SHAP values ──
-    shap_values  = _explainer.shap_values(df_input)
+    shap_values   = _explainer.shap_values(df_input)
     shap_for_risk = _extract_shap_for_risk(shap_values, sample_index=0)
 
     explanation = _build_explanation(shap_for_risk, raw_data)
 
     return {
-        "student_id":     student_id,
-        "risk_score":     round(risk_prob, 4),
+        "student_id":      student_id,
+        "risk_score":      round(risk_prob, 4),
         "risk_percentage": risk_percentage,
-        "risk_level":     risk_level,
-        "risk_color":     risk_color,
-        "explanation":    explanation,
-        "model_version":  "v3_final",
+        "risk_level":      risk_level,
+        "risk_color":      risk_color,
+        "explanation":     explanation,
+        "model_version":   "v4_hybrid",   # ← fixed
     }
 
 
