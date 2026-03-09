@@ -1033,7 +1033,7 @@ export default function StudentRiskDashboard() {
               {currentYearSemesters.length > 0 && (
                 <div className="bg-white rounded-2xl shadow p-5">
                   <h3 className="font-semibold text-gray-700 mb-3 text-sm">
-                    📅 {currentYear} — Semester Overview
+                    📅 {currentYear} - Semester Overview
                   </h3>
                   <div className="space-y-3">
                     {currentYearSemesters.map((s) => (
@@ -1162,7 +1162,7 @@ export default function StudentRiskDashboard() {
                   <div className="bg-white rounded-2xl shadow p-6 mb-4">
                     <div className="flex items-center gap-3 mb-4">
                       <h3 className="font-semibold text-gray-700">
-                        📅 {currentYear} — Current Year
+                        📅 {currentYear} - Current Year
                       </h3>
                       <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
                         Active
