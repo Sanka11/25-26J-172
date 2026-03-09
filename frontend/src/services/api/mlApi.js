@@ -55,3 +55,29 @@ export async function getStudentRiskHistory(studentId) {
   });
   return response.data;
 }
+
+// ── NEW: Create single student profile (it22354792) ──
+export async function createStudentProfile(studentData) {
+  const response = await axios.post(
+    appConfig.CREATE_STUDENT_PROFILE_URL,
+    studentData,
+  );
+  return response.data;
+}
+
+// ── NEW: Bulk create student profiles from CSV (it22354792) ──
+export async function bulkCreateStudentProfiles(students) {
+  const response = await axios.post(
+    appConfig.BULK_CREATE_STUDENT_PROFILES_URL,
+    { students },
+  );
+  return response.data;
+}
+
+// ── NEW: Check if student ID already exists (it22354792) ──
+export async function checkStudentIdExists(studentId) {
+  const response = await axios.get(appConfig.CHECK_STUDENT_ID_EXISTS_URL, {
+    params: { student_id: studentId },
+  });
+  return response.data.exists;
+}
