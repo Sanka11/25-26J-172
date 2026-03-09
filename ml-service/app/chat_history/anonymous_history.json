@@ -496,5 +496,17 @@
     "datetime": "2026-03-08T08:47:35.191127",
     "question": "give me Bank Details for student transactions pdf?",
     "answer": ""
+  },
+  {
+    "timestamp": 1772955708.7329316,
+    "datetime": "2026-03-08T13:11:48.732931",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772955730.472629,
+    "datetime": "2026-03-08T13:12:10.472629",
+    "question": "What is Ai",
+    "answer": "LLM Error: 'ollama' CLI not found. Ensure Ollama is installed."
   }
 ]

@@ -228,7 +228,40 @@ const { runRlForStudent } = require("./src/http/runRlForStudentController");
 
 app.get("/api/rl/run/:studentId", runRlForStudent);
 
+const {
+  getAllGruRiskHistory,
+} = require("./src/http/getAllGruRiskHistoryController");
 
+const {
+  getAllRlInterventionHistory,
+} = require("./src/http/getAllRlInterventionHistoryController");
+
+// ----------------------------------------------------
+// GRU RISK HISTORY (NEW)
+// ----------------------------------------------------
+
+app.get("/api/ml/gru-risk-history", getAllGruRiskHistory);
+app.get("/api/ml/gru-risk-history/:studentId", getAllGruRiskHistory);
+
+
+// ----------------------------------------------------
+// RL INTERVENTION HISTORY (NEW)
+// ----------------------------------------------------
+
+app.get("/api/ml/rl-intervention-history", getAllRlInterventionHistory);
+app.get("/api/ml/rl-intervention-history/:studentId", getAllRlInterventionHistory);
+
+const {
+  getHumanEscalations,
+} = require("./src/http/getHumanEscalationsController");
+
+app.get("/api/ml/human-escalations", getHumanEscalations);
+
+const {
+  getPeerCheerStudents,
+} = require("./src/http/getPeerCheerController");
+
+app.get("/api/ml/peer-cheer", getPeerCheerStudents);
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function
