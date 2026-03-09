@@ -52,6 +52,10 @@ import RlBatchRun from "./pages/rl/RlBatchRun";
 import RlHistory from "./pages/rl/RlHistory";
 import DisengagementHub from "./pages/DisengagementHub";
 import StudentBehaviourDemo from "./pages/gru/StudentBehaviourDemo";
+import GruRiskHistory from "./pages/gru/GruRiskHistory";
+import RlInterventionHistory from "./pages/rl/RlInterventionHistory";
+import HumanEscalations from "./pages/support/HumanEscalations";
+import PeerCheerDashboard from "./pages/support/PeerCheerDashboard";
 
 /* ================= Components ================= */
 import NavigationBar from "./componets/Navigationbar";
@@ -253,6 +257,39 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/gru/risk-history"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <GruRiskHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rl/intervention-history"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <RlInterventionHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/human-escalations"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <HumanEscalations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/peer-cheer"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <PeerCheerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* SHARED ROUTES */}
         <Route path="/risk" element={<RiskDemo />} />
         <Route path="/my-risk" element={<StudentRiskDashboard />} />

@@ -498,21 +498,123 @@
     "answer": ""
   },
   {
-    "timestamp": 1772958236.3171778,
-    "datetime": "2026-03-08T13:53:56.317177",
+    "timestamp": 1772953374.7511904,
+    "datetime": "2026-03-08T12:32:54.751190",
+    "question": "give me sliit rule book pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953392.6004972,
+    "datetime": "2026-03-08T12:33:12.600497",
+    "question": "give me sliit library rule book pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953413.5653062,
+    "datetime": "2026-03-08T12:33:33.565306",
+    "question": "give me sliit scholarship pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772953972.0999365,
+    "datetime": "2026-03-08T12:42:52.099936",
     "question": "hi",
     "answer": "Hi!I'm AcademiGuard, How can I help you today?"
   },
   {
-    "timestamp": 1772958242.9223244,
-    "datetime": "2026-03-08T13:54:02.922324",
-    "question": "what is plagarisam",
+    "timestamp": 1772956228.5598521,
+    "datetime": "2026-03-08T13:20:28.559852",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772956834.6160088,
+    "datetime": "2026-03-08T13:30:34.616008",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772957955.6532795,
+    "datetime": "2026-03-08T13:49:15.653279",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772958871.5269823,
+    "datetime": "2026-03-08T14:04:31.526982",
+    "question": "whta is plagarisam",
+    "answer": "Plagiarism means taking someone else's work, ideas, or words without giving them credit. Always cite your sources and put direct quotes in quotation marks. If you're unsure about what needs citation, ask your Lecturer in Charge or check the uploaded academic integrity policy documents."
+  },
+  {
+    "timestamp": 1772958875.2971747,
+    "datetime": "2026-03-08T14:04:35.297174",
+    "question": "what is plagarisa",
     "answer": "Plagiarism means using someone else's words, ideas, or work as your own without proper credit. To avoid it, cite your sources clearly and use quotation marks for exact copied text."
   },
   {
-    "timestamp": 1772976415.7619824,
-    "datetime": "2026-03-08T18:56:55.761982",
+    "timestamp": 1772958892.4150958,
+    "datetime": "2026-03-08T14:04:52.415095",
+    "question": "what is human",
+    "answer": "Here is a simple definition: this is an academic policy term, and I can explain it in one sentence if you tell me the exact term."
+  },
+  {
+    "timestamp": 1772958940.1616046,
+    "datetime": "2026-03-08T14:05:40.161604",
+    "question": "What type of scholarships are offered by SLIIT?",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772958962.003786,
+    "datetime": "2026-03-08T14:06:02.003786",
+    "question": "What is the minimum semester GPA required to qualify for a scholarship?",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772959399.1316717,
+    "datetime": "2026-03-08T14:13:19.131671",
     "question": "hi",
     "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772980862.3979528,
+    "datetime": "2026-03-08T20:11:02.397952",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1772980887.7290921,
+    "datetime": "2026-03-08T20:11:27.729092",
+    "question": "give me scholarship pdf",
+    "answer": ""
+  },
+  {
+    "timestamp": 1772981076.775041,
+    "datetime": "2026-03-08T20:14:36.775041",
+    "question": "Do scholarships apply to all semesters?",
+    "answer": "I’m sorry, I couldn’t generate a reliable answer for that question. Please try rephrasing it in one short sentence."
+  },
+  {
+    "timestamp": 1772981140.9665205,
+    "datetime": "2026-03-08T20:15:40.966520",
+    "question": "What happens if a student does not complete the degree within the studentship period?",
+    "answer": "If a student does not complete the degree within the studentship period, the studentship is automatically terminated."
+  },
+  {
+    "timestamp": 1772981169.8927429,
+    "datetime": "2026-03-08T20:16:09.892742",
+    "question": "what is human resource",
+    "answer": "Human Resource refers to the people and activities that help an organization achieve its goals, such as managing employees, providing training, and maintaining the overall well-being of its workforce."
+  },
+  {
+    "timestamp": 1772981208.8524568,
+    "datetime": "2026-03-08T20:16:48.852456",
+    "question": "what is group activities",
+    "answer": "As AcademiGuard, I can help you with your questions about this course.\n\nThe event described as \"Camera Roll 'Show and Tell'\" is a group activity where students share pictures from their phones with each other. This is typically allowed in a learning environment, but there's an explicit rule: no copying of images or sharing of original content without permission."
+  },
+  {
+    "timestamp": 1772983181.213047,
+    "datetime": "2026-03-08T20:49:41.213047",
+    "question": "what is mashine learning?",
+    "answer": "Machine Learning refers to a subset of artificial intelligence that enables computers to learn from data without being explicitly programmed, allowing them to improve their performance and make predictions on new, unseen information.\n\nIn simpler terms, machine learning helps computers figure out patterns in data on their own, making them smarter and more accurate over time."
   }
 ]
