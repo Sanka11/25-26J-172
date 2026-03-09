@@ -5,14 +5,133 @@ const CURRENT_YEAR = 2025;
 const YEARS = [2025, 2024, 2023];
 const SEMESTERS = ["Semester 1", "Semester 2"];
 
+// ── Before/After Risk Change Badge ──
+function RiskChangeBadge({ before, after }) {
+  if (!before || !after) return null;
+  const diff = after.risk_percentage - before.risk_percentage;
+  const levelChanged = before.risk_level !== after.risk_level;
+  const improved = diff < 0;
+  const worsened = diff > 0;
+
+  const levelColor = (lvl) =>
+    lvl === "High"
+      ? "text-red-600"
+      : lvl === "Medium"
+        ? "text-amber-600"
+        : "text-green-600";
+  const levelBadge = (lvl) =>
+    lvl === "High"
+      ? "bg-red-100 text-red-700"
+      : lvl === "Medium"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-green-100 text-green-700";
+
+  return (
+    <div
+      className={`rounded-xl p-4 border-2 ${
+        improved
+          ? "bg-green-50 border-green-300"
+          : worsened
+            ? "bg-red-50 border-red-300"
+            : "bg-gray-50 border-gray-200"
+      }`}
+    >
+      <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3 text-center">
+        ⚡ Risk Recalculation Result
+      </p>
+      <div className="flex items-center justify-center gap-6">
+        {/* Before */}
+        <div className="text-center">
+          <p className="text-xs text-gray-400 mb-1">Before</p>
+          <div
+            className={`text-3xl font-black ${levelColor(before.risk_level)}`}
+          >
+            {before.risk_percentage}%
+          </div>
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${levelBadge(before.risk_level)}`}
+          >
+            {before.risk_level}
+          </span>
+        </div>
+
+        {/* Arrow + diff */}
+        <div className="flex flex-col items-center gap-1">
+          <div
+            className={`text-4xl font-black leading-none ${
+              improved
+                ? "text-green-500"
+                : worsened
+                  ? "text-red-500"
+                  : "text-gray-400"
+            }`}
+          >
+            {improved ? "↓" : worsened ? "↑" : "→"}
+          </div>
+          <div
+            className={`text-sm font-bold ${
+              improved
+                ? "text-green-600"
+                : worsened
+                  ? "text-red-600"
+                  : "text-gray-500"
+            }`}
+          >
+            {diff === 0 ? "No change" : `${improved ? "" : "+"}${diff}%`}
+          </div>
+        </div>
+
+        {/* After */}
+        <div className="text-center">
+          <p className="text-xs text-gray-400 mb-1">After</p>
+          <div
+            className={`text-3xl font-black ${levelColor(after.risk_level)}`}
+          >
+            {after.risk_percentage}%
+          </div>
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${levelBadge(after.risk_level)}`}
+          >
+            {after.risk_level}
+          </span>
+        </div>
+      </div>
+
+      {levelChanged && (
+        <div
+          className={`mt-3 text-center text-xs font-semibold px-3 py-1.5 rounded-lg ${
+            improved ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+          }`}
+        >
+          {improved
+            ? `🎉 Risk level improved: ${before.risk_level} → ${after.risk_level}`
+            : `⚠️ Risk level worsened: ${before.risk_level} → ${after.risk_level}`}
+        </div>
+      )}
+
+      {!levelChanged && diff !== 0 && (
+        <div className="mt-3 text-center text-xs text-gray-500">
+          Risk level unchanged ({after.risk_level}), but score{" "}
+          {improved ? "decreased" : "increased"} by {Math.abs(diff)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Update Marks Modal ──
 function UpdateMarksModal({ student, onClose, onSuccess }) {
   const [year, setYear] = useState(CURRENT_YEAR);
   const [semester, setSemester] = useState("Semester 1");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [riskBefore] = useState({
+    risk_percentage: student?.risk_percentage ?? 0,
+    risk_level: student?.risk_level ?? "Low",
+  });
+  const [riskAfter, setRiskAfter] = useState(null);
+  const [done, setDone] = useState(false);
 
-  // Academic marks — only these are editable by lecturer
   const [form, setForm] = useState({
     Attendance_pct: student?.Attendance_pct ?? 75,
     Midterm_Score: student?.Midterm_Score ?? 60,
@@ -26,14 +145,10 @@ function UpdateMarksModal({ student, onClose, onSuccess }) {
   async function handleSave() {
     setSaving(true);
     try {
-      // ── Send ALL fields the ML model needs ──────────────────────
-      // Marks from form (editable) + profile fields from student object
       const fullPayload = {
         year,
         semester,
-        // Editable marks
         ...form,
-        // Profile fields from student_acc (passed in via student prop)
         Age: student?.age ?? student?.Age ?? 21,
         Study_Hours_per_Week: student?.Study_Hours_per_Week ?? 10,
         Stress_Level:
@@ -59,15 +174,22 @@ function UpdateMarksModal({ student, onClose, onSuccess }) {
           "Middle",
       };
 
-      await updateStudentMarks(student.student_id, fullPayload);
+      const result = await updateStudentMarks(student.student_id, fullPayload);
+
+      const newRisk = result?.new_risk || result;
+      if (newRisk?.risk_percentage != null) {
+        setRiskAfter({
+          risk_percentage: newRisk.risk_percentage,
+          risk_level: newRisk.risk_level,
+        });
+      }
+
+      setDone(true);
       setToast({
         type: "success",
-        msg: `Marks updated for ${semester} ${year}. Risk recalculated!`,
+        msg: `Marks saved for ${semester} ${year}.`,
       });
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1500);
+      onSuccess();
     } catch {
       setToast({ type: "error", msg: "Failed to update marks. Try again." });
     } finally {
@@ -93,127 +215,161 @@ function UpdateMarksModal({ student, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-gray-800 text-lg">
-              Update Marks — {student.student_id}
-            </h3>
-            {(student.first_name || student.last_name) && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                {student.first_name} {student.last_name}
-                {student.department ? ` · ${student.department}` : ""}
-              </p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-gray-800 text-lg">
+                Update Marks — {student.student_id}
+              </h3>
+              {(student.first_name || student.last_name) && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {student.first_name} {student.last_name}
+                  {student.department ? ` · ${student.department}` : ""}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          {toast && (
+            <div
+              className={`mb-4 p-3 rounded-lg text-sm ${
+                toast.type === "success"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              {toast.msg}
+            </div>
+          )}
+
+          {/* Before/After shown after save */}
+          {done && (
+            <div className="mb-4">
+              <RiskChangeBadge before={riskBefore} after={riskAfter} />
+            </div>
+          )}
+
+          {!done && (
+            <>
+              {/* Year & Semester */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                    Academic Year
+                  </label>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                    Semester
+                  </label>
+                  <select
+                    value={semester}
+                    onChange={(e) => setSemester(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    {SEMESTERS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-4 p-2 bg-blue-50 rounded-lg text-center text-xs text-blue-700 font-semibold">
+                Updating: {year} — {semester}
+              </div>
+
+              {/* Current risk indicator */}
+              <div className="mb-4 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500">Current Risk:</span>
+                <span
+                  className={`text-sm font-bold ${
+                    student.risk_level === "High"
+                      ? "text-red-600"
+                      : student.risk_level === "Medium"
+                        ? "text-amber-600"
+                        : "text-green-600"
+                  }`}
+                >
+                  {student.risk_percentage}% — {student.risk_level}
+                </span>
+                <span className="text-xs text-gray-400 ml-auto italic">
+                  recalculates on save
+                </span>
+              </div>
+
+              {/* Sliders */}
+              {Object.entries(form).map(([key, val]) => (
+                <div key={key} className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>{fieldLabels[key]}</span>
+                    <span className={`font-bold ${sliderColor(val)}`}>
+                      {val}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={val}
+                    onChange={(e) =>
+                      setForm({ ...form, [key]: Number(e.target.value) })
+                    }
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                    <span>0</span>
+                    <span>50</span>
+                    <span>100</span>
+                  </div>
+                </div>
+              ))}
+
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+                ℹ️ Profile fields (Age, Gender, Department etc.) are pulled
+                automatically for risk calculation.
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-3 mt-2">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+            >
+              {done ? "Close" : "Cancel"}
+            </button>
+            {!done && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-semibold"
+              >
+                {saving ? "Saving & Calculating..." : "Save & Recalculate Risk"}
+              </button>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold"
-          >
-            ×
-          </button>
-        </div>
-
-        {toast && (
-          <div
-            className={`mb-4 p-3 rounded-lg text-sm ${
-              toast.type === "success"
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
-            }`}
-          >
-            {toast.msg}
-          </div>
-        )}
-
-        {/* Year & Semester Selector */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">
-              Academic Year
-            </label>
-            <select
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              {YEARS.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">
-              Semester
-            </label>
-            <select
-              value={semester}
-              onChange={(e) => setSemester(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              {SEMESTERS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Semester Badge */}
-        <div className="mb-5 p-2 bg-blue-50 rounded-lg text-center text-xs text-blue-700 font-semibold">
-          Updating: {year} — {semester}
-        </div>
-
-        {/* Marks Sliders */}
-        {Object.entries(form).map(([key, val]) => (
-          <div key={key} className="mb-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>{fieldLabels[key] || key.replace(/_/g, " ")}</span>
-              <span className={`font-bold ${sliderColor(val)}`}>{val}</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={val}
-              onChange={(e) =>
-                setForm({ ...form, [key]: Number(e.target.value) })
-              }
-              className="w-full accent-blue-600"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-              <span>0</span>
-              <span>50</span>
-              <span>100</span>
-            </div>
-          </div>
-        ))}
-
-        {/* Profile info note */}
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-          ℹ️ Student profile fields (Age, Gender, Department etc.) are pulled
-          automatically from the student record for risk calculation.
-        </div>
-
-        <div className="flex gap-3 mt-2">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-semibold"
-          >
-            {saving ? "Saving & Calculating..." : "Save & Recalculate Risk"}
-          </button>
         </div>
       </div>
     </div>
@@ -236,7 +392,6 @@ export default function LecturerRiskDashboard() {
       setLoading(true);
       const data = await getBulkRisk();
       setStudents(data.students || []);
-      setFiltered(data.students || []);
     } catch {
       setToast({ type: "error", msg: "Failed to load student risk data." });
     } finally {
@@ -272,9 +427,10 @@ export default function LecturerRiskDashboard() {
   };
 
   const rowColor = {
-    High: "border-l-4 border-red-500 bg-red-50",
-    Medium: "border-l-4 border-amber-500 bg-amber-50",
-    Low: "border-l-4 border-green-500 bg-green-50",
+    High: "border-l-4 border-red-400 bg-red-50 hover:bg-red-100 transition-colors",
+    Medium:
+      "border-l-4 border-amber-400 bg-amber-50 hover:bg-amber-100 transition-colors",
+    Low: "border-l-4 border-green-400 bg-green-50 hover:bg-green-100 transition-colors",
   };
   const badgeColor = {
     High: "bg-red-100 text-red-700",
@@ -285,18 +441,16 @@ export default function LecturerRiskDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">
             Student Risk Dashboard
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Monitor and manage student academic risk levels. Update marks per
-            semester.
+            Monitor and manage student academic risk levels. Update marks to
+            recalculate risk instantly.
           </p>
         </div>
 
-        {/* Toast */}
         {toast && (
           <div
             className={`mb-4 p-3 rounded-lg text-sm flex items-center justify-between ${
@@ -321,6 +475,7 @@ export default function LecturerRiskDashboard() {
               color: "bg-red-100 border-red-300 text-red-700",
               key: "High",
               icon: "🔴",
+              desc: "Immediate attention",
             },
             {
               label: "Medium Risk",
@@ -328,6 +483,7 @@ export default function LecturerRiskDashboard() {
               color: "bg-amber-100 border-amber-300 text-amber-700",
               key: "Medium",
               icon: "🟡",
+              desc: "Monitor closely",
             },
             {
               label: "Low Risk",
@@ -335,23 +491,27 @@ export default function LecturerRiskDashboard() {
               color: "bg-green-100 border-green-300 text-green-700",
               key: "Low",
               icon: "🟢",
+              desc: "On track",
             },
           ].map((card) => (
             <button
               key={card.key}
               onClick={() => setFilter(filter === card.key ? "All" : card.key)}
               className={`p-4 rounded-xl border-2 text-center cursor-pointer transition-all ${card.color} ${
-                filter === card.key ? "ring-2 ring-offset-2 ring-blue-400" : ""
+                filter === card.key
+                  ? "ring-2 ring-offset-2 ring-blue-400 scale-105"
+                  : ""
               }`}
             >
               <div className="text-2xl mb-1">{card.icon}</div>
               <div className="text-3xl font-bold">{card.count}</div>
-              <div className="text-sm font-medium mt-1">{card.label}</div>
+              <div className="text-sm font-medium mt-0.5">{card.label}</div>
+              <div className="text-xs opacity-60 mt-0.5">{card.desc}</div>
             </button>
           ))}
         </div>
 
-        {/* Filters Row */}
+        {/* Filters */}
         <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -418,9 +578,7 @@ export default function LecturerRiskDashboard() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((s) => {
                   const topFactor =
-                    s.explanation?.risk_factors?.[0]?.display_name ||
-                    s.explanation?.key_factors?.[0] ||
-                    "—";
+                    s.explanation?.risk_factors?.[0]?.display_name || "—";
                   const pct =
                     s.risk_percentage ?? Math.round((s.risk_score || 0) * 100);
                   return (
@@ -473,7 +631,7 @@ export default function LecturerRiskDashboard() {
                       <td className="px-4 py-3">
                         <button
                           onClick={() => setSelectedStudent(s)}
-                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 font-medium"
                         >
                           Update Marks
                         </button>
@@ -492,7 +650,6 @@ export default function LecturerRiskDashboard() {
         </div>
       </div>
 
-      {/* Update Marks Modal */}
       {selectedStudent && (
         <UpdateMarksModal
           student={selectedStudent}
