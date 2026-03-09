@@ -1,7 +1,9 @@
 // backend/functions/src/http/studentProfileController.js
-// Creates profiles in BOTH:
-//   1. student_acc/{student_id}  → XAI risk prediction (our collection)
-//   2. students/{auto-id}        → teammates' collection (scores + student_id)
+// Creates profiles in ALL of:
+//   1. student_acc/{student_id}  → XAI risk prediction
+//   2. students/{auto-id}        → teammates' collection
+//   3. Firebase Auth             → enables login
+//   4. users/{uid}               → role-based routing in the frontend
 
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
@@ -26,7 +28,46 @@ function validateStudent(s) {
   return errors;
 }
 
-// ── Document for student_acc/{student_id} ─────────────────────────────────
+// ── Firebase Auth + users/{uid} ───────────────────────────────────────────
+// Password = student_id  (student uses this to log in on first visit)
+// ── Firebase Auth + users/{uid} ───────────────────────────────────────────
+async function createAuthAndUserDoc(s, batch) {
+  const studentId = String(s.student_id).trim();
+
+  // Check if Auth account already exists for this email
+  try {
+    await admin.auth().getUserByEmail(s.email.trim().toLowerCase());
+    return null; // already exists — skip
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") throw err;
+  }
+
+  // ✅ Pad password to guarantee min 6 chars Firebase requires
+  // e.g. "S100" → "S100@@" , "S5000" → "S5000@"
+  const rawPassword = studentId;
+  const password =
+    rawPassword.length < 6 ? rawPassword.padEnd(6, "@") : rawPassword;
+
+  const userRecord = await admin.auth().createUser({
+    email: s.email.trim().toLowerCase(),
+    password,
+    displayName: `${String(s.first_name).trim()} ${String(s.last_name).trim()}`,
+  });
+
+  batch.set(db.collection("users").doc(userRecord.uid), {
+    firstName: String(s.first_name).trim(),
+    lastName: String(s.last_name).trim(),
+    contactNo: s.contactNo || "",
+    email: s.email.trim().toLowerCase(),
+    role: "student",
+    student_id: studentId,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return userRecord.uid;
+}
+
+// ── Document for student_acc/{student_id} ────────────────────────────────
 function buildStudentAccDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -44,13 +85,11 @@ function buildStudentAccDoc(s) {
     internet_access_at_home: s.internet_access_at_home || "Yes",
     parent_education_level: s.parent_education_level || "Bachelor",
     family_income_level: s.family_income_level || "Medium",
-    // Use provided scores for existing students, default 0 for new ones
     Assignments_Avg: isNew ? 0 : Number(s.assignments_avg) || 0,
     Attendance_pct: isNew ? 0 : Number(s.attendance_pct) || 0,
     Midterm_Score: isNew ? 0 : Number(s.midterm_score) || 0,
     Projects_Score: isNew ? 0 : Number(s.projects_score) || 0,
     Quizzes_Avg: isNew ? 0 : Number(s.quizzes_avg) || 0,
-    // These are always defaulted — lecturer enters later
     Final_Score: 0,
     Participation_Score: 0,
     Study_Hours_per_Week: 0,
@@ -62,7 +101,6 @@ function buildStudentAccDoc(s) {
 }
 
 // ── Document for students/{auto-id} (teammates' collection) ──────────────
-// Only the 5 fields they use + student_id for linking
 function buildStudentsDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -98,25 +136,27 @@ const createStudentProfile = onRequest(async (req, res) => {
     if (existing.exists)
       return res.status(409).json({ error: `Student ID ${id} already exists` });
 
-    // Write both collections atomically
     const batch = db.batch();
 
-    // 1. student_acc/{student_id}
+    // 1. Firebase Auth + users/{uid}  ← NEW
+    await createAuthAndUserDoc(student, batch);
+
+    // 2. student_acc/{student_id}
     batch.set(
       db.collection("student_acc").doc(id),
       buildStudentAccDoc(student),
     );
 
-    // 2. students/{auto-id}  — teammates' collection
-    const studentsRef = db.collection("students").doc(); // auto-generated ID
-    batch.set(studentsRef, buildStudentsDoc(student));
+    // 3. students/{auto-id} — teammates' collection
+    batch.set(db.collection("students").doc(), buildStudentsDoc(student));
 
     await batch.commit();
 
     return res.status(201).json({
       success: true,
-      message: `Profile created for ${student.first_name} ${student.last_name}`,
+      message: `Profile + login account created for ${student.first_name} ${student.last_name}`,
       student_id: id,
+      note: "Student can log in with their email and Student ID as password",
     });
   } catch (err) {
     console.error("createStudentProfile error:", err);
@@ -143,7 +183,7 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
         .json({ error: "Maximum 500 students per bulk upload" });
 
     const results = { success: [], failed: [], skipped: [] };
-    const CHUNK = 200; // Each student = 2 writes, so keep well under 500 limit
+    const CHUNK = 200;
 
     for (let i = 0; i < students.length; i += CHUNK) {
       const chunk = students.slice(i, i + CHUNK);
@@ -166,13 +206,24 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
           continue;
         }
 
-        // 1. student_acc/{student_id}
-        batch.set(db.collection("student_acc").doc(id), buildStudentAccDoc(s));
+        try {
+          // 1. Firebase Auth + users/{uid}  ← NEW
+          await createAuthAndUserDoc(s, batch);
 
-        // 2. students/{auto-id} — teammates' collection
-        batch.set(db.collection("students").doc(), buildStudentsDoc(s));
+          // 2. student_acc/{student_id}
+          batch.set(
+            db.collection("student_acc").doc(id),
+            buildStudentAccDoc(s),
+          );
 
-        results.success.push(id);
+          // 3. students/{auto-id}
+          batch.set(db.collection("students").doc(), buildStudentsDoc(s));
+
+          results.success.push(id);
+        } catch (authErr) {
+          // Don't let one bad auth fail the whole batch
+          results.failed.push({ student_id: id, errors: [authErr.message] });
+        }
       }
 
       await batch.commit();
