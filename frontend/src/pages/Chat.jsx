@@ -41,6 +41,9 @@ const APP_AUTOMATION_COMMANDS = [
   {
     route: "/WorkloadDashboard",
     label: "Workload Dashboard",
+    description: "View and manage your academic workload",
+    category: "Dashboards",
+    icon: "📊",
     patterns: [
       /\bwork\s*load\s*dashboard\b/i,
       /\bworkloaddashboard\b/i,
@@ -50,72 +53,114 @@ const APP_AUTOMATION_COMMANDS = [
   {
     route: "/recommendation",
     label: "Recommendation Dashboard",
+    description: "Get personalized study recommendations",
+    category: "Dashboards",
+    icon: "💡",
     patterns: [/\brecommendation\b/i, /\brecommendations\b/i],
-  },
-  {
-    route: "/announcements",
-    label: "Announcements",
-    patterns: [/\bannouncement\b/i, /\bannouncements\b/i],
   },
   {
     route: "/live-risk",
     label: "Live Risk Dashboard",
+    description: "Monitor real-time academic risk indicators",
+    category: "Analytics",
+    icon: "⚠️",
     patterns: [/\blive\s*risk\b/i, /\brisk\s*dashboard\b/i],
   },
   {
     route: "/student-risk",
     label: "Student Risk Timeline",
+    description: "Track your risk history over time",
+    category: "Analytics",
+    icon: "📈",
     patterns: [/\bstudent\s*risk\b/i, /\brisk\s*timeline\b/i, /\bmy\s*risk\b/i],
-  },
-  {
-    route: "/chat",
-    label: "Chat Page",
-    patterns: [/\bopen\s+chat\b/i, /\bgo\s+to\s+chat\b/i],
-  },
-  {
-    route: "/careerReadiness",
-    label: "Career Readiness",
-    patterns: [/\bcareer\s*readiness\b/i, /\bcareer\b/i],
-  },
-  {
-    route: "/levels",
-    label: "Levels",
-    patterns: [/\blevels\b/i, /\bopen\s+levels\b/i],
-  },
-  {
-    route: "/create-quiz",
-    label: "Create Quiz",
-    patterns: [/\bcreate\s*quiz\b/i, /\bquiz\s*creator\b/i],
-  },
-  {
-    route: "/upload",
-    label: "PDF Upload",
-    patterns: [/\bupload\s*pdf\b/i, /\bpdf\s*upload\b/i],
-  },
-  {
-    route: "/peer",
-    label: "Peer Dashboard",
-    patterns: [/\bpeer\b/i, /\bpeer\s*dashboard\b/i],
-  },
-  {
-    route: "/support",
-    label: "Human Support Dashboard",
-    patterns: [/\bsupport\b/i, /\bhuman\s*support\b/i],
-  },
-  {
-    route: "/admin/announcements",
-    label: "Admin Announcements",
-    patterns: [/\badmin\s*announcement\b/i],
   },
   {
     route: "/gru",
     label: "GRU Dashboard",
+    description: "Advanced analytics with GRU models",
+    category: "Analytics",
+    icon: "🧠",
     patterns: [/\bgru\b/i],
   },
   {
     route: "/rl",
     label: "RL Dashboard",
+    description: "Reinforcement learning insights",
+    category: "Analytics",
+    icon: "🤖",
     patterns: [/\brl\b/i, /\breinforcement\s*learning\b/i],
+  },
+  {
+    route: "/peer",
+    label: "Peer Dashboard",
+    description: "Compare with peer performance",
+    category: "Community",
+    icon: "👥",
+    patterns: [/\bpeer\b/i, /\bpeer\s*dashboard\b/i],
+  },
+  {
+    route: "/support",
+    label: "Human Support",
+    description: "Connect with support team",
+    category: "Community",
+    icon: "🆘",
+    patterns: [/\bsupport\b/i, /\bhuman\s*support\b/i],
+  },
+  {
+    route: "/chat",
+    label: "Chat Assistant",
+    description: "AI-powered chat assistant",
+    category: "Tools",
+    icon: "💬",
+    patterns: [/\bopen\s+chat\b/i, /\bgo\s+to\s+chat\b/i],
+  },
+  {
+    route: "/create-quiz",
+    label: "Create Quiz",
+    description: "Build custom quizzes",
+    category: "Tools",
+    icon: "✏️",
+    patterns: [/\bcreate\s*quiz\b/i, /\bquiz\s*creator\b/i],
+  },
+  {
+    route: "/upload",
+    label: "PDF Upload",
+    description: "Upload and manage PDFs",
+    category: "Tools",
+    icon: "📄",
+    patterns: [/\bupload\s*pdf\b/i, /\bpdf\s*upload\b/i],
+  },
+  {
+    route: "/careerReadiness",
+    label: "Career Readiness",
+    description: "Prepare for your career",
+    category: "Development",
+    icon: "🎯",
+    patterns: [/\bcareer\s*readiness\b/i, /\bcareer\b/i],
+  },
+  {
+    route: "/levels",
+    label: "Levels",
+    description: "Track your learning levels",
+    category: "Development",
+    icon: "🏆",
+    patterns: [/\blevels\b/i, /\bopen\s+levels\b/i],
+  },
+  {
+    route: "/announcements",
+    label: "Announcements",
+    description: "View latest announcements",
+    category: "Information",
+    icon: "📢",
+    patterns: [/\bannouncement\b/i, /\bannouncements\b/i],
+  },
+  {
+    route: "/admin/announcements",
+    label: "Admin Announcements",
+    description: "Manage system announcements",
+    category: "Admin",
+    icon: "🔐",
+    patterns: [/\badmin\s*announcement\b/i],
   },
 ];
 
@@ -237,9 +282,28 @@ export default function Chat({ onClose }) {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [pdfProcessing, setPdfProcessing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [responseMode, setResponseMode] = useState(() => {
+    try {
+      return localStorage.getItem("chat_response_mode") || "hybrid";
+    } catch {
+      return "hybrid";
+    }
+  });
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("chat_theme") || "system";
+    } catch {
+      return "system";
+    }
+  });
+  const [effectiveTheme, setEffectiveTheme] = useState("light");
   const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [navSearch, setNavSearch] = useState("");
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const [expandedPdfId, setExpandedPdfId] = useState(null);
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [currentPdfData, setCurrentPdfData] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [showDocuments, setShowDocuments] = useState(false);
@@ -692,6 +756,7 @@ export default function Chat({ onClose }) {
     try {
       const formData = new FormData();
       formData.append("question", trimmed);
+      formData.append("response_mode", responseMode);
 
       const res = await fetch(appConfig.ML_CHAT_URL, {
         method: "POST",
@@ -796,6 +861,23 @@ export default function Chat({ onClose }) {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showCommandMenu]);
+
+  // Keyboard shortcut (Ctrl+K) for quick navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandMenu((prev) => !prev);
+      }
+      if (e.key === "Escape" && showCommandMenu) {
+        setShowCommandMenu(false);
+        setNavSearch("");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showCommandMenu]);
 
   // Cleanup speech synthesis on component unmount
@@ -986,6 +1068,16 @@ export default function Chat({ onClose }) {
     }
   };
 
+  const openPdfViewer = (pdfUrl, pdfName) => {
+    setCurrentPdfData({ url: pdfUrl, name: pdfName });
+    setShowPdfViewer(true);
+  };
+
+  const closePdfViewer = () => {
+    setShowPdfViewer(false);
+    setCurrentPdfData(null);
+  };
+
   const handleDocumentOpen = (doc) => {
     setActiveRagPdf({
       docId: doc?.doc_id || "",
@@ -995,24 +1087,112 @@ export default function Chat({ onClose }) {
     setTimeout(() => questionInputRef.current?.focus(), 0);
   };
 
+  const handleDocumentDownload = (doc) => {
+    const url = doc?.doc_id
+      ? `${appConfig.ML_BASE_URL}/documents/${encodeURIComponent(doc.doc_id)}`
+      : null;
+    if (!url) return;
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc?.pdf_name || doc?.doc_id || "document.pdf";
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const clearActiveRagPdf = () => {
     setActiveRagPdf(null);
     setTimeout(() => questionInputRef.current?.focus(), 0);
   };
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("chat_response_mode", responseMode);
+    } catch {
+      // No-op when storage is unavailable
+    }
+  }, [responseMode]);
+
+  // Persist theme to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("chat_theme", theme);
+    } catch {
+      // No-op when storage is unavailable
+    }
+  }, [theme]);
+
+  // Detect system theme and set effective theme
+  useEffect(() => {
+    if (theme === "system") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const updateEffectiveTheme = () => {
+        setEffectiveTheme(mediaQuery.matches ? "dark" : "light");
+      };
+      updateEffectiveTheme();
+      mediaQuery.addEventListener("change", updateEffectiveTheme);
+      return () =>
+        mediaQuery.removeEventListener("change", updateEffectiveTheme);
+    } else {
+      setEffectiveTheme(theme);
+    }
+  }, [theme]);
+
   return (
-    <div className="bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-col h-[520px] overflow-hidden">
+    <div
+      className={`shadow-2xl rounded-2xl border flex flex-col h-[520px] overflow-hidden transition-colors ${
+        effectiveTheme === "dark"
+          ? "bg-gray-900 border-gray-700"
+          : "bg-white border-slate-200"
+      }`}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-2xl">
+      <div
+        className={`flex items-center justify-between px-4 py-3 border-b rounded-t-2xl ${
+          effectiveTheme === "dark"
+            ? "border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900"
+            : "border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50"
+        }`}
+      >
         <div>
-          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+          <p
+            className={`text-sm font-semibold flex items-center gap-1.5 ${
+              effectiveTheme === "dark" ? "text-gray-100" : "text-slate-800"
+            }`}
+          >
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
               AG
             </span>
             AcademiGuard chatbot
           </p>
+          <p
+            className={`text-[11px] mt-0.5 capitalize ${
+              effectiveTheme === "dark" ? "text-gray-400" : "text-slate-500"
+            }`}
+          >
+            Mode: {responseMode}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSettingsPanel((prev) => !prev)}
+            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+              showSettingsPanel
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+            }`}
+            title="Chat settings"
+            aria-label="Chat settings"
+          >
+            <span className="text-xs mr-1" aria-hidden="true">
+              ⚙
+            </span>
+            Settings
+          </button>
           <button
             type="button"
             onClick={handleResetChat}
@@ -1049,6 +1229,198 @@ export default function Chat({ onClose }) {
         onClose={() => setShowFeedback(false)}
         messages={messages}
       />
+
+      {/* Professional PDF Viewer Modal */}
+      {showPdfViewer && currentPdfData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* PDF Viewer Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-600 p-2 rounded-lg">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-6 w-6 text-white"
+                  >
+                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {currentPdfData.name || "PDF Document"}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Academic Policy Document
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={currentPdfData.url}
+                  download
+                  className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-600 bg-white text-blue-600 px-4 py-2 text-sm font-semibold hover:bg-blue-50 transition-all"
+                  title="Download PDF"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-5 w-5"
+                  >
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                  Download
+                </a>
+                <a
+                  href={currentPdfData.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 text-sm font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm"
+                  title="Open in new tab"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-5 w-5"
+                  >
+                    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+                  </svg>
+                  Open in Tab
+                </a>
+                <button
+                  onClick={closePdfViewer}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-300 text-slate-600 hover:bg-slate-100 hover:border-slate-400 transition-all"
+                  title="Close viewer"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-6 w-6"
+                  >
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* PDF Viewer Content */}
+            <div className="flex-1 bg-slate-50 p-4 overflow-hidden">
+              <div className="bg-white rounded-xl shadow-lg h-full border border-slate-200 overflow-hidden">
+                <iframe
+                  src={currentPdfData.url}
+                  className="w-full h-full"
+                  title={currentPdfData.name || "PDF Document"}
+                  style={{ border: "none" }}
+                />
+              </div>
+            </div>
+
+            {/* PDF Viewer Footer */}
+            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="h-4 w-4 text-blue-600"
+                >
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+                <span className="font-medium">
+                  Use browser controls to zoom, navigate pages, and print
+                </span>
+              </div>
+              <button
+                onClick={closePdfViewer}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white text-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-100 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSettingsPanel && (
+        <div
+          className={`mx-4 my-3 rounded-xl border p-3 ${
+            effectiveTheme === "dark"
+              ? "border-gray-700 bg-gray-800"
+              : "border-slate-200 bg-slate-50"
+          }`}
+        >
+          <p
+            className={`text-xs font-semibold mb-2 ${
+              effectiveTheme === "dark" ? "text-gray-200" : "text-slate-700"
+            }`}
+          >
+            Chat Response Mode
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "document", label: "Document" },
+              { key: "web", label: "Web" },
+              { key: "hybrid", label: "Hybrid" },
+            ].map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => setResponseMode(mode.key)}
+                className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
+                  responseMode === mode.key
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : effectiveTheme === "dark"
+                      ? "border-gray-600 bg-gray-700 text-gray-200 hover:bg-gray-600"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
+          <div
+            className={`mt-4 pt-4 border-t ${
+              effectiveTheme === "dark" ? "border-gray-700" : "border-slate-200"
+            }`}
+          >
+            <p
+              className={`text-xs font-semibold mb-2 ${
+                effectiveTheme === "dark" ? "text-gray-200" : "text-slate-700"
+              }`}
+            >
+              Theme
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "light", label: "Light Mode", icon: "☀️" },
+                { key: "dark", label: "Dark Mode", icon: "🌙" },
+                { key: "system", label: "System Default", icon: "💻" },
+              ].map((themeOption) => (
+                <button
+                  key={themeOption.key}
+                  type="button"
+                  onClick={() => setTheme(themeOption.key)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors flex items-center gap-1 ${
+                    theme === themeOption.key
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : effectiveTheme === "dark"
+                        ? "border-gray-600 bg-gray-700 text-gray-200 hover:bg-gray-600"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="text-xs">{themeOption.icon}</span>
+                  {themeOption.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PDF Upload Modal */}
       {showPdfUploadModal && (
@@ -1170,7 +1542,11 @@ export default function Chat({ onClose }) {
       {/* Conversation area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Messages Container */}
-        <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto bg-slate-50/60">
+        <div
+          className={`flex-1 px-4 py-3 space-y-3 overflow-y-auto ${
+            effectiveTheme === "dark" ? "bg-gray-800" : "bg-slate-50/60"
+          }`}
+        >
           {Array.from(new Set(messages.map((m) => m.id)))
             .map((id) => messages.find((m) => m.id === id))
             .map((msg) => (
@@ -1191,8 +1567,12 @@ export default function Chat({ onClose }) {
                       msg.sender === "user"
                         ? "bg-blue-600 text-white rounded-br-sm"
                         : msg.isPersonalizedReminder
-                          ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
-                          : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
+                          ? effectiveTheme === "dark"
+                            ? "bg-amber-900/30 text-amber-200 border border-amber-700 rounded-bl-sm"
+                            : "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-sm"
+                          : effectiveTheme === "dark"
+                            ? "bg-gray-700 text-gray-100 border border-gray-600 rounded-bl-sm"
+                            : "bg-white text-slate-900 border border-slate-200 rounded-bl-sm"
                     }`}
                   >
                     {msg.isPersonalizedReminder && msg.classification && (
@@ -1206,10 +1586,16 @@ export default function Chat({ onClose }) {
                         <button
                           type="button"
                           onClick={() => handleTextToSpeech(msg.id, msg.text)}
-                          className={`flex-shrink-0 p-1.5 rounded-full transition-all hover:bg-slate-100 ${
+                          className={`flex-shrink-0 p-1.5 rounded-full transition-all ${
+                            effectiveTheme === "dark"
+                              ? "hover:bg-gray-600"
+                              : "hover:bg-slate-100"
+                          } ${
                             speakingMessageId === msg.id
                               ? "text-blue-600 bg-blue-50"
-                              : "text-slate-500 hover:text-blue-600"
+                              : effectiveTheme === "dark"
+                                ? "text-gray-400 hover:text-blue-400"
+                                : "text-slate-500 hover:text-blue-600"
                           }`}
                           title={
                             speakingMessageId === msg.id
@@ -1247,128 +1633,131 @@ export default function Chat({ onClose }) {
                   msg.is_pdf_request &&
                   msg.download_url &&
                   msg.downloadable_pdf && (
-                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-                      <div className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg p-2.5 border border-blue-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">📄</span>
-                            <div>
-                              <p className="text-xs font-semibold text-slate-700">
-                                {msg.downloadable_pdf}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                PDF Document
-                              </p>
-                            </div>
+                    <div
+                      className={`mt-3 rounded-xl overflow-hidden shadow-lg border-2 ${
+                        effectiveTheme === "dark"
+                          ? "border-blue-500/30 bg-gradient-to-br from-gray-800 to-gray-900"
+                          : "border-blue-300/50 bg-gradient-to-br from-white to-blue-50"
+                      }`}
+                    >
+                      {/* PDF Header */}
+                      <div
+                        className={`px-4 py-3 border-b ${
+                          effectiveTheme === "dark"
+                            ? "border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900"
+                            : "border-blue-100 bg-gradient-to-r from-blue-50 to-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-3 rounded-xl shadow-md">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-6 w-6 text-white"
+                            >
+                              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <p
+                              className={`text-sm font-bold ${
+                                effectiveTheme === "dark"
+                                  ? "text-gray-100"
+                                  : "text-slate-900"
+                              }`}
+                            >
+                              {msg.downloadable_pdf}
+                            </p>
+                            <p
+                              className={`text-xs mt-0.5 flex items-center gap-1 ${
+                                effectiveTheme === "dark"
+                                  ? "text-gray-400"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5"
+                              >
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                              </svg>
+                              Academic Policy Document • Ready to view
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                      </div>
+
+                      {/* PDF Actions */}
+                      <div className="px-4 py-4">
+                        <div className="grid grid-cols-2 gap-3">
                           <button
                             type="button"
-                            onClick={() => handlePdfPreview(msg.id)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-white border border-slate-300 text-slate-700 px-3 py-1.5 text-[10px] font-semibold hover:bg-slate-50 transition-colors"
-                          >
-                            {expandedPdfId === msg.id ? (
-                              <>
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  className="h-3.5 w-3.5"
-                                >
-                                  <path d="M7 10l5 5 5-5z" />
-                                </svg>
-                                Hide Preview
-                              </>
-                            ) : (
-                              <>
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  className="h-3.5 w-3.5"
-                                >
-                                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                                </svg>
-                                Preview
-                              </>
-                            )}
-                          </button>
-                          <a
-                            href={msg.download_url}
-                            download
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 text-white px-3 py-1.5 text-[10px] font-semibold hover:bg-blue-700 transition-colors"
+                            onClick={() =>
+                              openPdfViewer(
+                                msg.download_url,
+                                msg.downloadable_pdf,
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 text-sm font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg transform hover:scale-[1.02]"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
                               viewBox="0 0 24 24"
                               fill="currentColor"
-                              className="h-3.5 w-3.5"
+                              className="h-5 w-5"
                             >
-                              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+                            </svg>
+                            View PDF
+                          </button>
+                          <a
+                            href={msg.download_url}
+                            download
+                            className={`inline-flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-bold transition-all shadow-sm hover:shadow-md transform hover:scale-[1.02] ${
+                              effectiveTheme === "dark"
+                                ? "border-blue-500 bg-gray-800 text-blue-400 hover:bg-gray-700"
+                                : "border-blue-600 bg-white text-blue-600 hover:bg-blue-50"
+                            }`}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-5 w-5"
+                            >
+                              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                             </svg>
                             Download
                           </a>
                         </div>
                       </div>
-
-                      {/* PDF Preview */}
-                      {expandedPdfId === msg.id && (
-                        <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
-                          <div className="text-center mb-2">
-                            <p className="text-xs font-semibold text-slate-600">
-                              PDF Preview
-                            </p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">
-                              Click download to open full document
-                            </p>
-                          </div>
-                          <div className="bg-white rounded border border-slate-200 p-2 text-center">
-                            <p className="text-xs text-slate-600 mb-2">
-                              📖 {msg.downloadable_pdf}
-                            </p>
-                            <p className="text-[10px] text-slate-500 mb-2">
-                              This PDF document contains important academic
-                              policies and procedures. Click the download button
-                              to view the complete file in your PDF reader.
-                            </p>
-                            <a
-                              href={msg.download_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
-                            >
-                              Open PDF
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                className="h-3 w-3"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3v10m0 0l-3-3m3 3l3-3" />
-                              </svg>
-                            </a>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
                 {msg.createdAt && (
                   <p
                     className={`mt-1 text-[10px] opacity-70 ${
-                      msg.sender === "user" ? "text-blue-100" : "text-slate-500"
+                      msg.sender === "user"
+                        ? "text-blue-100"
+                        : effectiveTheme === "dark"
+                          ? "text-gray-400"
+                          : "text-slate-500"
                     }`}
                   >
                     {formatTime(msg.createdAt)}
                   </p>
                 )}
                 {msg.sender === "user" && (
-                  <div className="ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-800 shadow-sm">
+                  <div
+                    className={`ml-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full text-[11px] font-semibold shadow-sm ${
+                      effectiveTheme === "dark"
+                        ? "bg-gray-600 text-gray-200"
+                        : "bg-slate-300 text-slate-800"
+                    }`}
+                  >
                     You
                   </div>
                 )}
@@ -1380,11 +1769,29 @@ export default function Chat({ onClose }) {
               <div className="mr-2 mt-1 h-7 w-7 flex items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white shadow-sm">
                 AG
               </div>
-              <div className="max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm bg-white text-slate-900 border border-slate-200 rounded-bl-sm">
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border rounded-bl-sm ${
+                  effectiveTheme === "dark"
+                    ? "bg-gray-700 text-gray-100 border-gray-600"
+                    : "bg-white text-slate-900 border-slate-200"
+                }`}
+              >
                 <div className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.15s]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.3s]" />
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full animate-bounce ${
+                      effectiveTheme === "dark" ? "bg-gray-400" : "bg-slate-400"
+                    }`}
+                  />
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:0.15s] ${
+                      effectiveTheme === "dark" ? "bg-gray-400" : "bg-slate-400"
+                    }`}
+                  />
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:0.3s] ${
+                      effectiveTheme === "dark" ? "bg-gray-400" : "bg-slate-400"
+                    }`}
+                  />
                 </div>
               </div>
             </div>
@@ -1399,30 +1806,341 @@ export default function Chat({ onClose }) {
           {/* dummy div for scroll-into-view */}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Documents Sidebar */}
-        {showDocuments && (
-          <div className="border-l border-slate-200 w-80 bg-white flex flex-col flex-shrink-0 overflow-hidden">
-            <DocumentsList
-              documents={documents}
-              loading={docsLoading}
-              onRefresh={fetchDocuments}
-              onUploadClick={() => setShowPdfUploadModal(true)}
-              onDocumentOpen={handleDocumentOpen}
-              showUploadButton={canUploadPdf}
-            />
-          </div>
-        )}
       </div>
+
+      {/* PDF Documents Modal (replaces sidebar) */}
+      {showDocuments && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+          <div
+            className={`rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border-2 ${
+              effectiveTheme === "dark"
+                ? "bg-gray-900 border-gray-700"
+                : "bg-white border-slate-200"
+            }`}
+          >
+            {/* Modal Header */}
+            <div
+              className={`flex items-center justify-between px-6 py-4 border-b ${
+                effectiveTheme === "dark"
+                  ? "border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900"
+                  : "border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-3 rounded-xl shadow-md">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-6 w-6 text-white"
+                  >
+                    <path d="M7 3h7l5 5v13H7V3z" />
+                    <path d="M14 3v5h5" />
+                  </svg>
+                </div>
+                <div>
+                  <p
+                    className={`text-lg font-bold ${
+                      effectiveTheme === "dark"
+                        ? "text-gray-100"
+                        : "text-slate-900"
+                    }`}
+                  >
+                    PDF Documents Library
+                  </p>
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      effectiveTheme === "dark"
+                        ? "text-gray-400"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    {documents.length}{" "}
+                    {documents.length === 1 ? "document" : "documents"}{" "}
+                    available for RAG
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchDocuments}
+                  disabled={docsLoading}
+                  className={`inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-all ${
+                    effectiveTheme === "dark"
+                      ? "border-blue-500 bg-gray-800 text-blue-400 hover:bg-gray-700 disabled:opacity-50"
+                      : "border-blue-600 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                  }`}
+                  title="Refresh documents"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className={`h-5 w-5 ${docsLoading ? "animate-spin" : ""}`}
+                  >
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                  </svg>
+                  Refresh
+                </button>
+                {canUploadPdf && (
+                  <button
+                    onClick={() => {
+                      setShowPdfUploadModal(true);
+                      setShowDocuments(false);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 text-sm font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-5 w-5"
+                    >
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                    Upload PDF
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowDocuments(false)}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
+                    effectiveTheme === "dark"
+                      ? "border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500"
+                      : "border-slate-300 text-slate-600 hover:bg-slate-100 hover:border-slate-400"
+                  }`}
+                  title="Close"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-6 w-6"
+                  >
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - PDF Grid */}
+            <div
+              className={`flex-1 overflow-y-auto p-6 ${
+                effectiveTheme === "dark" ? "bg-gray-800" : "bg-slate-50"
+              }`}
+            >
+              {docsLoading ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-3 w-3 rounded-full bg-blue-500 animate-pulse" />
+                    <div className="h-3 w-3 rounded-full bg-blue-500 animate-pulse [animation-delay:0.15s]" />
+                    <div className="h-3 w-3 rounded-full bg-blue-500 animate-pulse [animation-delay:0.3s]" />
+                  </div>
+                  <p
+                    className={`text-sm font-medium ${
+                      effectiveTheme === "dark"
+                        ? "text-gray-300"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    Loading documents...
+                  </p>
+                </div>
+              ) : documents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div
+                    className={`p-6 rounded-full mb-4 ${
+                      effectiveTheme === "dark" ? "bg-gray-700" : "bg-slate-200"
+                    }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className={`h-16 w-16 ${
+                        effectiveTheme === "dark"
+                          ? "text-gray-500"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
+                    </svg>
+                  </div>
+                  <p
+                    className={`text-lg font-semibold mb-2 ${
+                      effectiveTheme === "dark"
+                        ? "text-gray-200"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    No documents available
+                  </p>
+                  <p
+                    className={`text-sm ${
+                      effectiveTheme === "dark"
+                        ? "text-gray-400"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    Upload PDFs to get started with RAG-powered responses
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {documents.map((doc, index) => (
+                    <div
+                      key={doc.doc_id || index}
+                      className={`rounded-xl overflow-hidden shadow-lg border-2 transition-all hover:shadow-xl hover:scale-[1.02] cursor-pointer ${
+                        effectiveTheme === "dark"
+                          ? "border-gray-700 bg-gradient-to-br from-gray-800 to-gray-900 hover:border-blue-500"
+                          : "border-slate-200 bg-gradient-to-br from-white to-blue-50 hover:border-blue-400"
+                      }`}
+                      onClick={() => handleDocumentOpen(doc)}
+                    >
+                      <div
+                        className={`px-4 py-3 border-b ${
+                          effectiveTheme === "dark"
+                            ? "border-gray-700 bg-gray-800"
+                            : "border-blue-100 bg-gradient-to-r from-blue-50 to-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="bg-gradient-to-br from-red-500 to-red-600 p-2.5 rounded-lg shadow-md flex-shrink-0">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-5 w-5 text-white"
+                            >
+                              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-sm font-bold truncate ${
+                                effectiveTheme === "dark"
+                                  ? "text-gray-100"
+                                  : "text-slate-900"
+                              }`}
+                              title={doc.pdf_name || doc.doc_id}
+                            >
+                              {doc.pdf_name ||
+                                doc.doc_id ||
+                                "Untitled Document"}
+                            </p>
+                            <p
+                              className={`text-xs mt-1 ${
+                                effectiveTheme === "dark"
+                                  ? "text-gray-400"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              PDF Document
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-3 flex gap-2">
+                        <button
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-2 text-xs font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDocumentOpen(doc);
+                          }}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-4 w-4"
+                          >
+                            <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z" />
+                          </svg>
+                          Select
+                        </button>
+                        <button
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-blue-600 text-blue-600 px-3 py-2 text-xs font-bold hover:bg-blue-50 transition-all shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDocumentDownload(doc);
+                          }}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className="h-4 w-4"
+                          >
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className={`flex items-center justify-between px-6 py-3 border-t ${
+                effectiveTheme === "dark"
+                  ? "border-gray-700 bg-gray-900"
+                  : "border-slate-200 bg-slate-50"
+              }`}
+            >
+              <div
+                className={`flex items-center gap-2 text-xs ${
+                  effectiveTheme === "dark" ? "text-gray-400" : "text-slate-600"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="h-4 w-4 text-blue-600"
+                >
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+                <span className="font-medium">
+                  Click any document to use it in your chat
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDocuments(false)}
+                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
+                  effectiveTheme === "dark"
+                    ? "border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Input area */}
       <form
         onSubmit={handleAsk}
-        className="border-t border-slate-200 px-3 py-3 rounded-b-2xl bg-white space-y-2"
+        className={`border-t px-3 py-3 rounded-b-2xl space-y-2 ${
+          effectiveTheme === "dark"
+            ? "border-gray-700 bg-gray-900"
+            : "border-slate-200 bg-white"
+        }`}
       >
         <textarea
           ref={questionInputRef}
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20"
+          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20 ${
+            effectiveTheme === "dark"
+              ? "border-gray-600 bg-gray-800 text-gray-100 placeholder-gray-500"
+              : "border-slate-200 bg-white text-slate-900 placeholder-slate-400"
+          }`}
           placeholder="Type your message..."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -1544,46 +2262,234 @@ export default function Chat({ onClose }) {
                 </svg>
               </button>
               {showCommandMenu && (
-                <div className="absolute bottom-10 left-0 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-                    <h3 className="text-xs font-semibold text-slate-700">
-                      Quick Navigation
-                    </h3>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      Click any command to navigate
-                    </p>
-                  </div>
-                  <div className="py-1">
-                    {APP_AUTOMATION_COMMANDS.map((cmd, idx) => (
+                <div className="absolute bottom-10 left-0 w-96 bg-white border border-slate-300 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-fadeIn">
+                  {/* Header with gradient */}
+                  <div className="px-4 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                          Quick Navigation
+                        </h3>
+                        <p className="text-[10px] text-blue-100 mt-0.5">
+                          {APP_AUTOMATION_COMMANDS.length} pages available
+                        </p>
+                      </div>
                       <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          navigate(cmd.route);
-                          setShowCommandMenu(false);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2 group"
+                        onClick={() => setShowCommandMenu(false)}
+                        className="text-white hover:bg-white/20 rounded-lg p-1 transition-colors"
                       >
                         <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
+                          className="w-4 h-4"
                           fill="none"
+                          viewBox="0 0 24 24"
                           stroke="currentColor"
-                          strokeWidth="1.8"
-                          className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 flex-shrink-0"
                         >
-                          <path d="M9 18l6-6-6-6" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
                         </svg>
-                        <div>
-                          <div className="text-xs font-medium text-slate-700 group-hover:text-blue-600">
-                            {cmd.label}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {cmd.route}
-                          </div>
-                        </div>
                       </button>
-                    ))}
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="px-3 py-2.5 bg-slate-50 border-b border-slate-200">
+                    <div className="relative">
+                      <svg
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search pages..."
+                        value={navSearch}
+                        onChange={(e) => setNavSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      {navSearch && (
+                        <button
+                          onClick={() => setNavSearch("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Navigation Items by Category */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {(() => {
+                      const filteredCommands = APP_AUTOMATION_COMMANDS.filter(
+                        (cmd) =>
+                          navSearch === "" ||
+                          cmd.label
+                            .toLowerCase()
+                            .includes(navSearch.toLowerCase()) ||
+                          cmd.description
+                            .toLowerCase()
+                            .includes(navSearch.toLowerCase()) ||
+                          cmd.category
+                            .toLowerCase()
+                            .includes(navSearch.toLowerCase()),
+                      );
+
+                      const categories = [
+                        ...new Set(filteredCommands.map((cmd) => cmd.category)),
+                      ];
+
+                      if (filteredCommands.length === 0) {
+                        return (
+                          <div className="py-12 text-center">
+                            <svg
+                              className="w-12 h-12 mx-auto text-slate-300 mb-2"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <p className="text-xs text-slate-500">
+                              No pages found
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Try a different search term
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return categories.map((category, catIdx) => {
+                        const categoryCommands = filteredCommands.filter(
+                          (cmd) => cmd.category === category,
+                        );
+
+                        return (
+                          <div key={catIdx} className="py-2">
+                            {/* Category Header */}
+                            <div className="px-3 py-1.5 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                {category}
+                              </span>
+                              <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                                {categoryCommands.length}
+                              </span>
+                            </div>
+
+                            {/* Category Items */}
+                            <div className="space-y-0.5 px-2">
+                              {categoryCommands.map((cmd, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    navigate(cmd.route);
+                                    setShowCommandMenu(false);
+                                    setNavSearch("");
+                                  }}
+                                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 flex items-center gap-3 group border border-transparent hover:border-blue-200 hover:shadow-sm"
+                                >
+                                  {/* Icon */}
+                                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-200 group-hover:from-blue-100 group-hover:to-indigo-100 rounded-lg flex items-center justify-center text-sm transition-all duration-200 group-hover:scale-110">
+                                    {cmd.icon}
+                                  </div>
+
+                                  {/* Content */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-semibold text-slate-700 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                      {cmd.label}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 group-hover:text-slate-600 mt-0.5 line-clamp-1">
+                                      {cmd.description}
+                                    </div>
+                                  </div>
+
+                                  {/* Arrow */}
+                                  <svg
+                                    className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all flex-shrink-0"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 5l7 7-7 7"
+                                    />
+                                  </svg>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
+                      <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[9px] font-mono">
+                        Ctrl
+                      </kbd>
+                      <span>+</span>
+                      <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[9px] font-mono">
+                        K
+                      </kbd>
+                      <span className="ml-1">to search</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowCommandMenu(false);
+                        setNavSearch("");
+                      }}
+                      className="text-[9px] text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
               )}

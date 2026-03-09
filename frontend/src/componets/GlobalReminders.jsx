@@ -66,6 +66,16 @@ export default function GlobalReminders({ onReminderClick }) {
     saveDismissed(dismissed);
   };
 
+  const handleClearAll = () => {
+    if (!reminders.length) return;
+    const dismissed = loadDismissed();
+    reminders.forEach((r) => {
+      if (r?.id) dismissed.add(r.id);
+    });
+    saveDismissed(dismissed);
+    setReminders([]);
+  };
+
   if (!reminders.length) return null;
 
   const handleReminderClick = (event, announcement) => {
@@ -80,13 +90,37 @@ export default function GlobalReminders({ onReminderClick }) {
     <div className="fixed top-20 right-1 z-30 max-w-xs w-[85vw] sm:w-80 space-y-2 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent pointer-events-none">
       <div className="pointer-events-auto space-y-2">
         {reminders.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 rounded-full w-fit border border-blue-200 mx-auto">
-            <div className="relative inline-flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+          <div className="flex items-center gap-2 mx-auto w-fit">
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 rounded-full border border-blue-200">
+              <div className="relative inline-flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+              </div>
+              {reminders.length} Active{" "}
+              {reminders.length === 1 ? "Reminder" : "Reminders"}
             </div>
-            {reminders.length} Active{" "}
-            {reminders.length === 1 ? "Reminder" : "Reminders"}
+
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-red-200 bg-white text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm"
+              title="Clear all reminders"
+              aria-label="Clear all reminders"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 7h12m-9 0V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0l1 12a1 1 0 001 1h6a1 1 0 001-1l1-12"
+                />
+              </svg>
+            </button>
           </div>
         )}
         {reminders.map((a) => (

@@ -18,6 +18,16 @@ export default function PdfUpload() {
       if (!base) return;
       candidates.add(base.replace("127.0.0.1", "localhost"));
       candidates.add(base.replace("localhost", "127.0.0.1"));
+
+      // Try common local service ports for ML API.
+      candidates.add(base.replace(":8000", ":8002"));
+      candidates.add(base.replace(":8002", ":8000"));
+      candidates.add(
+        base.replace("127.0.0.1", "localhost").replace(":8000", ":8002"),
+      );
+      candidates.add(
+        base.replace("localhost", "127.0.0.1").replace(":8002", ":8000"),
+      );
     });
 
     return Array.from(candidates).filter(Boolean);
@@ -41,7 +51,7 @@ export default function PdfUpload() {
     throw (
       lastNetworkError ||
       new Error(
-        "Could not connect to ML service. Check if it is running on port 8000.",
+        "Could not connect to ML service. Check if it is running on port 8002 (or 8000 for legacy setup).",
       )
     );
   };
