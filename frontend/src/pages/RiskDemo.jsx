@@ -83,15 +83,15 @@ const ROLE_CONFIG = {
   },
   super_admin: {
     greeting: "Super Admin Dashboard",
-    primaryLink: { to: "/gru", label: "GRU Disengagement" },
-    secondaryLink: { to: "/rl", label: "RL Decision Engine" },
+    primaryLink: { to: "/admin/disengagementhub", label: "Disengagement" },
+    secondaryLink: { to: "/", label: "RL Decision Engine" },
     quickLinks: [
-      { to: "/gru", label: "🧠 GRU Model", desc: "Disengagement detection" },
-      {
-        to: "/rl",
-        label: "🤖 RL Engine",
-        desc: "Reinforcement learning decisions",
-      },
+      // { to: "/gru", label: "🧠 GRU Model", desc: "Disengagement detection" },
+      // {
+      //   to: "/rl",
+      //   label: "🤖 RL Engine",
+      //   desc: "Reinforcement learning decisions",
+      // },
       {
         to: "/admin/disengagementhub",
         label: "🎛️ Disengagement Hub",
