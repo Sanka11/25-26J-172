@@ -26,6 +26,146 @@ if (process.env.GROQ_API_KEY) {
  * Method: POST
  * Body: { studentId, semesterStartDate }
  */
+// const generateWorkload = functions.https.onRequest(async (req, res) => {
+//   try {
+//     if (req.method !== "POST") {
+//       return res.status(405).send("Method Not Allowed");
+//     }
+
+//     const { studentId, semesterStartDate } = req.body;
+
+//     if (!studentId || !semesterStartDate) {
+//       return res.status(400).json({ error: "Missing fields" });
+//     }
+
+//     const semesterStart = new Date(semesterStartDate);
+
+//     /* 1️⃣ Get enrolled subjects */
+//     const enrollSnap = await db
+//       .collection("student_enrollments")
+//       .doc(studentId)
+//       .get();
+
+//     if (!enrollSnap.exists) {
+//       return res.status(404).json({ error: "Student not enrolled" });
+//     }
+
+//     const subjectIds = enrollSnap.data().subjects || [];
+
+//     /* 2️⃣ Load subject details */
+//     const subjects = await Promise.all(
+//       subjectIds.map(async (id) => {
+//         const snap = await db.collection("subjects").doc(id).get();
+//         return snap.exists ? snap.data() : null;
+//       }),
+//     );
+
+//     /* 3️⃣ Weekly workload map (EXPLAINABLE) */
+//     const weeklyLoad = {};
+//     // week -> { totalHours, breakdown[] }
+
+//     const addLoad = (week, entry) => {
+//       if (!weeklyLoad[week]) {
+//         weeklyLoad[week] = {
+//           totalHours: 0,
+//           breakdown: [],
+//         };
+//       }
+
+//       weeklyLoad[week].totalHours += entry.hours;
+//       weeklyLoad[week].breakdown.push(entry);
+//     };
+
+//     /* 4️⃣ Process subjects */
+//     subjects.forEach((sub) => {
+//       if (!sub) return;
+
+//       // 🎓 Academic subjects
+//       if (sub.type === "ACADEMIC") {
+//         const t = sub.assessmentTimeline || {};
+//         const h = sub.estimatedHours || {};
+
+//         // Assignments
+//         t.assignments?.forEach((week) =>
+//           addLoad(week, {
+//             subjectId: sub.subjectId,
+//             subjectName: sub.subjectName,
+//             type: "ASSIGNMENT",
+//             hours: h.assignment || 6,
+//           }),
+//         );
+
+//         // Mid exam
+//         if (t.midExamWeek) {
+//           addLoad(t.midExamWeek, {
+//             subjectId: sub.subjectId,
+//             subjectName: sub.subjectName,
+//             type: "MID_EXAM",
+//             hours: h.midExam || 10,
+//           });
+//         }
+
+//         // Final exam
+//         if (t.finalExamWeek) {
+//           addLoad(t.finalExamWeek, {
+//             subjectId: sub.subjectId,
+//             subjectName: sub.subjectName,
+//             type: "FINAL_EXAM",
+//             hours: h.finalExam || 15,
+//           });
+//         }
+//       }
+
+//       // 🏭 Internship subject
+//       if (sub.type === "INTERNSHIP") {
+//         sub.submissionWeeks?.forEach((week) =>
+//           addLoad(week, {
+//             subjectId: sub.subjectId,
+//             subjectName: sub.subjectName,
+//             type: "INTERNSHIP_SUBMISSION",
+//             hours: sub.estimatedHoursPerSubmission || 8,
+//           }),
+//         );
+//       }
+//     });
+
+//     /* 5️⃣ Save weekly workload with explanation */
+//     const batch = db.batch();
+
+//     Object.entries(weeklyLoad).forEach(([week, data]) => {
+//       let status = "NORMAL";
+
+//       if (data.totalHours >= 20) status = "OVERLOADED";
+//       else if (data.totalHours >= 12) status = "BUSY";
+
+//       const weekStart = new Date(
+//         semesterStart.getTime() + (Number(week) - 1) * 7 * 86400000,
+//       );
+
+//       const ref = db.collection("weekly_workload").doc(`${studentId}_W${week}`);
+
+//       batch.set(ref, {
+//         studentId,
+//         week: Number(week),
+//         weekStart,
+//         totalHours: data.totalHours,
+//         status,
+//         breakdown: data.breakdown, // ⭐ EXPLAINABLE PART
+//         createdAt: new Date(),
+//       });
+//     });
+
+//     await batch.commit();
+
+//     return res.json({
+//       message: "Weekly workload generated (with explanations)",
+//       weeksAnalyzed: Object.keys(weeklyLoad).length,
+//     });
+//   } catch (err) {
+//     console.error("generateWorkload error:", err);
+//     res.status(500).json({ error: "Workload generation failed" });
+//   }
+// });
 const generateWorkload = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "POST") {
@@ -73,7 +213,12 @@ const generateWorkload = functions.https.onRequest(async (req, res) => {
       }
 
       weeklyLoad[week].totalHours += entry.hours;
-      weeklyLoad[week].breakdown.push(entry);
+
+      // 👇 FIX: Use the spread operator (...entry) to attach 'isCompleted: false' to EVERY task automatically
+      weeklyLoad[week].breakdown.push({
+        ...entry,
+        isCompleted: false,
+      });
     };
 
     /* 4️⃣ Process subjects */
@@ -166,7 +311,6 @@ const generateWorkload = functions.https.onRequest(async (req, res) => {
     res.status(500).json({ error: "Workload generation failed" });
   }
 });
-
 /**
  * Generate lecture alerts (manual trigger)
  */
@@ -438,7 +582,7 @@ Example:
             }
 
             const completion = await groq.chat.completions.create({
-              model: "llama-3.3-70b-versatile",
+              model: "llama-3.1-8b-instant", //llama-3.1-8b-instant   llama-3.3-70b-versatile
               messages: [
                 {
                   role: "system",
