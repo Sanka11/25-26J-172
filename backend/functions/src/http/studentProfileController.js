@@ -5,8 +5,13 @@
 //   3. Firebase Auth             → enables login
 //   4. users/{uid}               → role-based routing in the frontend
 
+
+
+// backend/functions/src/http/studentProfileController.js
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
+const axios = require("axios");
+const { ML_XAI_BASE_URL } = require("../config");
 
 const db = admin.firestore();
 
@@ -28,13 +33,96 @@ function validateStudent(s) {
   return errors;
 }
 
-// ── Firebase Auth + users/{uid} ───────────────────────────────────────────
-// Password = student_id  (student uses this to log in on first visit)
+function hasScores(s) {
+  const isNew =
+    Number(s.current_year) === 1 && s.current_semester === "Semester 1";
+  return !isNew;
+}
+
+// ── Build the exact 17-field ML payload (matches updateStudentMarks) ──────
+function buildMlPayload(s) {
+  return {
+    Attendance_pct: Number(s.attendance_pct ?? s.Attendance_pct ?? 75),
+    Midterm_Score: Number(s.midterm_score ?? s.Midterm_Score ?? 60),
+    Final_Score: Number(s.Final_Score ?? 0),
+    Assignments_Avg: Number(s.assignments_avg ?? s.Assignments_Avg ?? 60),
+    Quizzes_Avg: Number(s.quizzes_avg ?? s.Quizzes_Avg ?? 60),
+    Participation_Score: Number(s.Participation_Score ?? 0),
+    Projects_Score: Number(s.projects_score ?? s.Projects_Score ?? 60),
+    Age: Number(s.age ?? s.Age ?? 21),
+    Study_Hours_per_Week: Number(s.Study_Hours_per_Week ?? 10),
+    Stress_Level: Number(s.Stress_Level ?? 5),
+    Sleep_Hours_per_Night: Number(s.Sleep_Hours_per_Night ?? 7),
+    Gender: String(s.gender ?? "Male"),
+    Department: String(s.department ?? "Computer Science"),
+    Extracurricular_Activities: String(s.extracurricular_activities ?? "No"),
+    Internet_Access_at_Home: String(s.internet_access_at_home ?? "Yes"),
+    Parent_Education_Level: String(s.parent_education_level ?? "Bachelor"),
+    Family_Income_Level: String(s.family_income_level ?? "Medium"),
+  };
+}
+
+// ── Call ML → write risk back to student_acc + student_risk_predictions ───
+async function runRiskPrediction(studentId, s) {
+  try {
+    const mlPayload = buildMlPayload(s);
+
+    console.log(`🔮 Running risk prediction for ${studentId}`, mlPayload);
+
+    const mlResponse = await axios.post(
+      `${ML_XAI_BASE_URL}/predict-risk/shap/${studentId}`,
+      mlPayload,
+      { timeout: 30000 },
+    );
+
+    const result = mlResponse.data;
+
+    const riskData = {
+      ...result,
+      student_id: studentId,
+      updated_by: "profile_creation",
+      cached_at: admin.firestore.FieldValue.serverTimestamp(),
+      predicted_at: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // 1. Mirror to student_risk_predictions/{studentId} (same as updateStudentMarks)
+    await db
+      .collection("student_risk_predictions")
+      .doc(studentId)
+      .set(riskData, { merge: true });
+
+    // 2. Write summary fields back to student_acc/{studentId}
+    await db
+      .collection("student_acc")
+      .doc(studentId)
+      .update({
+        risk_score: result.risk_score ?? result.risk_percentage ?? null,
+        risk_label: result.risk_label ?? result.risk_level ?? null,
+        shap_values: result.shap_values ?? null,
+        risk_predicted_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+    console.log(
+      `✅ Risk prediction complete for ${studentId}: ${result.risk_level ?? result.risk_label}`,
+    );
+    return result;
+  } catch (err) {
+    console.error(`⚠️ Risk prediction failed for ${studentId}:`, err.message);
+    if (err.response) {
+      console.error(
+        `   ML responded with ${err.response.status}:`,
+        JSON.stringify(err.response.data),
+      );
+    }
+    return null;
+  }
+}
+
 // ── Firebase Auth + users/{uid} ───────────────────────────────────────────
 async function createAuthAndUserDoc(s, batch) {
   const studentId = String(s.student_id).trim();
 
-  // Check if Auth account already exists for this email
   try {
     await admin.auth().getUserByEmail(s.email.trim().toLowerCase());
     return null; // already exists — skip
@@ -42,8 +130,6 @@ async function createAuthAndUserDoc(s, batch) {
     if (err.code !== "auth/user-not-found") throw err;
   }
 
-  // ✅ Pad password to guarantee min 6 chars Firebase requires
-  // e.g. "S100" → "S100@@" , "S5000" → "S5000@"
   const rawPassword = studentId;
   const password =
     rawPassword.length < 6 ? rawPassword.padEnd(6, "@") : rawPassword;
@@ -67,7 +153,7 @@ async function createAuthAndUserDoc(s, batch) {
   return userRecord.uid;
 }
 
-// ── Document for student_acc/{student_id} ────────────────────────────────
+// ── student_acc/{student_id} ──────────────────────────────────────────────
 function buildStudentAccDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -95,12 +181,17 @@ function buildStudentAccDoc(s) {
     Study_Hours_per_Week: 0,
     Stress_Level: 5,
     Sleep_Hours_per_Night: 7,
+    // Risk fields — null until ML runs
+    risk_score: null,
+    risk_label: null,
+    shap_values: null,
+    risk_predicted_at: null,
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   };
 }
 
-// ── Document for students/{auto-id} (teammates' collection) ──────────────
+// ── students/{auto-id} (teammates' collection) ────────────────────────────
 function buildStudentsDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -131,32 +222,35 @@ const createStudentProfile = onRequest(async (req, res) => {
 
     const id = String(student.student_id).trim();
 
-    // Check duplicate in student_acc
     const existing = await db.collection("student_acc").doc(id).get();
     if (existing.exists)
       return res.status(409).json({ error: `Student ID ${id} already exists` });
 
     const batch = db.batch();
-
-    // 1. Firebase Auth + users/{uid}  ← NEW
     await createAuthAndUserDoc(student, batch);
-
-    // 2. student_acc/{student_id}
     batch.set(
       db.collection("student_acc").doc(id),
       buildStudentAccDoc(student),
     );
-
-    // 3. students/{auto-id} — teammates' collection
     batch.set(db.collection("students").doc(), buildStudentsDoc(student));
-
     await batch.commit();
+
+    // Run ML after commit — only for non-new students
+    let riskResult = null;
+    if (hasScores(student)) {
+      riskResult = await runRiskPrediction(id, student);
+    }
 
     return res.status(201).json({
       success: true,
-      message: `Profile + login account created for ${student.first_name} ${student.last_name}`,
+      message: `Profile created for ${student.first_name} ${student.last_name}`,
       student_id: id,
-      note: "Student can log in with their email and Student ID as password",
+      risk_predicted: riskResult !== null,
+      risk_level: riskResult?.risk_level ?? null,
+      risk_percentage: riskResult?.risk_percentage ?? null,
+      note: hasScores(student)
+        ? "Risk prediction ran automatically"
+        : "New student — risk prediction skipped (no scores yet)",
     });
   } catch (err) {
     console.error("createStudentProfile error:", err);
@@ -188,6 +282,7 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
     for (let i = 0; i < students.length; i += CHUNK) {
       const chunk = students.slice(i, i + CHUNK);
       const batch = db.batch();
+      const toPredict = [];
 
       for (const s of chunk) {
         const errs = validateStudent(s);
@@ -207,26 +302,30 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
         }
 
         try {
-          // 1. Firebase Auth + users/{uid}  ← NEW
           await createAuthAndUserDoc(s, batch);
-
-          // 2. student_acc/{student_id}
           batch.set(
             db.collection("student_acc").doc(id),
             buildStudentAccDoc(s),
           );
-
-          // 3. students/{auto-id}
           batch.set(db.collection("students").doc(), buildStudentsDoc(s));
-
           results.success.push(id);
+          if (hasScores(s)) toPredict.push({ id, s });
         } catch (authErr) {
-          // Don't let one bad auth fail the whole batch
           results.failed.push({ student_id: id, errors: [authErr.message] });
         }
       }
 
       await batch.commit();
+
+      // Run all ML predictions concurrently after batch commits
+      if (toPredict.length > 0) {
+        console.log(
+          `🔮 Running risk prediction for ${toPredict.length} students...`,
+        );
+        await Promise.all(
+          toPredict.map(({ id, s }) => runRiskPrediction(id, s)),
+        );
+      }
     }
 
     return res.status(200).json({
@@ -250,7 +349,7 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
   }
 });
 
-// ── GET /checkStudentIdExists?student_id=XXXX ────────────────────────────
+// ── GET /checkStudentIdExists ─────────────────────────────────────────────
 const checkStudentIdExists = onRequest(async (req, res) => {
   setCors(res, "GET");
   if (req.method === "OPTIONS") return res.status(204).send("");
