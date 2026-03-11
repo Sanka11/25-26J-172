@@ -19,7 +19,7 @@
 //   query,
 //   orderBy,
 //   limit,
-//   updateDoc, // <-- ADDED: For updating checkbox progress
+//   updateDoc,
 // } from "firebase/firestore";
 
 // const db = getFirestore();
@@ -32,7 +32,7 @@
 //   const [historyData, setHistoryData] = useState([]);
 //   const [latestRecommendations, setLatestRecommendations] = useState([]);
 //   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
-//   const [currentDocId, setCurrentDocId] = useState(null); // <-- ADDED: Tracks the active history document ID
+//   const [currentDocId, setCurrentDocId] = useState(null);
 
 //   // 2. STATE: Student Check-in Data
 //   const [checkInData, setCheckInData] = useState({
@@ -82,7 +82,6 @@
 //         }
 
 //         const historyRef = collection(db, `students/${studentId}/history`);
-//         // <-- UPDATED: Order descending to easily grab the latest document first
 //         const q = query(historyRef, orderBy("timestamp", "desc"));
 //         const historySnap = await getDocs(q);
 
@@ -92,7 +91,6 @@
 //         historySnap.forEach((doc) => {
 //           const data = doc.data();
 
-//           // <-- ADDED: Capture the very first (newest) document
 //           if (!latestDoc) {
 //             latestDoc = { id: doc.id, ...data };
 //           }
@@ -105,16 +103,14 @@
 //           });
 //         });
 
-//         // <-- UPDATED: Reverse chart data so the graph displays chronological order (oldest to newest)
 //         setHistoryData(chartData.reverse());
 
-//         // <-- ADDED: Auto-load the latest document into the UI
+//         // LOAD FROM DATABASE ON PAGE REFRESH
 //         if (latestDoc) {
 //           const sanitizedResult = sanitizeResultData(latestDoc);
 //           setResult(sanitizedResult);
 //           setCurrentDocId(latestDoc.id);
 
-//           // Load saved checkbox progress from DB (or default to false)
 //           const actionItemsCount =
 //             sanitizedResult?.ai_insights?.action_items?.length || 0;
 //           setCheckedItems(
@@ -173,6 +169,7 @@
 //         students: [{ ...academicData, ...checkInData }],
 //       };
 
+//       // FETCH FROM FRESH API
 //       const data = await fetchStudentRecommendations(payload);
 //       const studentResult = data.student_recommendations[0];
 
@@ -186,7 +183,6 @@
 //       if (currentUser) {
 //         await fetchLatestRecommendations(currentUser.uid);
 
-//         // <-- ADDED: Fetch the newly created document ID from Firestore so checkboxes work immediately
 //         setTimeout(async () => {
 //           try {
 //             const historyRef = collection(
@@ -205,7 +201,7 @@
 //           } catch (err) {
 //             console.error("Error fetching new doc ID:", err);
 //           }
-//         }, 1500); // 1.5s delay gives the backend time to finish writing to the DB
+//         }, 1500);
 //       }
 //     } catch (error) {
 //       console.error("AI Error:", error);
@@ -215,17 +211,37 @@
 //     }
 //   };
 
+//   // 🌟 MAPS FRESH DATA OR SAVED DATABASE DATA PERFECTLY
 //   const sanitizeResultData = (data) => {
 //     if (!data) return null;
+
+//     const parseTips = (tips) => {
+//       if (Array.isArray(tips)) return tips;
+//       if (typeof tips === "string" && tips.trim() !== "") return [tips];
+//       return [];
+//     };
 
 //     return {
 //       ...data,
 //       status: data.status || "UNKNOWN",
 //       recommendation_index: data.recommendation_index || 0,
 //       ai_insights: {
-//         summary: data.ai_insights?.summary || data.summary || "", // Fallback to data.summary for historical docs
-//         academic_tip: data.ai_insights?.academic_tip || data.academic_tip || "",
-//         wellness_tip: data.ai_insights?.wellness_tip || data.wellness_tip || "",
+//         summary:
+//           data.ai_insights?.summary || data.ai_summary || data.summary || "",
+//         wellness_summary:
+//           data.ai_insights?.wellness_summary || data.wellness_summary || "",
+//         academic_tips: parseTips(
+//           data.ai_insights?.academic_tips ||
+//             data.academic_tips ||
+//             data.academic_tip ||
+//             [],
+//         ),
+//         wellness_tips: parseTips(
+//           data.ai_insights?.wellness_tips ||
+//             data.wellness_tips ||
+//             data.wellness_tip ||
+//             [],
+//         ),
 //         action_items: Array.isArray(data.ai_insights?.action_items)
 //           ? data.ai_insights.action_items.map((item) => {
 //               if (typeof item === "string") return item;
@@ -239,7 +255,7 @@
 //             })
 //           : Array.isArray(data.action_items)
 //             ? data.action_items
-//             : [], // Fallback for historical docs
+//             : [],
 //       },
 //     };
 //   };
@@ -254,7 +270,6 @@
 //     setCourseContext((prev) => ({ ...prev, [name]: value }));
 //   };
 
-//   // <-- UPDATED: Saves checkbox progress to Firestore
 //   const toggleCheckbox = async (index) => {
 //     const newChecked = [...checkedItems];
 //     newChecked[index] = !newChecked[index];
@@ -424,6 +439,7 @@
 //             {/* Left Column */}
 //             <div className="lg:col-span-1 space-y-6">
 //               {/* Wellness Check Card */}
+
 //               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up delay-200 hover:shadow-lg transition-all duration-300">
 //                 <div className="flex items-center space-x-2 mb-6">
 //                   <span className="text-2xl">🌱</span>
@@ -432,15 +448,29 @@
 //                   </h2>
 //                 </div>
 
-//                 <div className="space-y-6">
+//                 <div className="space-y-8">
+//                   {" "}
+//                   {/* Increased spacing for better readability */}
+//                   {/* --- STUDY HOURS --- */}
 //                   <div className="group">
-//                     <div className="flex justify-between text-sm mb-2">
-//                       <span className="text-gray-600 font-medium group-hover:text-blue-600 transition-colors">
-//                         Study Hours
-//                       </span>
-//                       <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-//                         {checkInData.study_hours_per_week}h
-//                       </span>
+//                     <div className="flex justify-between items-end mb-2">
+//                       <div>
+//                         <span className="text-gray-600 font-bold group-hover:text-blue-600 transition-colors flex items-center gap-2">
+//                           📚 Study Time
+//                         </span>
+//                         <span className="text-xs text-gray-400 font-medium">
+//                           Avg:{" "}
+//                           <strong className="text-blue-500">
+//                             {(checkInData.study_hours_per_week / 7).toFixed(1)}h
+//                           </strong>{" "}
+//                           per day
+//                         </span>
+//                       </div>
+//                       <div className="flex flex-col items-end">
+//                         <span className="font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 shadow-sm">
+//                           {checkInData.study_hours_per_week}h / week
+//                         </span>
+//                       </div>
 //                     </div>
 //                     <input
 //                       type="range"
@@ -451,16 +481,23 @@
 //                       onChange={handleInputChange}
 //                       className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
 //                     />
+//                     <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 font-bold uppercase">
+//                       <span>0h</span>
+//                       <span>20h</span>
+//                       <span>40h</span>
+//                     </div>
 //                   </div>
-
+//                   {/* --- STRESS LEVEL --- */}
 //                   <div className="group">
-//                     <div className="flex justify-between text-sm mb-2">
-//                       <span className="text-gray-600 font-medium group-hover:text-orange-600 transition-colors">
-//                         Stress Level
+//                     <div className="flex justify-between items-end mb-2">
+//                       <span className="text-gray-600 font-bold group-hover:text-orange-600 transition-colors flex items-center gap-2">
+//                         ⚡ Stress Level
 //                       </span>
-//                       <div className="flex items-center space-x-1 bg-orange-50 px-2 py-0.5 rounded-md">
-//                         <span>{getStressEmoji(checkInData.stress_level)}</span>
-//                         <span className="font-bold text-orange-600">
+//                       <div className="flex items-center space-x-1.5 bg-orange-50 px-3 py-1 rounded-lg border border-orange-100 shadow-sm">
+//                         <span className="text-lg">
+//                           {getStressEmoji(checkInData.stress_level)}
+//                         </span>
+//                         <span className="font-black text-orange-700">
 //                           {checkInData.stress_level}/10
 //                         </span>
 //                       </div>
@@ -474,18 +511,24 @@
 //                       onChange={handleInputChange}
 //                       className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500 hover:accent-orange-600 transition-all"
 //                     />
-//                     <p className="text-xs font-medium text-gray-400 mt-2 text-right">
+//                     <p className="text-xs font-bold text-orange-600/70 mt-2 text-right">
 //                       {getStressDescription(checkInData.stress_level)}
 //                     </p>
 //                   </div>
-
+//                   {/* --- SLEEP HOURS --- */}
 //                   <div className="group">
-//                     <div className="flex justify-between text-sm mb-2">
-//                       <span className="text-gray-600 font-medium group-hover:text-purple-600 transition-colors">
-//                         Sleep
-//                       </span>
-//                       <span className="font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
-//                         {checkInData.sleep_hours}h
+//                     <div className="flex justify-between items-end mb-2">
+//                       <div>
+//                         <span className="text-gray-600 font-bold group-hover:text-purple-600 transition-colors flex items-center gap-2">
+//                           🌙 Sleep Duration
+//                         </span>
+//                         <span className="text-xs text-gray-400 font-medium">
+//                           Tracked{" "}
+//                           <strong className="text-purple-500">per night</strong>
+//                         </span>
+//                       </div>
+//                       <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-sm">
+//                         {checkInData.sleep_hours}h / night
 //                       </span>
 //                     </div>
 //                     <input
@@ -498,12 +541,17 @@
 //                       onChange={handleInputChange}
 //                       className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-600 transition-all"
 //                     />
+//                     <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 font-bold uppercase">
+//                       <span>0h</span>
+//                       <span>6h</span>
+//                       <span>12h</span>
+//                     </div>
 //                   </div>
-
+//                   {/* --- BUTTON --- */}
 //                   <button
 //                     onClick={fetchAIInsights}
 //                     disabled={loading}
-//                     className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-bold shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+//                     className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-4 rounded-xl font-bold shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
 //                   >
 //                     {loading ? (
 //                       <>
@@ -566,7 +614,7 @@
 //                     },
 //                     {
 //                       label: "Midterm",
-//                       value: academicData.midterm_score,
+//                       value: `${academicData.midterm_score}`,
 //                       color: "text-blue-600",
 //                       bg: "bg-blue-50",
 //                     },
@@ -663,18 +711,31 @@
 //                     </div>
 //                   </div>
 
-//                   {/* Summary */}
-//                   {result.ai_insights?.summary && (
-//                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl mb-8 border border-blue-100/50 shadow-sm relative overflow-hidden">
-//                       <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-//                       <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
-//                         <span className="font-bold text-blue-800 uppercase tracking-wider text-xs mr-2 bg-blue-100 px-2 py-1 rounded">
-//                           Summary
-//                         </span>
-//                         {safeStringify(result.ai_insights.summary)}
-//                       </p>
-//                     </div>
-//                   )}
+//                   {/* Side-by-side Summaries */}
+//                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+//                     {result.ai_insights?.summary && (
+//                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100/50 shadow-sm relative overflow-hidden">
+//                         <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+//                         <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
+//                           <span className="font-bold text-blue-800 uppercase tracking-wider text-xs mr-2 bg-blue-100 px-2 py-1 rounded">
+//                             Academic Summary
+//                           </span>
+//                           {safeStringify(result.ai_insights.summary)}
+//                         </p>
+//                       </div>
+//                     )}
+//                     {result.ai_insights?.wellness_summary && (
+//                       <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100/50 shadow-sm relative overflow-hidden">
+//                         <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+//                         <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
+//                           <span className="font-bold text-purple-800 uppercase tracking-wider text-xs mr-2 bg-purple-100 px-2 py-1 rounded">
+//                             Wellness Summary
+//                           </span>
+//                           {safeStringify(result.ai_insights.wellness_summary)}
+//                         </p>
+//                       </div>
+//                     )}
+//                   </div>
 
 //                   {/* Action Plan */}
 //                   <div className="mb-8">
@@ -733,26 +794,30 @@
 //                     </div>
 //                   </div>
 
-//                   {/* Detailed Tips */}
+//                   {/* Bulleted Tips */}
 //                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//                     {result.ai_insights?.academic_tip && (
+//                     {result.ai_insights?.academic_tips?.length > 0 && (
 //                       <div className="bg-emerald-50/50 border border-emerald-100 p-5 rounded-xl hover:bg-emerald-50 transition-colors">
-//                         <h5 className="font-bold text-emerald-800 flex items-center space-x-2 mb-2">
+//                         <h5 className="font-bold text-emerald-800 flex items-center space-x-2 mb-3">
 //                           <span>📚</span> <span>Academic Strategy</span>
 //                         </h5>
-//                         <p className="text-sm text-emerald-700 leading-relaxed">
-//                           {safeStringify(result.ai_insights.academic_tip)}
-//                         </p>
+//                         <ul className="text-sm text-emerald-700 leading-relaxed space-y-2 list-disc pl-5">
+//                           {result.ai_insights.academic_tips.map((tip, idx) => (
+//                             <li key={idx}>{safeStringify(tip)}</li>
+//                           ))}
+//                         </ul>
 //                       </div>
 //                     )}
-//                     {result.ai_insights?.wellness_tip && (
+//                     {result.ai_insights?.wellness_tips?.length > 0 && (
 //                       <div className="bg-purple-50/50 border border-purple-100 p-5 rounded-xl hover:bg-purple-50 transition-colors">
-//                         <h5 className="font-bold text-purple-800 flex items-center space-x-2 mb-2">
-//                           <span>🧘</span> <span>Wellness Tip</span>
+//                         <h5 className="font-bold text-purple-800 flex items-center space-x-2 mb-3">
+//                           <span>🧘</span> <span>Wellness Tips</span>
 //                         </h5>
-//                         <p className="text-sm text-purple-700 leading-relaxed">
-//                           {safeStringify(result.ai_insights.wellness_tip)}
-//                         </p>
+//                         <ul className="text-sm text-purple-700 leading-relaxed space-y-2 list-disc pl-5">
+//                           {result.ai_insights.wellness_tips.map((tip, idx) => (
+//                             <li key={idx}>{safeStringify(tip)}</li>
+//                           ))}
+//                         </ul>
 //                       </div>
 //                     )}
 //                   </div>
@@ -854,7 +919,6 @@
 // };
 
 // export default RecommendationDashboard;
-
 import React, { useState, useEffect } from "react";
 import { fetchStudentRecommendations } from "../services/api/recommendation";
 import {
@@ -874,6 +938,7 @@ import {
   collection,
   getDocs,
   query,
+  where,
   orderBy,
   limit,
   updateDoc,
@@ -883,7 +948,6 @@ const db = getFirestore();
 const auth = getAuth();
 
 const RecommendationDashboard = () => {
-  // 1. STATE: Auth & Firestore Data
   const [currentUser, setCurrentUser] = useState(null);
   const [academicData, setAcademicData] = useState(null);
   const [historyData, setHistoryData] = useState([]);
@@ -891,20 +955,17 @@ const RecommendationDashboard = () => {
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [currentDocId, setCurrentDocId] = useState(null);
 
-  // 2. STATE: Student Check-in Data
   const [checkInData, setCheckInData] = useState({
     study_hours_per_week: 10,
     stress_level: 6,
     sleep_hours: 6.5,
   });
 
-  // 3. STATE: Course Context
   const [courseContext, setCourseContext] = useState({
     subject: "OOP",
     week_number: 1,
   });
 
-  // 4. STATE: UI and AI Results
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [checkedItems, setCheckedItems] = useState([]);
@@ -921,24 +982,35 @@ const RecommendationDashboard = () => {
 
     const loadStudentData = async () => {
       try {
-        const studentId = currentUser.uid;
-        const docRef = doc(db, "students", studentId);
-        const docSnap = await getDoc(docRef);
+        const userProfileRef = doc(db, "users", currentUser.uid);
+        const userProfileSnap = await getDoc(userProfileRef);
 
-        if (docSnap.exists()) {
-          setAcademicData({ student_id: studentId, ...docSnap.data() });
-        } else {
-          setAcademicData({
-            student_id: studentId,
-            attendance_pct: 72.0,
-            midterm_score: 65.0,
-            assignments_avg: 75.0,
-            quizzes_avg: 70.0,
-            projects_score: 80.0,
-          });
+        if (!userProfileSnap.exists() || !userProfileSnap.data().student_id) {
+          console.error("User profile not found or missing student_id!");
+          return;
         }
 
-        const historyRef = collection(db, `students/${studentId}/history`);
+        const myStudentId = userProfileSnap.data().student_id; // e.g., "S5003"
+
+        // 1. Get the academic marks from the auto-generated doc
+        const studentsRef = collection(db, "students");
+        const studentQuery = query(
+          studentsRef,
+          where("student_id", "==", myStudentId),
+          limit(1),
+        );
+        const studentSnapshot = await getDocs(studentQuery);
+
+        if (!studentSnapshot.empty) {
+          const docSnap = studentSnapshot.docs[0];
+          setAcademicData({ student_id: myStudentId, ...docSnap.data() });
+        } else {
+          console.warn("No academic record found for student_id:", myStudentId);
+          return;
+        }
+
+        // 🌟 FIX: Fetch history using the exact student_id (myStudentId) instead of actualDocId
+        const historyRef = collection(db, `students/${myStudentId}/history`);
         const q = query(historyRef, orderBy("timestamp", "desc"));
         const historySnap = await getDocs(q);
 
@@ -962,7 +1034,6 @@ const RecommendationDashboard = () => {
 
         setHistoryData(chartData.reverse());
 
-        // LOAD FROM DATABASE ON PAGE REFRESH
         if (latestDoc) {
           const sanitizedResult = sanitizeResultData(latestDoc);
           setResult(sanitizedResult);
@@ -976,7 +1047,8 @@ const RecommendationDashboard = () => {
           );
         }
 
-        await fetchLatestRecommendations(studentId);
+        // 🌟 FIX: Fetch latest recommendations side-panel using student_id
+        await fetchLatestRecommendations(myStudentId);
       } catch (error) {
         console.error("Error fetching Firestore data:", error);
       }
@@ -984,12 +1056,13 @@ const RecommendationDashboard = () => {
     loadStudentData();
   }, [currentUser]);
 
-  const fetchLatestRecommendations = async (studentId) => {
+  // Use the readable student ID string here
+  const fetchLatestRecommendations = async (customStudentId) => {
     setLoadingRecommendations(true);
     try {
       const recommendationsRef = collection(
         db,
-        `students/${studentId}/recommendations`,
+        `students/${customStudentId}/recommendations`,
       );
       const q = query(
         recommendationsRef,
@@ -1026,7 +1099,6 @@ const RecommendationDashboard = () => {
         students: [{ ...academicData, ...checkInData }],
       };
 
-      // FETCH FROM FRESH API
       const data = await fetchStudentRecommendations(payload);
       const studentResult = data.student_recommendations[0];
 
@@ -1037,14 +1109,15 @@ const RecommendationDashboard = () => {
         sanitizedResult?.ai_insights?.action_items?.length || 0;
       setCheckedItems(new Array(actionItemsCount).fill(false));
 
-      if (currentUser) {
-        await fetchLatestRecommendations(currentUser.uid);
+      // 🌟 FIX: Use the readable student_id from academicData
+      if (academicData && academicData.student_id) {
+        await fetchLatestRecommendations(academicData.student_id);
 
         setTimeout(async () => {
           try {
             const historyRef = collection(
               db,
-              `students/${currentUser.uid}/history`,
+              `students/${academicData.student_id}/history`,
             );
             const recentQuery = query(
               historyRef,
@@ -1068,7 +1141,6 @@ const RecommendationDashboard = () => {
     }
   };
 
-  // 🌟 MAPS FRESH DATA OR SAVED DATABASE DATA PERFECTLY
   const sanitizeResultData = (data) => {
     if (!data) return null;
 
@@ -1132,11 +1204,12 @@ const RecommendationDashboard = () => {
     newChecked[index] = !newChecked[index];
     setCheckedItems(newChecked);
 
-    if (currentUser && currentDocId) {
+    // 🌟 FIX: Update task progress in the readable student_id folder
+    if (academicData && academicData.student_id && currentDocId) {
       try {
         const docRef = doc(
           db,
-          `students/${currentUser.uid}/history`,
+          `students/${academicData.student_id}/history`,
           currentDocId,
         );
         await updateDoc(docRef, {
@@ -1223,6 +1296,9 @@ const RecommendationDashboard = () => {
           <p className="text-gray-600 font-medium">
             Loading your academic context...
           </p>
+          <p className="text-sm text-gray-400 mt-2">
+            Ensuring your profile is linked correctly.
+          </p>
         </div>
       </div>
     );
@@ -1296,7 +1372,6 @@ const RecommendationDashboard = () => {
             {/* Left Column */}
             <div className="lg:col-span-1 space-y-6">
               {/* Wellness Check Card */}
-             
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up delay-200 hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center space-x-2 mb-6">
                   <span className="text-2xl">🌱</span>
@@ -1306,8 +1381,6 @@ const RecommendationDashboard = () => {
                 </div>
 
                 <div className="space-y-8">
-                  {" "}
-                  {/* Increased spacing for better readability */}
                   {/* --- STUDY HOURS --- */}
                   <div className="group">
                     <div className="flex justify-between items-end mb-2">
@@ -1464,6 +1537,12 @@ const RecommendationDashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     {
+                      label: "Student ID",
+                      value: `${academicData.student_id}`,
+                      color: "text-slate-700",
+                      bg: "bg-slate-100",
+                    },
+                    {
                       label: "Attendance",
                       value: `${academicData.attendance_pct}%`,
                       color: "text-emerald-600",
@@ -1496,12 +1575,14 @@ const RecommendationDashboard = () => {
                   ].map((stat, idx) => (
                     <div
                       key={idx}
-                      className={`${stat.bg} p-4 rounded-xl transform transition-transform hover:scale-105 duration-200 cursor-default`}
+                      className={`${stat.bg} p-4 rounded-xl transform transition-transform hover:scale-105 duration-200 cursor-default flex flex-col justify-center`}
                     >
                       <p className="text-xs font-semibold text-gray-500 uppercase">
                         {stat.label}
                       </p>
-                      <p className={`text-xl font-bold mt-1 ${stat.color}`}>
+                      <p
+                        className={`text-xl font-bold mt-1 ${stat.color} break-all`}
+                      >
                         {stat.value}
                       </p>
                     </div>
@@ -1518,7 +1599,7 @@ const RecommendationDashboard = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 pb-6 border-b border-gray-100 gap-4">
                     <div className="flex items-center space-x-4">
                       <div className="relative">
-                        <div
+                        {/* <div
                           className="absolute inset-0 rounded-full blur-md opacity-50 animate-pulse"
                           style={{
                             backgroundColor: getStatusColor(result.status),
@@ -1529,9 +1610,9 @@ const RecommendationDashboard = () => {
                           style={{
                             backgroundColor: getStatusColor(result.status),
                           }}
-                        ></div>
+                        ></div> */}
                       </div>
-                      <div>
+                      {/* <div>
                         <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
                           Analysis Status
                         </p>
@@ -1553,8 +1634,8 @@ const RecommendationDashboard = () => {
                           {(result.recommendation_index * 100).toFixed(1)}
                           <span className="text-xl text-gray-400">%</span>
                         </p>
-                      </div>
-                      <div className="w-16 h-16 rounded-full border-4 border-gray-100 flex items-center justify-center relative overflow-hidden">
+                      </div> */}
+                      {/* <div className="w-16 h-16 rounded-full border-4 border-gray-100 flex items-center justify-center relative overflow-hidden">
                         <div
                           className="absolute bottom-0 w-full bg-indigo-500 transition-all duration-1000 ease-out"
                           style={{
@@ -1564,7 +1645,7 @@ const RecommendationDashboard = () => {
                         <span className="relative z-10 text-xs font-bold text-gray-700 bg-white/80 rounded px-1 backdrop-blur-sm">
                           Score
                         </span>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
 

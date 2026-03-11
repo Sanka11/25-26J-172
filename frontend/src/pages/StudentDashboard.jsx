@@ -922,7 +922,7 @@ import {
   Zap,
   Coffee,
   CalendarDays,
-  RefreshCw, // 👈 Added Refresh icon
+  RefreshCw,
 } from "lucide-react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { startOfWeek } from "date-fns";
@@ -942,36 +942,99 @@ import {
 
 /* ---------------- HELPERS ---------------- */
 
-// 🚀 OPTIMIZATION 1: Removed the 800ms artificial delay
 const fetchSystemConfig = async () => {
   return { semesterStartDate: "2026-01-31" };
 };
 
+// 🌟 SUPER PARSER: Handles flat, nested, and deeply nested AI JSON formats!
 const groupTimetableByDay = (timetable) => {
   if (!timetable || !Array.isArray(timetable)) return [];
-  const grouped = timetable.reduce((acc, item) => {
-    const day = item.day;
-    if (!acc[day]) {
-      acc[day] = {
-        day: day,
-        tasks: [{ subject: item.subject, task: item.task, hours: item.hours }],
-      };
-    } else {
-      acc[day].tasks.push({
-        subject: item.subject,
-        task: item.task,
-        hours: item.hours,
+
+  const dayOrder = {
+    Monday: 1,
+    Tuesday: 2,
+    Wednesday: 3,
+    Thursday: 4,
+    Friday: 5,
+    Saturday: 6,
+    Sunday: 7,
+  };
+
+  const grouped = {};
+
+  timetable.forEach((item) => {
+    const dayVal = item.day || item.Day || "1";
+
+    if (!grouped[dayVal]) {
+      grouped[dayVal] = { day: dayVal, tasks: [] };
+    }
+
+    // SCENARIO 1: Nested under `subjects` array (From your console log)
+    if (item.subjects && Array.isArray(item.subjects)) {
+      item.subjects.forEach((sub) => {
+        const subName = sub.subject || "Study Session";
+        if (sub.tasks && Array.isArray(sub.tasks)) {
+          sub.tasks.forEach((t) => {
+            grouped[dayVal].tasks.push({
+              subject: subName,
+              task: t.task || t.description || "Review material",
+              hours: t.hours || t.duration || sub.hours || 1, // Fallback to subject hours
+              focusTopics: t.topic || t.topics?.join(", ") || "",
+            });
+          });
+        } else {
+          grouped[dayVal].tasks.push({
+            subject: subName,
+            task: sub.task || "Review material",
+            hours: sub.hours || item.hours || 1,
+            focusTopics: sub.topic || "",
+          });
+        }
       });
     }
-    return acc;
-  }, {});
-  return Object.values(grouped).sort((a, b) => a.day - b.day);
+    // SCENARIO 2: Nested under `tasks` array (From your Firebase screenshot)
+    else if (item.tasks && Array.isArray(item.tasks)) {
+      item.tasks.forEach((t) => {
+        let focus = t.topics;
+        if (Array.isArray(focus))
+          focus = focus.join(", "); // Convert array to string
+        else if (!focus) focus = t.topic || t.focusTopics || "";
+
+        grouped[dayVal].tasks.push({
+          subject: t.subject || item.subject || "Study Session",
+          task: t.task || t.description || "Review material",
+          hours: t.duration || t.hours || item.hours || 1,
+          focusTopics: focus,
+        });
+      });
+    }
+    // SCENARIO 3: Flat structure
+    else {
+      grouped[dayVal].tasks.push({
+        subject: item.subject || item.Subject || "Study Session",
+        task: item.task || item.Task || "Review course material",
+        hours: item.hours || item.Hours || item.duration || 1,
+        focusTopics: item.focusTopics || item.FocusTopics || item.topic || "",
+      });
+    }
+  });
+
+  return Object.values(grouped).sort((a, b) => {
+    const dayA =
+      typeof a.day === "string" && dayOrder[a.day]
+        ? dayOrder[a.day]
+        : parseInt(a.day) || 0;
+    const dayB =
+      typeof b.day === "string" && dayOrder[b.day]
+        ? dayOrder[b.day]
+        : parseInt(b.day) || 0;
+    return dayA - dayB;
+  });
 };
 
 function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
   if (!semesterStartDate) return 1;
 
-  // Align both dates to the start of their weeks (Monday)
   const start = startOfWeek(new Date(semesterStartDate), { weekStartsOn: 1 });
   const target = startOfWeek(new Date(targetDate), { weekStartsOn: 1 });
 
@@ -983,8 +1046,6 @@ function calculateAcademicWeek(semesterStartDate, targetDate = new Date()) {
   );
 
   const rawWeek = Math.floor(diffDays / 7) + 1;
-
-  // Cap the result between Week 1 and Week 17 so it matches the Calendar bounds
   return Math.min(Math.max(1, rawWeek), 17);
 }
 
@@ -1045,18 +1106,14 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // --- 1. HEADER SECTION ---
-  // Background rectangle for header (Using Indigo-600 to match your UI)
   doc.setFillColor(79, 70, 229);
   doc.rect(0, 0, pageWidth, 45, "F");
 
-  // Title (Bug Fix: Removed the emoji which caused the garbled text)
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
   doc.text("Busy Week Study Plan", pageWidth / 2, 22, { align: "center" });
 
-  // Subtitle
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   doc.text(
@@ -1066,7 +1123,6 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
     { align: "center" },
   );
 
-  // --- 2. STUDENT DETAILS SECTION ---
   doc.setTextColor(50, 50, 50);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
@@ -1086,33 +1142,29 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
     : "TBD";
   doc.text(`Week Starts: ${weekStartDateString}`, 20, 78);
 
-  // Total Hours
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(220, 38, 38); // Red text to highlight the heavy workload
+  doc.setTextColor(220, 38, 38);
   doc.text(
     `Total Estimated Workload: ${reminder.targetTotalHours} hours`,
     20,
     86,
   );
 
-  // Reset text color for the table
   doc.setTextColor(50, 50, 50);
 
-  // --- 3. TIMETABLE SECTION ---
   if (reminder.timetable && reminder.timetable.length > 0) {
     const tableData = [];
     const groupedData = groupTimetableByDay(reminder.timetable);
 
     groupedData.forEach((group) => {
       group.tasks.forEach((t, idx) => {
-        // If the AI generated focus topics, inject them into the task column
         let taskDescription = t.task;
         if (t.focusTopics) {
           taskDescription += `\n\nFocus Areas: ${t.focusTopics}`;
         }
 
         tableData.push([
-          idx === 0 ? `Day ${group.day}` : "", // Only show Day on the first row of the group
+          idx === 0 ? `Day ${group.day}` : "",
           t.subject,
           taskDescription,
           `${t.hours}h`,
@@ -1126,7 +1178,7 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
       body: tableData,
       theme: "grid",
       headStyles: {
-        fillColor: [79, 70, 229], // Indigo
+        fillColor: [79, 70, 229],
         textColor: [255, 255, 255],
         fontStyle: "bold",
         halign: "center",
@@ -1147,11 +1199,10 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
         },
       },
       alternateRowStyles: {
-        fillColor: [249, 250, 251], // Very light gray for alternating rows
+        fillColor: [249, 250, 251],
       },
       margin: { top: 95, left: 20, right: 20 },
       didParseCell: function (data) {
-        // Make grouped rows look cleaner by removing the top border for empty day cells
         if (
           data.section === "body" &&
           data.column.index === 0 &&
@@ -1171,7 +1222,6 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
     doc.text("No specific timetable data available for this week.", 20, 100);
   }
 
-  // --- 4. FOOTER SECTION ---
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -1185,7 +1235,6 @@ const generatePDF = (reminder, userEmail, academicPeriod) => {
     );
   }
 
-  // Save the PDF
   doc.save(`Week-${reminder.targetBusyWeek}-Study-Plan.pdf`);
 };
 
@@ -1229,12 +1278,12 @@ const StudentDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // 👇 MOVED: loadBackendReminders extracted to be accessible
   const loadBackendReminders = async () => {
     if (!studentId) return;
     try {
       setLoadingReminders(true);
-      const reminderData = await fetchActiveReminders(studentId);
+      const reminderData = await fetchActiveReminders(studentId, currentWeek);
+
       if (reminderData.reminders) {
         const today = new Date();
         const validReminders = reminderData.reminders
@@ -1260,13 +1309,11 @@ const StudentDashboard = () => {
     }
   };
 
-  // 👇 MOVED: loadDashboard extracted outside useEffect so the refresh button can call it
   const loadDashboard = async () => {
     if (!studentId) return;
     try {
       setLoading(true);
 
-      // 🚀 OPTIMIZATION 2: Fetch all static data in parallel
       const [config, enrollment, weeklyResponse, alertRes] = await Promise.all([
         fetchSystemConfig(),
         fetchStudentEnrollment(studentId),
@@ -1284,30 +1331,26 @@ const StudentDashboard = () => {
       setWorkloadStats(calculateWorkloadStats(workloadData));
       setLectureAlerts(alertRes?.alerts || []);
 
-      // 🚀 Stop loading immediately so the user can see the dashboard
       setLoading(false);
 
-      // 🚀 OPTIMIZATION 3: Run slow AI tasks in the background without blocking the UI
       generateWorkloadIfNeeded(studentId, config.semesterStartDate)
         .then(() => generateBusyWeekReminders(studentId))
         .then(() => {
-          // Silently refetch if new AI tasks were generated
           fetchWeeklyWorkload(studentId).then((res) => {
             if (res?.weeks) {
               setWeeklyWorkload(res.weeks);
               setWorkloadStats(calculateWorkloadStats(res.weeks));
             }
           });
-          loadBackendReminders(); // Fetch reminders after generation completes
+          loadBackendReminders();
         })
         .catch((err) => console.error("Background AI task error:", err));
     } catch (err) {
       console.error("Dashboard error:", err);
-      setLoading(false); // Make sure loader drops even if there is an error
+      setLoading(false);
     }
   };
 
-  // 👇 Only calls on mount when studentId becomes available
   useEffect(() => {
     if (studentId) {
       loadDashboard();
@@ -1378,7 +1421,7 @@ const StudentDashboard = () => {
         .glass-card { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07); }
       `}</style>
 
-      {/* MODAL CODE REMAINS UNCHANGED */}
+      {/* Modal */}
       {isModalOpen && selectedWeek && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden relative">
@@ -1481,7 +1524,7 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* DASHBOARD REMAINS UNCHANGED */}
+      {/* Main Dashboard */}
       <div className="min-h-screen bg-slate-50/50 text-gray-800 font-sans pb-12">
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
           <div className="glass-card rounded-3xl p-6 sm:p-8">
@@ -1500,7 +1543,6 @@ const StudentDashboard = () => {
                 </div>
               </div>
               <div className="flex gap-3">
-                {/* 👇 Added the refresh button right here */}
                 <button
                   onClick={loadDashboard}
                   disabled={loading}
@@ -1536,6 +1578,7 @@ const StudentDashboard = () => {
             </div>
           </div>
 
+          {/* AI Timetable Reminders */}
           {backendReminders.length > 0 && (
             <div className="space-y-4">
               <h3 className="font-extrabold text-gray-800 flex items-center gap-2 text-xl px-2">
@@ -1637,6 +1680,15 @@ const StudentDashboard = () => {
                                       <p className="text-[11px] text-gray-600 font-medium leading-relaxed">
                                         {t.task}
                                       </p>
+
+                                      {t.focusTopics && (
+                                        <div className="mt-2 flex items-start gap-1">
+                                          <Sparkles className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                                            Focus: {t.focusTopics}
+                                          </span>
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
