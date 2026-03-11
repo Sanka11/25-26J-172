@@ -45,7 +45,12 @@ const PREDICT_NEXT_SEMESTER_URL = `${BASE_URL}/predictNextSemester`;
 const GET_BULK_RISK_URL = `${BASE_URL}/getBulkRisk`;
 const GET_STUDENT_RISK_URL = `${BASE_URL}/getStudentRiskExplanation`;
 const UPDATE_STUDENT_MARKS_URL = `${BASE_URL}/updateStudentMarks`;
-const GET_STUDENT_RISK_HISTORY_URL = `${BASE_URL}/getStudentRiskHistory`; // ← NEW
+const GET_STUDENT_RISK_HISTORY_URL = `${BASE_URL}/getStudentRiskHistory`;
+
+// Student profile management (it22354792)
+const CREATE_STUDENT_PROFILE_URL = `${BASE_URL}/createStudentProfile`;
+const BULK_CREATE_STUDENT_PROFILES_URL = `${BASE_URL}/bulkCreateStudentProfiles`;
+const CHECK_STUDENT_ID_EXISTS_URL = `${BASE_URL}/checkStudentIdExists`;
 
 // Local ML Service
 // app.main (chat/pdf endpoints) runs on 8002 by default in local development.
@@ -72,7 +77,7 @@ export const appConfig = {
   GET_BULK_RISK_URL,
   GET_STUDENT_RISK_URL,
   UPDATE_STUDENT_MARKS_URL,
-  GET_STUDENT_RISK_HISTORY_URL, // ← NEW
+  GET_STUDENT_RISK_HISTORY_URL,
   ML_BASE_URL,
   ML_UPLOAD_URL,
   ML_CHAT_URL,
@@ -80,6 +85,11 @@ export const appConfig = {
   ML_FEEDBACK_STATS_URL,
   ML_LIST_DOCS_URL,
   ML_INTERVENTION_REMINDER_URL,
+
+  // Student profile management (it22354792)
+  CREATE_STUDENT_PROFILE_URL,
+  BULK_CREATE_STUDENT_PROFILES_URL,
+  CHECK_STUDENT_ID_EXISTS_URL,
 
   // Quiz savindi
   CREATE_QUIZ_URL,

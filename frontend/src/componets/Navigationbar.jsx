@@ -42,14 +42,14 @@ const NAV_BY_ROLE = {
     { path: "/support", label: "Interventions" },
     { path: "/admin/adminworkload", label: "Workload" },
   ],
+
   super_admin: [
     { path: "/", label: "Home", exact: true },
-    //{ path: "/gru", label: "GRU Model" },
-    //{ path: "/rl", label: "RL Engine" },
     { path: "/admin/disengagementhub", label: "Disengagement" },
     { path: "/admin/human-escalations", label: "Human Escalation" },
     { path: "/admin/announcements", label: "Announcements" },
     { path: "/admin/peer-cheer", label: "Peer Cheer" },
+    { path: "/admin/student-profiles", label: "Student Profiles" },
   ],
 };
 

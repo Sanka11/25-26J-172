@@ -16,6 +16,7 @@ import RiskDemo from "./pages/RiskDemo";
 import StudentRiskDashboard from "./pages/StudentRiskDashboard";
 import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
 import XAIAdminDashboard from "./pages/XAIAdminDashboard";
+import StudentProfileManagement from "./pages/StudentProfileManagement";
 
 //savindi
 import WorkloadDashboard from "./pages/StudentDashboard";
@@ -298,6 +299,15 @@ function MainShell() {
         <Route path="/levels" element={<Levels currentLevel={1} />} />
         <Route path="/quiz/:level" element={<TakeQuiz />} />
         <Route path="/careerReadiness" element={<CareerReadiness />} />
+
+        <Route
+          path="/admin/student-profiles"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+              <StudentProfileManagement />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/chat" element={<Chat />} />
         <Route path="/announcements" element={<UserAnnouncements />} />
