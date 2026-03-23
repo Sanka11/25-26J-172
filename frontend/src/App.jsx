@@ -118,6 +118,7 @@ function AppLayout() {
 function MainShell() {
   const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatMaximized, setIsChatMaximized] = useState(false);
 
   return (
     <>
@@ -319,7 +320,10 @@ function MainShell() {
 
       {!isChatOpen && (
         <button
-          onClick={() => setIsChatOpen(true)}
+          onClick={() => {
+            setIsChatOpen(true);
+            setIsChatMaximized(false);
+          }}
           className="fixed bottom-5 right-5 z-50 rounded-full bg-blue-600 px-4 py-2 text-white shadow-lg hover:bg-blue-700"
         >
           Ask AcademiGuard
@@ -327,8 +331,22 @@ function MainShell() {
       )}
 
       {isChatOpen && (
-        <div className="fixed bottom-5 right-5 z-50 w-[92vw] max-w-md">
-          <Chat onClose={() => setIsChatOpen(false)} />
+        <div
+          className={`fixed z-50 transition-all duration-300 ease-in-out ${
+            isChatMaximized
+              ? "top-1/2 left-1/2 w-[95vw] max-w-6xl h-[80vh] -translate-x-1/2 -translate-y-1/2"
+              : "bottom-5 right-5 w-[92vw] max-w-md"
+          }`}
+        >
+          <Chat
+            isMaximized={isChatMaximized}
+            onMinimize={() => setIsChatMaximized(false)}
+            onToggleMaximize={() => setIsChatMaximized((prev) => !prev)}
+            onClose={() => {
+              setIsChatOpen(false);
+              setIsChatMaximized(false);
+            }}
+          />
         </div>
       )}
     </>
