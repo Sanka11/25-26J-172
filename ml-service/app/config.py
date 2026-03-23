@@ -39,7 +39,8 @@ OLLAMA_TIMEOUT = 120
 # Typical range: 0.0 (identical) to 2.0+ (very different)
 # Threshold for considering RAG results as "relevant"
 # If minimum distance > threshold, fall back to web search
-RAG_SIMILARITY_THRESHOLD = 1.2  # Adjust based on your needs
+RAG_SIMILARITY_THRESHOLD = 0.9  # Adjust based on your needs
 # 0.8 = very strict (only very similar docs)
+# 0.9 = strict (better for triggering web fallback on unrelated questions)
 # 1.2 = moderate (default, balanced)
 # 1.5 = lenient (accepts more distant matches)
