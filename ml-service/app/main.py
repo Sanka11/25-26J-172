@@ -28,7 +28,7 @@ from app.services.recommendation_service import predict_recommendations
 # struggle SCHEMAS & service
 # ----------------------------
 from app.schemas.struggle import StruggleRequest, StruggleResponse
-from app.services.struggle_service import predict_struggle
+
 
 # ----------------------------
 # RAG MODULES
@@ -141,12 +141,7 @@ def get_student_recommendations(request: RecommendationRequest):
 # STRUGGLE
 # -----------------------------------------------------------
 
-@app.post("/struggle", response_model=StruggleResponse)
-def struggle(request: StruggleRequest):
-    return {
-        "user_id": request.user_id,
-        **predict_struggle(request)
-    }
+
 
 
 # -----------------------------------------------------------
