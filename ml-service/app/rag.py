@@ -44,6 +44,21 @@ CRITICAL INSTRUCTIONS:
 - Use only the most relevant context; avoid mixing unrelated sources
 - Extract ONLY relevant points from the provided context
 - Use a friendly and clear tone suitable for students
+
+DUAL-SOURCE ANSWERING POLICY:
+1) First, check whether the answer is clearly available in the provided context.
+2) If context is sufficient, answer from context directly and concisely.
+3) If context is insufficient, use reliable general knowledge and web results.
+4) Never say "according to Google" or "based on search results".
+5) If the question is unclear, ask one short clarification question.
+6) For valid questions, always provide the best possible answer.
+7) Only say "I don't know" when the question is unclear or meaningless.
+
+RESPONSE STYLE:
+- Friendly and professional
+- Direct answer first, then short explanation if needed
+- Use short paragraphs or bullets when useful
+- Avoid unnecessary jargon
 """
 
 # Typo corrections for common academic terms
@@ -206,29 +221,100 @@ def _generate_web_search_answer(question: str, web_results: list, user_id: str =
         Generated answer string
     """
     if not web_results:
-        return "I couldn't find relevant information in the PDFs or web. Please try rephrasing your question."
+        return _build_general_knowledge_answer(question)
     
     # Format web results for LLM (optimized: max 3 results instead of 4)
     web_context = _build_web_context(web_results, max_results=3)
     
-    # Build personalized prompt
-    personalized_instructions = _build_personalized_system_instructions(user_id)
+    # Use general instructions for web search (not academic-specific)
+    general_instructions = """You are AcademiGuard, a helpful university chatbot.
+Answer clearly and directly.
+
+Rules:
+- Give the direct answer first.
+- Use simple language and keep it concise.
+- Do not say "according to Google" or "based on search results".
+- If the question is unclear, ask one short clarification question.
+- If the question is unclear or meaningless, reply with: "I don't know. Could you rephrase your question?"
+- For valid questions, always provide the best possible answer."""
     
     # Optimized prompt: shorter and more direct for faster LLM processing
     prompt = (
-        f"{personalized_instructions}\n\n"
-        "Answer based on these web search results:\n\n"
+        f"{general_instructions}\n\n"
+        "Web search results:\n\n"
         f"{web_context}\n\n"
         f"Question: {question}\n\n"
-        "Provide a clear 2-3 sentence answer using the search results above."
+        "Provide a clear, factual answer based on the search results above. Answer:"
     )
     
     try:
         answer = call_ollama(prompt)
-        return answer.strip() if answer else "I couldn't generate an answer from the web results."
+        answer = answer.strip() if answer else ""
+        
+        # Check if LLM refused to answer - provide web snippets directly
+        refusal_phrases = [
+            "can't provide", "cannot provide", "can't help", "cannot help",
+            "i'm not able", "i am not able", "unable to provide",
+            "don't have information", "do not have information"
+        ]
+        
+        if not answer or any(phrase in answer.lower() for phrase in refusal_phrases):
+            print(f"[RAG] LLM refused or failed - providing direct web snippets")
+            # Provide direct answer from web search snippets
+            snippets = []
+            for i, result in enumerate(web_results[:3], 1):
+                snippet = result.get('snippet', '').strip()
+                if snippet:
+                    snippets.append(snippet)
+            
+            if snippets:
+                return " ".join(snippets[:2])  # Use first 2 snippets
+            else:
+                return _build_general_knowledge_answer(question)
+        
+        return answer
     except Exception as e:
         print(f"[RAG] Error generating web search answer: {e}")
-        return "I found some web results but couldn't process them properly."
+        return _build_general_knowledge_answer(question)
+
+
+def _is_unclear_or_meaningless_question(question: str) -> bool:
+    q = (question or "").strip()
+    if not q:
+        return True
+
+    tokens = re.findall(r"[a-zA-Z0-9]+", q)
+    if len(tokens) == 0:
+        return True
+
+    # Very short/noisy input usually indicates an unclear question.
+    if len(tokens) == 1 and len(tokens[0]) <= 2:
+        return True
+
+    return False
+
+
+def _build_general_knowledge_answer(question: str) -> str:
+    if _is_unclear_or_meaningless_question(question):
+        return "I don't know. Could you rephrase your question?"
+
+    prompt = (
+        "You are AcademiGuard, a knowledgeable assistant. "
+        "Answer the user's question directly and clearly in simple language. "
+        "Do not mention search engines or internal sources. "
+        "Never refuse for valid questions. "
+        "If the question is valid, provide the best possible explanation in 2-4 sentences.\n\n"
+        f"Question: {question}"
+    )
+
+    try:
+        answer = call_ollama(prompt)
+        if answer and answer.strip():
+            return answer.strip()
+    except Exception as e:
+        print(f"[RAG] General knowledge fallback failed: {e}")
+
+    return "This refers to a topic that can be explained with key ideas, practical examples, and common usage. If you share the exact part you need, I can give a more precise answer."
 
 
 
@@ -1043,12 +1129,22 @@ I'm here to help you maintain your progress:
     return base_instructions
 
 
-def answer_question(question: str, top_k: int = 3, user_id: str = None):
+def answer_question(
+    question: str,
+    top_k: int = 3,
+    user_id: str = None,
+    response_mode: str = "hybrid",
+):
     """Enhanced RAG with academic data integration and optional user context"""
     
     print(f"\n[RAG] Processing question: {question}")
     if user_id:
         print(f"[RAG] User: {user_id}")
+
+    mode = (response_mode or "hybrid").strip().lower()
+    if mode not in {"document", "web", "hybrid"}:
+        mode = "hybrid"
+    print(f"[RAG] Response mode: {mode}")
     
     # Correct common typos in the question
     corrected_question = _correct_typos(question)
@@ -1072,6 +1168,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     # 2) Check if question is about deadlines, modules, or LIC
     question_lower = question.lower()
     academic_context = ""
+    suggested_pdfs = _suggest_pdfs(question)
     
     # Only treat as a PDF request when user explicitly asks for a file/PDF/download.
     is_pdf_request = any(
@@ -1201,6 +1298,31 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
                         academic_context += f"Office: {lic.get('office')}\n"
                         academic_context += f"Availability: {lic.get('availability')}\n"
 
+    # Optional web-only mode
+    if mode == "web":
+        web_results = perform_web_search(question, num_results=3)
+        if web_results:
+            web_answer = _generate_web_search_answer(question, web_results, user_id)
+            web_sources = web_search_service.get_result_sources(web_results)
+            return {
+                "answer": _friendly_answer(web_answer),
+                "sources": None,
+                "source_pdfs": [],
+                "suggested_pdfs": suggested_pdfs,
+                "is_pdf_request": False,
+                "web_sources": web_sources,
+                "answer_source": "web_search",
+            }
+
+        return {
+            "answer": _friendly_answer(_build_general_knowledge_answer(question)),
+            "sources": None,
+            "source_pdfs": [],
+            "suggested_pdfs": suggested_pdfs,
+            "is_pdf_request": False,
+            "answer_source": "general_knowledge",
+        }
+
     # 3) Embed question & retrieve from PDF vector DB
     # For academic integrity questions, try broader search terms
     search_question = question
@@ -1244,7 +1366,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
         print(f"[RAG] Results below similarity threshold - attempting web search fallback")
         
         # Attempt web search for general queries (not PDF-specific requests)
-        if not is_pdf_request:
+        if mode != "document" and not is_pdf_request:
             web_results = perform_web_search(question, num_results=3)
             
             if web_results:
@@ -1283,8 +1405,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     print(f"[RAG] PDF context length: {len(pdf_context)} chars")
     has_module_code = bool(matches)
 
-    # List suggested PDFs early (for all request types)
-    suggested_pdfs = _suggest_pdfs(question)
+    # List source PDFs
     source_pdfs = _extract_pdf_sources(results)
     
     # Handle explicit PDF requests - return document content directly
@@ -1346,7 +1467,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             return local_result
 
         # HYBRID RETRIEVAL: If no local PDF context exists, fall back to Google search
-        if not is_pdf_request:
+        if mode != "document" and not is_pdf_request:
             print(f"[RAG] No PDF context - using web search as fallback")
             web_results = perform_web_search(question, num_results=3)
             
@@ -1412,7 +1533,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             fallback = _build_general_definition_answer(question)
             print(f"[RAG] Using definition fallback")
         else:
-            fallback = "I couldn't find that information in the documents or academic database. Please try asking about assignment deadlines, module details, or academic integrity policies."
+            fallback = _build_general_knowledge_answer(question)
             print(f"[RAG] Using generic fallback")
         
         fallback_result = {
@@ -1437,8 +1558,10 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
     else:
         prompt = (
             f"{personalized_instructions}\n\nContext:\n{full_context}\n\nQuestion: {question}\n\n"
-            "Answer in a student-friendly way using 1-2 short sentences. "
-            "If the context includes an explicit rule, state that rule directly and clearly."
+            "Answer directly first, then add a short explanation if needed. "
+            "Keep language simple, clear, and relevant. "
+            "If the question is unclear, ask one short clarification question. "
+            "If context is insufficient, answer using general knowledge instead of refusing."
         )
     
     # 5) Generate answer with LLM
@@ -1460,7 +1583,7 @@ def answer_question(question: str, top_k: int = 3, user_id: str = None):
             # Do a proper general definition fallback instead of a placeholder sentence.
             answer = _build_general_definition_answer(question)
         else:
-            answer = "I’m sorry, I couldn’t generate a reliable answer for that question. Please try rephrasing it in one short sentence."
+            answer = _build_general_knowledge_answer(question)
 
     answer = _friendly_answer(answer)
     
