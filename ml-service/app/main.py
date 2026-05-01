@@ -245,11 +245,15 @@ async def upload_pdf(
 # -----------------------------------------------------------
 
 @app.post("/chat")
-def chat(question: str = Form(...), user_id: str = Form(default="anonymous")):
+def chat(
+    question: str = Form(...),
+    user_id: str = Form(default="anonymous"),
+    response_mode: str = Form(default="hybrid"),
+):
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question is empty")
     from app.services.chat_history_service import get_history_manager
-    result = answer_question(question, user_id=user_id)
+    result = answer_question(question, user_id=user_id, response_mode=response_mode)
     answer = result.get("answer", "")
     try:
         history_manager = get_history_manager()
