@@ -43,6 +43,13 @@ const {
   getStudentRiskHistory,
 } = require("./src/http/studentRiskExplanation");
 
+// Student profile management (it22354792)
+const {
+  createStudentProfile,
+  bulkCreateStudentProfiles,
+  checkStudentIdExists,
+} = require("./src/http/studentProfileController");
+
 // Announcement controllers
 const {
   createAnnouncement,
@@ -114,6 +121,13 @@ exports.getBulkRisk = getBulkRisk;
 exports.getStudentRiskExplanation = getStudentRiskExplanation;
 exports.updateStudentMarks = updateStudentMarks;
 exports.getStudentRiskHistory = getStudentRiskHistory;
+
+// -------------------------------
+// Student profile management (it22354792)
+// -------------------------------
+exports.createStudentProfile = createStudentProfile;
+exports.bulkCreateStudentProfiles = bulkCreateStudentProfiles;
+exports.checkStudentIdExists = checkStudentIdExists;
 
 // -------------------------------
 // Announcement APIs
