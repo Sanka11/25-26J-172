@@ -264,7 +264,13 @@ const buildInterventionFromMetrics = (metrics) => {
   };
 };
 
-export default function Chat({ onClose }) {
+export default function Chat({
+  onClose,
+  onMinimize,
+  onToggleMaximize,
+  isMaximized = false,
+}) {
+  const isStandaloneChat = !onClose;
   const { currentUser, userData } = useAuth();
   const navigate = useNavigate();
   const canUploadPdf =
@@ -774,6 +780,20 @@ export default function Chat({ onClose }) {
       const data = await res.json();
       const answerText = data.answer || "Download PDF";
       const assistantId = `assistant-${Date.now()}`;
+      const webSources = Array.isArray(data.web_sources)
+        ? data.web_sources
+            .map((source) => {
+              if (typeof source === "string") {
+                return { title: source, url: source };
+              }
+              return {
+                title:
+                  source?.title || source?.source || source?.url || "Source",
+                url: source?.url || source?.link || "",
+              };
+            })
+            .filter((source) => source.url)
+        : [];
 
       // Add an empty assistant message and then fill it word-by-word
       setMessages((prev) => [
@@ -786,6 +806,12 @@ export default function Chat({ onClose }) {
           downloadable_pdf: data.downloadable_pdf || null,
           download_url: data.download_url || null,
           is_pdf_request: data.is_pdf_request || false,
+          answer_source:
+            data.answer_source ||
+            (Array.isArray(data.web_sources) && data.web_sources.length > 0
+              ? "web_search"
+              : "context"),
+          web_sources: webSources,
         },
       ]);
       setTypingState({
@@ -1156,7 +1182,13 @@ export default function Chat({ onClose }) {
 
   return (
     <div
-      className={`shadow-2xl rounded-2xl border flex flex-col h-[520px] overflow-hidden transition-colors ${
+      className={`shadow-2xl border flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+        isMaximized
+          ? "w-full h-[80vh] max-h-[80vh]"
+          : isStandaloneChat
+            ? "w-full h-[calc(100vh-14rem)] max-h-[calc(100vh-14rem)]"
+            : "w-full h-[70vh] max-h-[70vh] sm:h-[500px] sm:max-h-[500px]"
+      } ${isMaximized ? "rounded-none" : "rounded-2xl"} ${
         effectiveTheme === "dark"
           ? "bg-gray-900 border-gray-700"
           : "bg-white border-slate-200"
@@ -1164,13 +1196,15 @@ export default function Chat({ onClose }) {
     >
       {/* Header */}
       <div
-        className={`flex items-center justify-between px-4 py-3 border-b rounded-t-2xl ${
+        className={`flex-shrink-0 flex items-center justify-between px-4 py-3 border-b ${
+          isMaximized ? "rounded-none" : "rounded-t-2xl"
+        } ${
           effectiveTheme === "dark"
             ? "border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900"
             : "border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50"
         }`}
       >
-        <div>
+        <div className="min-w-0">
           <p
             className={`text-sm font-semibold flex items-center gap-1.5 ${
               effectiveTheme === "dark" ? "text-gray-100" : "text-slate-800"
@@ -1182,18 +1216,18 @@ export default function Chat({ onClose }) {
             AcademiGuard chatbot
           </p>
           <p
-            className={`text-[11px] mt-0.5 capitalize ${
+            className={`text-[11px] mt-0.5 capitalize truncate ${
               effectiveTheme === "dark" ? "text-gray-400" : "text-slate-500"
             }`}
           >
             Mode: {responseMode}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => setShowSettingsPanel((prev) => !prev)}
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+            className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${
               showSettingsPanel
                 ? "border-blue-500 bg-blue-50 text-blue-700"
                 : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
@@ -1201,10 +1235,10 @@ export default function Chat({ onClose }) {
             title="Chat settings"
             aria-label="Chat settings"
           >
-            <span className="text-xs mr-1" aria-hidden="true">
+            <span className="text-xs sm:mr-1" aria-hidden="true">
               ⚙
             </span>
-            Settings
+            <span className="hidden sm:inline">Settings</span>
           </button>
           <button
             type="button"
@@ -1216,19 +1250,69 @@ export default function Chat({ onClose }) {
           <button
             type="button"
             onClick={() => setShowFeedback((prev) => !prev)}
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+            className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors ${
               showFeedback
                 ? "border-blue-500 bg-blue-50 text-blue-700"
                 : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
             }`}
           >
-            Feedback
+            <span className="hidden sm:inline">Feedback</span>
+            <span className="sm:hidden">★</span>
           </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onMinimize || (() => {})}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-100"
+              title="Minimize"
+              aria-label="Minimize chatbot"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-3.5 w-3.5"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onToggleMaximize || (() => {})}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-100"
+              title={isMaximized ? "Restore" : "Maximize"}
+              aria-label={isMaximized ? "Restore chatbot" : "Maximize chatbot"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-3.5 w-3.5"
+              >
+                {isMaximized ? (
+                  <>
+                    <rect x="8" y="8" width="10" height="10" rx="1" />
+                    <path d="M6 14V6h8" />
+                  </>
+                ) : (
+                  <rect x="5" y="5" width="14" height="14" rx="1" />
+                )}
+              </svg>
+            </button>
+          )}
           {onClose && (
             <button
               type="button"
               onClick={onClose}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+              title="Close"
+              aria-label="Close chatbot"
             >
               ×
             </button>
@@ -1553,12 +1637,13 @@ export default function Chat({ onClose }) {
       )}
 
       {/* Conversation area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Messages Container */}
         <div
-          className={`flex-1 px-4 py-3 space-y-3 overflow-y-auto ${
+          className={`flex-1 min-h-0 px-4 py-3 space-y-3 overflow-y-auto scrollbar-styled ${
             effectiveTheme === "dark" ? "bg-gray-800" : "bg-slate-50/60"
           }`}
+          style={{ scrollbarGutter: "stable" }}
         >
           {Array.from(new Set(messages.map((m) => m.id)))
             .map((id) => messages.find((m) => m.id === id))
@@ -1593,6 +1678,62 @@ export default function Chat({ onClose }) {
                         {msg.classification}
                       </p>
                     )}
+                    {msg.sender === "assistant" && msg.answer_source && (
+                      <p
+                        className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          msg.answer_source === "web_search"
+                            ? effectiveTheme === "dark"
+                              ? "bg-cyan-900/40 text-cyan-200 border border-cyan-700"
+                              : "bg-cyan-50 text-cyan-800 border border-cyan-200"
+                            : effectiveTheme === "dark"
+                              ? "bg-emerald-900/40 text-emerald-200 border border-emerald-700"
+                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        }`}
+                      >
+                        Source:{" "}
+                        {msg.answer_source === "web_search" ? "Web" : "Context"}
+                      </p>
+                    )}
+                    {msg.sender === "assistant" &&
+                      msg.answer_source === "web_search" &&
+                      Array.isArray(msg.web_sources) &&
+                      msg.web_sources.length > 0 && (
+                        <div
+                          className={`mb-2 rounded-lg border px-2 py-1.5 ${
+                            effectiveTheme === "dark"
+                              ? "border-cyan-800 bg-cyan-950/30"
+                              : "border-cyan-200 bg-cyan-50"
+                          }`}
+                        >
+                          <p
+                            className={`mb-1 text-[10px] font-semibold ${
+                              effectiveTheme === "dark"
+                                ? "text-cyan-200"
+                                : "text-cyan-800"
+                            }`}
+                          >
+                            References
+                          </p>
+                          <div className="space-y-0.5">
+                            {msg.web_sources.slice(0, 2).map((source, idx) => (
+                              <a
+                                key={`${msg.id}-src-${idx}`}
+                                href={source.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`block truncate text-[10px] underline underline-offset-2 ${
+                                  effectiveTheme === "dark"
+                                    ? "text-cyan-300 hover:text-cyan-200"
+                                    : "text-cyan-700 hover:text-cyan-900"
+                                }`}
+                                title={source.title || source.url}
+                              >
+                                {source.title || source.url}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     <div className="flex items-start justify-between gap-2">
                       <p className="whitespace-pre-line flex-1">{msg.text}</p>
                       {msg.sender === "assistant" && msg.text && (
@@ -2141,7 +2282,7 @@ export default function Chat({ onClose }) {
       {/* Input area */}
       <form
         onSubmit={handleAsk}
-        className={`border-t px-3 py-3 rounded-b-2xl space-y-2 ${
+        className={`flex-shrink-0 border-t px-3 py-3 rounded-b-2xl space-y-2 ${
           effectiveTheme === "dark"
             ? "border-gray-700 bg-gray-900"
             : "border-slate-200 bg-white"
@@ -2149,12 +2290,12 @@ export default function Chat({ onClose }) {
       >
         <textarea
           ref={questionInputRef}
-          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-20 ${
+          className={`w-full border rounded-xl px-3 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none h-24 ${
             effectiveTheme === "dark"
               ? "border-gray-600 bg-gray-800 text-gray-100 placeholder-gray-500"
               : "border-slate-200 bg-white text-slate-900 placeholder-slate-400"
           }`}
-          placeholder="Type your message..."
+          placeholder="Ask anything about your studies, deadlines, or policies..."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
@@ -2167,6 +2308,18 @@ export default function Chat({ onClose }) {
             }
           }}
         />
+        <div className="flex items-center justify-between px-0.5">
+          <p className="text-[10px] text-slate-400">
+            Press Enter to send, Shift+Enter for new line
+          </p>
+          <p
+            className={`text-[10px] ${
+              question.length > 1800 ? "text-amber-600" : "text-slate-400"
+            }`}
+          >
+            {question.length}/2000
+          </p>
+        </div>
         {activeRagPdf && (
           <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5">
             <div className="min-w-0">
