@@ -10,7 +10,7 @@ const TRIGGER_WARNING_EMAIL_URL = `${BASE_URL}/triggerManualWarningEmail`;
 const GENERATE_WORKLOAD_URL = `${BASE_URL}/generateWorkload`;
 const CAREER_READINESS_URL = `${BASE_URL}/careerReadinessProxy`;
 const GET_RECOMMENDATIONS_URL = `${BASE_URL}/getRecommendations`;
-const PREDICT_STRUGGLE_URL = `${BASE_URL}/predictStruggle`;
+
 // Quiz APIs -savindi
 const CREATE_QUIZ_URL = `${BASE_URL}/createQuiz`;
 const SUBMIT_QUIZ_URL = `${BASE_URL}/submitQuiz`;
@@ -111,7 +111,7 @@ export const appConfig = {
   GENERATE_WORKLOAD_URL,
   GET_RECOMMENDATIONS_URL,
   CAREER_READINESS_URL,
-  PREDICT_STRUGGLE_URL,
+  
   GET_STUDENT_ENROLLMENT_URL,
 
   // Announcements
