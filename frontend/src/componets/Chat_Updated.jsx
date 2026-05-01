@@ -1,11 +1,23 @@
 // frontend/src/components/Chat.jsx (Updated)
 /**
- * Chat Component - Updated with Settings Integration
- * Includes Settings icon and panel
+ * Chat Component - Compact Sidebar with Feedback Icons
+ * Reduced size with feedback system
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Settings, Download, MoreVertical } from "lucide-react";
+import {
+  Send,
+  Settings,
+  Download,
+  MoreVertical,
+  ThumbsUp,
+  ThumbsDown,
+  Copy,
+  Minimize2,
+  Maximize2,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import ChatbotSettings from "../components/ChatbotSettings";
 import { useSettings } from "../context/SettingsContext";
 import { useUserContext } from "../context/UserContext";
@@ -16,14 +28,21 @@ const Chat = () => {
   const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showMenuOpen, setShowMenuOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [feedback, setFeedback] = useState({});
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const { settings, updateSettings } = useSettings();
   const { user } = useUserContext();
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
   }, [messages]);
 
   // Load initial messages
@@ -119,6 +138,17 @@ const Chat = () => {
     });
   };
 
+  const copyMessage = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleFeedback = (messageId, type) => {
+    setFeedback((prev) => ({
+      ...prev,
+      [messageId]: prev[messageId] === type ? null : type,
+    }));
+  };
+
   const exportChat = async () => {
     try {
       const response = await fetch(`/api/chat-history/${user.uid}/export`, {
@@ -150,74 +180,87 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-gray-900">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white text-xl">🤖</span>
+    <div
+      className="fixed right-0 top-20 bottom-0 w-80 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shadow-lg z-40 transition-all duration-300 overflow-hidden"
+      style={{
+        transform: isMinimized ? "translateX(100%)" : "translateX(0)",
+        width: isMinimized ? "0" : "20rem",
+        height: "70vh",
+        willChange: "transform",
+      }}
+    >
+      {/* Compact Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 px-3 py-2 text-white flex items-center justify-between flex-shrink-0 shadow-md">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
+            🤖
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              AcademiGuard
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Mode:{" "}
-              <span className="font-semibold capitalize">
-                {settings.responseMode}
-              </span>
+          <div className="min-w-0">
+            <h1 className="text-xs font-bold truncate">AcademiGuard</h1>
+            <p className="text-xs opacity-80 capitalize truncate">
+              {settings.responseMode}
             </p>
           </div>
         </div>
 
-        {/* Header Actions */}
-        <div className="flex items-center gap-2">
-          {/* Export Button */}
+        {/* Action Icons */}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
-            onClick={exportChat}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-            title="Export chat history"
+            onClick={() => setMessages([])}
+            className="p-2 hover:bg-blue-400 rounded-lg transition"
+            title="New chat"
           >
-            <Download className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <RefreshCw className="w-4 h-4" />
           </button>
 
-          {/* Settings Button */}
           <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-            title="Open settings"
+            onClick={() => setIsMinimized(!isMinimized)}
+            className="p-2 hover:bg-blue-400 rounded-lg transition"
+            title="Minimize"
           >
-            <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            {isMinimized ? (
+              <Maximize2 className="w-4 h-4" />
+            ) : (
+              <Minimize2 className="w-4 h-4" />
+            )}
           </button>
 
-          {/* More Options */}
           <div className="relative">
             <button
               onClick={() => setShowMenuOpen(!showMenuOpen)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              className="p-2 hover:bg-blue-400 rounded-lg transition"
             >
-              <MoreVertical className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             {showMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+              <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
                 <button
                   onClick={() => {
                     exportChat();
                     setShowMenuOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg text-xs text-gray-900 dark:text-white"
                 >
-                  📥 Export Chat
+                  📥 Export
+                </button>
+                <button
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    setShowMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs text-gray-900 dark:text-white"
+                >
+                  ⚙️ Settings
                 </button>
                 <button
                   onClick={() => {
                     setMessages([]);
                     setShowMenuOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg text-red-600 dark:text-red-400"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg text-red-600 dark:text-red-400 text-xs"
                 >
-                  🗑️ Clear Chat
+                  🗑️ Clear
                 </button>
               </div>
             )}
@@ -226,102 +269,180 @@ const Chat = () => {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="text-5xl mb-4">👋</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Welcome to AcademiGuard!
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                I'm an intelligent academic assistant. Ask me about university
-                policies, deadlines, assignments, or general academic topics.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2 justify-center">
-                <button
-                  onClick={() => setInput("What is the plagiarism policy?")}
-                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition"
-                >
-                  📚 Plagiarism Policy
-                </button>
-                <button
-                  onClick={() => setInput("When is the next exam?")}
-                  className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm hover:bg-purple-200 dark:hover:bg-purple-800 transition"
-                >
-                  📅 Exam Schedule
-                </button>
-                <button
-                  onClick={() => setInput("How do I register for modules?")}
-                  className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full text-sm hover:bg-green-200 dark:hover:bg-green-800 transition"
-                >
-                  📝 Module Registration
-                </button>
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth scrollbar-styled min-h-0"
+        style={{
+          scrollBehavior: "smooth",
+          WebkitOverflowScrolling: "touch",
+          maxHeight: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div className="w-full px-2 py-2 space-y-1.5 flex flex-col">
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center flex-1 min-h-56 text-center">
+              <div>
+                <div className="text-3xl mb-1">👋</div>
+                <h2 className="text-xs font-bold text-gray-900 dark:text-white mb-1">
+                  Welcome!
+                </h2>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  Ask anything about studies.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => setInput("What is the plagiarism policy?")}
+                    className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition"
+                  >
+                    📚 Policies
+                  </button>
+                  <button
+                    onClick={() => setInput("When is the next exam?")}
+                    className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition"
+                  >
+                    📅 Exams
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.sender === "user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{message.text}</p>
-                {message.sender === "bot" && message.source && (
-                  <p className="text-xs mt-2 opacity-70">
-                    Source:{" "}
-                    {message.source === "web_search" ? "🌐 Web" : "📄 Document"}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg">
-              <div className="flex gap-2">
-                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>
+          ) : (
+            <div className="space-y-1.5">
+              {messages.map((message) => (
                 <div
-                  className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                ></div>
-                <div
-                  className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.4s" }}
-                ></div>
-              </div>
+                  key={message.id}
+                  className={`flex gap-1.5 ${
+                    message.sender === "user" ? "flex-row-reverse" : "flex-row"
+                  } animate-fadeIn`}
+                >
+                  <div className="flex-shrink-0">
+                    {message.sender === "user" ? (
+                      <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                        {user?.displayName?.charAt(0) || "U"}
+                      </div>
+                    ) : (
+                      <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                        A
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 max-w-xs">
+                    <div
+                      className={`px-2 py-1.5 rounded-lg text-xs leading-relaxed break-words group relative ${
+                        message.sender === "user"
+                          ? "bg-blue-500 text-white rounded-br-none"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{message.text}</p>
+
+                      {message.sender === "bot" && (
+                        <div className="flex gap-0.5 mt-1.5 pt-1 border-t border-gray-300 dark:border-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => copyMessage(message.text)}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition text-xs"
+                            title="Copy"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleFeedback(message.id, "up")}
+                            className={`p-1 rounded transition text-xs ${
+                              feedback[message.id] === "up"
+                                ? "bg-green-200 dark:bg-green-900 text-green-700 dark:text-green-300"
+                                : "hover:bg-gray-200 dark:hover:bg-gray-600"
+                            }`}
+                            title="Helpful"
+                          >
+                            <ThumbsUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleFeedback(message.id, "down")}
+                            className={`p-1 rounded transition text-xs ${
+                              feedback[message.id] === "down"
+                                ? "bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300"
+                                : "hover:bg-gray-200 dark:hover:bg-gray-600"
+                            }`}
+                            title="Not helpful"
+                          >
+                            <ThumbsDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p
+                      className={`text-xs text-gray-500 dark:text-gray-400 mt-0.5 px-1 ${
+                        message.sender === "user" ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {message.timestamp
+                        ? new Date(message.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {loading && (
+                <div className="flex gap-1.5 animate-fadeIn">
+                  <div className="flex-shrink-0">
+                    <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                      A
+                    </div>
+                  </div>
+                  <div className="flex-1 max-w-xs">
+                    <div className="px-2 py-1.5 rounded-lg rounded-bl-none bg-gray-100 dark:bg-gray-700">
+                      <div className="flex gap-1 items-center">
+                        <div className="w-1.5 h-1.5 bg-gray-600 dark:bg-gray-400 rounded-full animate-bounce"></div>
+                        <div
+                          className="w-1.5 h-1.5 bg-gray-600 dark:bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
+                        <div
+                          className="w-1.5 h-1.5 bg-gray-600 dark:bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.4s" }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+          )}
+        </div>
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <div className="flex gap-2">
+      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-2 flex-shrink-0 shadow-md">
+        <div className="flex gap-1.5">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            placeholder="Ask me a question..."
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            onKeyPress={(e) =>
+              e.key === "Enter" &&
+              !loading &&
+              input.trim() &&
+              handleSendMessage()
+            }
+            placeholder="Ask..."
+            className="flex-1 px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition"
             disabled={loading}
           />
           <button
             onClick={handleSendMessage}
             disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-shrink-0 p-1 bg-blue-500 hover:bg-blue-600 text-white rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-blue-400 shadow-md hover:shadow-lg"
+            title="Send"
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
