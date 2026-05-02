@@ -1,1035 +1,909 @@
 import { useState } from "react";
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, Cell, PieChart, Pie
-} from 'recharts';
+import { db } from "../../config/firebase";
+import {
+  collection, query, where, getDocs,
+  setDoc, doc, deleteDoc, serverTimestamp,
+} from "firebase/firestore";
 
 const BASE_URL = "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/api/api";
 
+// ─── Week ID helpers (match backend format) ──────────────────────────────────
+function parseWeekNum(weekStr) {
+  const m = String(weekStr || "").match(/W(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+function formatWeekStr(n) {
+  const year = new Date().getFullYear();
+  return `${year}-W${String(n).padStart(2, "0")}`;
+}
+function weeklyDocId(studentId, weekStr) {
+  const yy = new Date().getFullYear().toString().slice(-2);
+  const wp = String(weekStr).split("-")[1] || "W01";
+  return `${studentId}-${yy}-${wp}`;
+}
+function gruRlDocId(studentId, weekStr) {
+  const wp = String(weekStr).split("-")[1] || "W01";
+  return `${studentId}-${wp}`;
+}
+function extractWeekFields(w) {
+  return {
+    login_count:              Number(w.login_count)              || 0,
+    avg_session_duration_min: Number(w.avg_session_duration_min) || 0,
+    total_active_time_min:    Number(w.total_active_time_min)    || 0,
+    days_since_last_login:    Number(w.days_since_last_login)    || 0,
+    page_views:               Number(w.page_views)               || 0,
+    assignments_submitted:    Number(w.assignments_submitted)    || 0,
+    on_time_submissions:      Number(w.on_time_submissions)      || 0,
+    late_submissions:         Number(w.late_submissions)         || 0,
+    alerts_responded:         Number(w.alerts_responded)         || 0,
+    response_rate:            Number(w.response_rate)            || 0,
+  };
+}
+
+// ─── Preset 10-week datasets verified against V3 GRU model ───────────────────
+const PRESET_WEEKS = {
+  LOW: [
+    { login_count: 7, avg_session_duration_min: 38, total_active_time_min: 280, days_since_last_login: 0, page_views: 120, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.90 },
+    { login_count: 6, avg_session_duration_min: 35, total_active_time_min: 260, days_since_last_login: 1, page_views: 110, assignments_submitted: 2, on_time_submissions: 2, late_submissions: 0, alerts_responded: 1, response_rate: 0.85 },
+    { login_count: 8, avg_session_duration_min: 40, total_active_time_min: 300, days_since_last_login: 0, page_views: 130, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.92 },
+    { login_count: 7, avg_session_duration_min: 36, total_active_time_min: 270, days_since_last_login: 1, page_views: 115, assignments_submitted: 2, on_time_submissions: 2, late_submissions: 0, alerts_responded: 1, response_rate: 0.88 },
+    { login_count: 6, avg_session_duration_min: 33, total_active_time_min: 250, days_since_last_login: 0, page_views: 105, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.87 },
+    { login_count: 7, avg_session_duration_min: 39, total_active_time_min: 285, days_since_last_login: 1, page_views: 125, assignments_submitted: 2, on_time_submissions: 2, late_submissions: 0, alerts_responded: 1, response_rate: 0.91 },
+    { login_count: 8, avg_session_duration_min: 41, total_active_time_min: 310, days_since_last_login: 0, page_views: 135, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.93 },
+    { login_count: 6, avg_session_duration_min: 37, total_active_time_min: 265, days_since_last_login: 1, page_views: 112, assignments_submitted: 2, on_time_submissions: 2, late_submissions: 0, alerts_responded: 1, response_rate: 0.86 },
+    { login_count: 7, avg_session_duration_min: 38, total_active_time_min: 275, days_since_last_login: 0, page_views: 118, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.89 },
+    { login_count: 8, avg_session_duration_min: 42, total_active_time_min: 320, days_since_last_login: 1, page_views: 140, assignments_submitted: 3, on_time_submissions: 3, late_submissions: 0, alerts_responded: 2, response_rate: 0.94 },
+  ],
+  NORMAL: [
+    { login_count: 3, avg_session_duration_min: 18, total_active_time_min: 130, days_since_last_login: 2, page_views: 55,  assignments_submitted: 1, on_time_submissions: 1, late_submissions: 0, alerts_responded: 1, response_rate: 0.55 },
+    { login_count: 2, avg_session_duration_min: 12, total_active_time_min: 90,  days_since_last_login: 3, page_views: 35,  assignments_submitted: 1, on_time_submissions: 0, late_submissions: 1, alerts_responded: 0, response_rate: 0.35 },
+    { login_count: 4, avg_session_duration_min: 20, total_active_time_min: 150, days_since_last_login: 1, page_views: 65,  assignments_submitted: 2, on_time_submissions: 1, late_submissions: 0, alerts_responded: 1, response_rate: 0.60 },
+    { login_count: 2, avg_session_duration_min: 10, total_active_time_min: 85,  days_since_last_login: 3, page_views: 30,  assignments_submitted: 1, on_time_submissions: 1, late_submissions: 0, alerts_responded: 0, response_rate: 0.32 },
+    { login_count: 3, avg_session_duration_min: 17, total_active_time_min: 120, days_since_last_login: 2, page_views: 50,  assignments_submitted: 1, on_time_submissions: 1, late_submissions: 0, alerts_responded: 0, response_rate: 0.50 },
+    { login_count: 4, avg_session_duration_min: 22, total_active_time_min: 160, days_since_last_login: 1, page_views: 70,  assignments_submitted: 2, on_time_submissions: 2, late_submissions: 0, alerts_responded: 1, response_rate: 0.65 },
+    { login_count: 2, avg_session_duration_min: 11, total_active_time_min: 88,  days_since_last_login: 3, page_views: 32,  assignments_submitted: 1, on_time_submissions: 0, late_submissions: 1, alerts_responded: 0, response_rate: 0.33 },
+    { login_count: 3, avg_session_duration_min: 16, total_active_time_min: 115, days_since_last_login: 2, page_views: 48,  assignments_submitted: 1, on_time_submissions: 1, late_submissions: 0, alerts_responded: 0, response_rate: 0.48 },
+    { login_count: 4, avg_session_duration_min: 21, total_active_time_min: 145, days_since_last_login: 1, page_views: 62,  assignments_submitted: 2, on_time_submissions: 1, late_submissions: 0, alerts_responded: 1, response_rate: 0.58 },
+    { login_count: 2, avg_session_duration_min: 13, total_active_time_min: 95,  days_since_last_login: 3, page_views: 38,  assignments_submitted: 1, on_time_submissions: 1, late_submissions: 0, alerts_responded: 0, response_rate: 0.40 },
+  ],
+  HIGH: [
+    { login_count: 0, avg_session_duration_min: 3,  total_active_time_min: 20,  days_since_last_login: 6, page_views: 8,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.05 },
+    { login_count: 1, avg_session_duration_min: 5,  total_active_time_min: 35,  days_since_last_login: 4, page_views: 12,  assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.08 },
+    { login_count: 0, avg_session_duration_min: 2,  total_active_time_min: 15,  days_since_last_login: 7, page_views: 5,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.03 },
+    { login_count: 0, avg_session_duration_min: 4,  total_active_time_min: 25,  days_since_last_login: 5, page_views: 10,  assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.06 },
+    { login_count: 1, avg_session_duration_min: 6,  total_active_time_min: 40,  days_since_last_login: 4, page_views: 14,  assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.10 },
+    { login_count: 0, avg_session_duration_min: 3,  total_active_time_min: 18,  days_since_last_login: 7, page_views: 7,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.04 },
+    { login_count: 0, avg_session_duration_min: 2,  total_active_time_min: 12,  days_since_last_login: 8, page_views: 4,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.02 },
+    { login_count: 1, avg_session_duration_min: 5,  total_active_time_min: 30,  days_since_last_login: 5, page_views: 11,  assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.07 },
+    { login_count: 0, avg_session_duration_min: 3,  total_active_time_min: 20,  days_since_last_login: 6, page_views: 8,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.05 },
+    { login_count: 0, avg_session_duration_min: 2,  total_active_time_min: 10,  days_since_last_login: 9, page_views: 3,   assignments_submitted: 0, on_time_submissions: 0, late_submissions: 0, alerts_responded: 0, response_rate: 0.01 },
+  ],
+};
+
+const FIELD_LABELS = {
+  login_count:              "Login Count",
+  avg_session_duration_min: "Avg Session (min)",
+  total_active_time_min:    "Total Active (min)",
+  days_since_last_login:    "Days Inactive",
+  page_views:               "Page Views",
+  assignments_submitted:    "Assignments",
+  on_time_submissions:      "On-Time Submits",
+  late_submissions:         "Late Submits",
+  alerts_responded:         "Alerts Responded",
+  response_rate:            "Response Rate",
+};
+
+const PATTERN_CONFIG = {
+  LOW:    { label: "Low Risk",    color: "green",  dot: "bg-green-500",  badge: "bg-green-100 text-green-800 border-green-200",  desc: "Active, consistent student"      },
+  NORMAL: { label: "Normal Risk", color: "yellow", dot: "bg-yellow-500", badge: "bg-yellow-100 text-yellow-800 border-yellow-200", desc: "Inconsistent student"            },
+  HIGH:   { label: "High Risk",   color: "red",    dot: "bg-red-500",    badge: "bg-red-100 text-red-800 border-red-200",          desc: "Disengaged / at-risk student"   },
+};
+
+const RISK_CONFIG = {
+  LOW:    { badge: "bg-green-100 text-green-800 border-green-300",  label: "LOW",    icon: "🟢" },
+  NORMAL: { badge: "bg-yellow-100 text-yellow-800 border-yellow-300", label: "NORMAL", icon: "🟡" },
+  HIGH:   { badge: "bg-red-100 text-red-800 border-red-300",        label: "HIGH",   icon: "🔴" },
+};
+
+const ACTION_CONFIG = {
+  SOFT_NUDGE:       { badge: "bg-blue-100 text-blue-800",   label: "Soft Nudge" },
+  REMINDER:         { badge: "bg-indigo-100 text-indigo-800", label: "Reminder"   },
+  PEER_CHEER:       { badge: "bg-purple-100 text-purple-800", label: "Peer Cheer" },
+  HUMAN_ESCALATION: { badge: "bg-red-100 text-red-800",     label: "Escalate"   },
+  DO_NOTHING:       { badge: "bg-gray-100 text-gray-700",   label: "No Action"  },
+};
+
+// ─── Small reusable components ────────────────────────────────────────────────
+function RiskBadge({ level }) {
+  const cfg = RISK_CONFIG[level] || { badge: "bg-gray-100 text-gray-700 border-gray-300", label: level || "—", icon: "⚪" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-sm font-semibold ${cfg.badge}`}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+function ActionBadge({ action }) {
+  const cfg = ACTION_CONFIG[action] || { badge: "bg-gray-100 text-gray-700", label: action || "—" };
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${cfg.badge}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function TrendBadge({ trend }) {
+  const map = { INCREASING: "📈 Increasing", DECREASING: "📉 Decreasing", STABLE: "➡️ Stable", UNKNOWN: "❓ Unknown" };
+  return <span className="text-sm font-medium">{map[trend] || trend || "—"}</span>;
+}
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+        active
+          ? "border-indigo-600 text-indigo-700"
+          : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FieldInput({ name, value, onChange }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{FIELD_LABELS[name]}</label>
+      <input
+        type="number"
+        step="0.01"
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+      />
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function StudentBehaviourDemo() {
-  const [studentId, setStudentId] = useState("");
-  const [studentIdError, setStudentIdError] = useState("");
-  const [pattern, setPattern] = useState("LOW");
-  const [result, setResult] = useState(null);
-  const [weeksData, setWeeksData] = useState([]);
-  const [activeTab, setActiveTab] = useState("input");
-  const [loading, setLoading] = useState(false);
-  const [lastAction, setLastAction] = useState("");
-  const [showRawJson, setShowRawJson] = useState(false);
+  const [studentId, setStudentId]       = useState("");
+  const [idError, setIdError]           = useState("");
+  const [studentData, setStudentData]   = useState(null); // null = not searched yet
+  const [loadingStudent, setLoadingStudent] = useState(false);
 
-  const [formData, setFormData] = useState({
-    login_count: 0,
-    avg_session_duration_min: 0,
-    total_active_time_min: 0,
-    days_since_last_login: 0,
-    page_views: 0,
-    assignments_submitted: 0,
-    on_time_submissions: 0,
-    late_submissions: 0,
-    alerts_responded: 0,
-    response_rate: 0,
-  });
+  const [activeTab, setActiveTab] = useState("data");
 
-  /* =========================
-     FIELD CONFIGURATION
-  ========================= */
+  // Add-week form
+  const [weekForm, setWeekForm]     = useState({ ...PRESET_WEEKS.LOW[0] });
+  const [addLoading, setAddLoading] = useState(false);
+  const [addMsg, setAddMsg]         = useState(null); // { type, text }
 
-  const fieldConfig = {
-    login_count: { label: "Login Count", description: "Weekly LMS logins", color: "blue", icon: "🔑", unit: "logins" },
-    avg_session_duration_min: { label: "Avg Session Duration", description: "minutes", color: "green", icon: "⏱️", unit: "min" },
-    total_active_time_min: { label: "Total Active Time", description: "minutes", color: "purple", icon: "⌛", unit: "min" },
-    days_since_last_login: { label: "Days Since Last Login", description: "days inactive", color: "red", icon: "📅", unit: "days" },
-    page_views: { label: "Page Views", description: "LMS navigation", color: "yellow", icon: "📄", unit: "views" },
-    assignments_submitted: { label: "Assignments Submitted", description: "total", color: "indigo", icon: "📚", unit: "assignments" },
-    on_time_submissions: { label: "On-Time Submissions", description: "completed on time", color: "emerald", icon: "✅", unit: "submissions" },
-    late_submissions: { label: "Late Submissions", description: "submitted late", color: "orange", icon: "⚠️", unit: "submissions" },
-    alerts_responded: { label: "Alerts Responded", description: "responses to alerts", color: "teal", icon: "🔔", unit: "responses" },
-    response_rate: { label: "Response Rate", description: "0-1 scale", color: "cyan", icon: "📊", unit: "%" }
+  // Initialize 10 weeks
+  const [initPattern, setInitPattern]   = useState("LOW");
+  const [initLoading, setInitLoading]   = useState(false);
+
+  // GRU / RL
+  const [gruResult, setGruResult]   = useState(null);
+  const [rlResult, setRlResult]     = useState(null);
+  const [gruLoading, setGruLoading] = useState(false);
+  const [rlLoading, setRlLoading]   = useState(false);
+  const [gruError, setGruError]     = useState(null);
+  const [rlError, setRlError]       = useState(null);
+
+  // Clear confirmation
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  const validateId = (id) => /^\d{4}$/.test(id);
+
+  const handleIdChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+    setStudentId(val);
+    setIdError(val && !validateId(val) ? "Must be exactly 4 digits" : "");
   };
 
-  const getColorClasses = (color) => {
-    const colors = {
-      blue: "bg-blue-50 border-blue-200 text-blue-700",
-      green: "bg-green-50 border-green-200 text-green-700",
-      purple: "bg-purple-50 border-purple-200 text-purple-700",
-      red: "bg-red-50 border-red-200 text-red-700",
-      yellow: "bg-yellow-50 border-yellow-200 text-yellow-700",
-      indigo: "bg-indigo-50 border-indigo-200 text-indigo-700",
-      emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-      orange: "bg-orange-50 border-orange-200 text-orange-700",
-      teal: "bg-teal-50 border-teal-200 text-teal-700",
-      cyan: "bg-cyan-50 border-cyan-200 text-cyan-700"
-    };
-    return colors[color] || colors.blue;
+  const resetResults = () => {
+    setGruResult(null);
+    setRlResult(null);
+    setGruError(null);
+    setRlError(null);
   };
 
-  const rand = (min, max) =>
-    Math.floor(Math.random() * (max - min + 1)) + min;
-
-  /* =========================
-     STUDENT ID VALIDATION
-  ========================= */
-
-  const validateStudentId = (id) => {
-    const pattern = /^\d{4}$/;
-    return pattern.test(id);
+  // ─── Firestore helpers ──────────────────────────────────────────────────────
+  const getStudentWeeks = async (sid) => {
+    const snap = await getDocs(
+      query(collection(db, "student_weekly_records"), where("student_id", "==", sid))
+    );
+    return snap.docs
+      .map(d => d.data())
+      .sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week));
   };
 
-  const handleStudentIdChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-    setStudentId(value);
-    
-    if (value && !validateStudentId(value)) {
-      setStudentIdError("Student ID must be exactly 4 digits");
-    } else {
-      setStudentIdError("");
-    }
-  };
-
-  /* =========================
-     RISK PATTERN GENERATORS
-  ========================= */
-
-  const generateLowRiskWeek = () => ({
-    login_count: rand(9, 13),
-    avg_session_duration_min: rand(42, 55),
-    total_active_time_min: rand(380, 620),
-    days_since_last_login: rand(0, 1),
-    page_views: rand(48, 65),
-    assignments_submitted: rand(2, 4),
-    on_time_submissions: rand(2, 4),
-    late_submissions: 0,
-    alerts_responded: 1,
-    response_rate: 1
-  });
-
-  const generateHighRiskWeek = () => ({
-    login_count: rand(0, 3),
-    avg_session_duration_min: rand(2, 10),
-    total_active_time_min: rand(10, 80),
-    days_since_last_login: rand(5, 12),
-    page_views: rand(1, 10),
-    assignments_submitted: 0,
-    on_time_submissions: 0,
-    late_submissions: rand(1, 2),
-    alerts_responded: 0,
-    response_rate: 0
-  });
-
-  const generatePattern = (type) => {
-    const data = type === "LOW" ? generateLowRiskWeek() : generateHighRiskWeek();
-    setFormData(data);
-  };
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: Number(e.target.value),
-    });
-  };
-
-  /* =========================
-     API CALLS
-  ========================= */
-
-  const addWeek = async () => {
-    if (!validateStudentId(studentId)) {
-      setStudentIdError("Valid 4-digit Student ID required");
-      return;
-    }
-    
-    setLoading(true);
-    setLastAction("addWeek");
+  // ─── API calls ──────────────────────────────────────────────────────────────
+  const loadStudent = async (id) => {
+    const sid = id || studentId;
+    setLoadingStudent(true);
+    setStudentData(null);
+    resetResults();
+    setAddMsg(null);
     try {
-      const res = await fetch(`${BASE_URL}/student/add-week`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: studentId, ...formData }),
-      });
-      const data = await res.json();
-      setResult({
-        type: "addWeek",
-        data: data,
-        formData: formData,
-        message: "Week added successfully!",
-        timestamp: new Date().toISOString()
-      });
-      setActiveTab("results");
-    } catch (error) {
-      setResult({
-        type: "error",
-        message: "Failed to add week",
-        error: error.message
-      });
+      const weeks = await getStudentWeeks(sid);
+      setStudentData({ weeks, weeksFetched: weeks.length });
+      setActiveTab(weeks.length === 0 ? "add" : "data");
+    } catch {
+      setStudentData({ error: true });
     } finally {
-      setLoading(false);
+      setLoadingStudent(false);
     }
   };
 
-  const add10Weeks = async () => {
-    if (!validateStudentId(studentId)) {
-      setStudentIdError("Valid 4-digit Student ID required");
-      return;
-    }
-    
-    setLoading(true);
-    setLastAction("add10Weeks");
-    const weeks = [];
-    for (let i = 0; i < 10; i++) {
-      weeks.push(pattern === "LOW" ? generateLowRiskWeek() : generateHighRiskWeek());
-    }
+  const initializeStudent = async () => {
+    setInitLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/student/add-10-weeks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: studentId, weeks }),
-      });
-      const data = await res.json();
-      setResult({
-        type: "add10Weeks",
-        data: data,
-        weeks: weeks,
-        message: "10 weeks generated successfully!",
-        pattern: pattern,
-        timestamp: new Date().toISOString()
-      });
-      setActiveTab("results");
-    } catch (error) {
-      setResult({
-        type: "error",
-        message: "Failed to generate weeks",
-        error: error.message
-      });
+      const existing = await getStudentWeeks(studentId);
+      const maxWeek  = existing.length > 0 ? Math.max(...existing.map(w => parseWeekNum(w.week))) : 0;
+      const weekData = PRESET_WEEKS[initPattern];
+
+      await Promise.all(
+        weekData.map((row, i) => {
+          const weekStr = formatWeekStr(maxWeek + i + 1);
+          return setDoc(doc(db, "student_weekly_records", weeklyDocId(studentId, weekStr)), {
+            student_id: studentId,
+            week: weekStr,
+            ...row,
+            updatedAt: serverTimestamp(),
+          });
+        })
+      );
+
+      await loadStudent(studentId);
+      setActiveTab("data");
+    } catch (e) {
+      alert("Failed to initialize: " + e.message);
     } finally {
-      setLoading(false);
+      setInitLoading(false);
     }
   };
 
-  const getLast10Weeks = async () => {
-    if (!validateStudentId(studentId)) {
-      setStudentIdError("Valid 4-digit Student ID required");
-      return;
-    }
-    
-    setLoading(true);
-    setLastAction("getLast10Weeks");
+  const addSingleWeek = async () => {
+    setAddLoading(true);
+    setAddMsg(null);
     try {
-      const res = await fetch(`${BASE_URL}/test-gru-reader/${studentId}`);
-      const data = await res.json();
-      if (data.weeks) {
-        const formattedWeeks = data.weeks.map((week, index) => ({
-          week: `Week ${index + 1}`,
-          ...week
-        }));
-        setWeeksData(formattedWeeks);
-      }
-      setResult({
-        type: "getLast10Weeks",
-        data: data,
-        weeks: data.weeks || [],
-        message: "Retrieved last 10 weeks successfully!",
-        timestamp: new Date().toISOString()
+      const existing = await getStudentWeeks(studentId);
+      const maxWeek  = existing.length > 0 ? Math.max(...existing.map(w => parseWeekNum(w.week))) : 0;
+      const weekStr  = formatWeekStr(maxWeek + 1);
+      const numeric  = Object.fromEntries(Object.entries(weekForm).map(([k, v]) => [k, Number(v)]));
+
+      await setDoc(doc(db, "student_weekly_records", weeklyDocId(studentId, weekStr)), {
+        student_id: studentId,
+        week: weekStr,
+        ...numeric,
+        updatedAt: serverTimestamp(),
       });
-      setActiveTab("results");
-    } catch (error) {
-      setResult({
-        type: "error",
-        message: "Failed to retrieve weeks",
-        error: error.message
-      });
+
+      setAddMsg({ type: "ok", text: `Week ${weekStr} added successfully.` });
+      await loadStudent(studentId);
+    } catch (e) {
+      setAddMsg({ type: "err", text: e.message });
     } finally {
-      setLoading(false);
+      setAddLoading(false);
     }
   };
 
   const runGru = async () => {
-    if (!validateStudentId(studentId)) {
-      setStudentIdError("Valid 4-digit Student ID required");
-      return;
-    }
-    
-    setLoading(true);
-    setLastAction("runGru");
+    setGruLoading(true);
+    setGruResult(null);
+    setGruError(null);
     try {
-      const res = await fetch(`${BASE_URL}/gru/run/${studentId}`);
+      // 1. Read last 10 weeks from real Firestore
+      const allWeeks  = await getStudentWeeks(studentId);
+      if (allWeeks.length < 10) throw new Error("Need at least 10 weeks of data");
+      const last10    = allWeeks.slice(-10);
+      const latestWeek = last10[last10.length - 1].week;
+      const weeks     = last10.map(extractWeekFields);
+
+      // 2. Read previous GRU result for trend calculation
+      const prevSnap  = await getDocs(
+        query(collection(db, "student_gru_risk_history"), where("student_id", "==", studentId))
+      );
+      const prevDocs  = prevSnap.docs.map(d => d.data()).sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week));
+      const prevError = prevDocs.length > 0 ? prevDocs[prevDocs.length - 1].reconstruction_error : null;
+
+      // 3. Call backend for ML computation only (no Firestore in backend)
+      const res = await fetch(`${BASE_URL}/gru/compute-only`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeks, previous_error: prevError }),
+      });
       const data = await res.json();
-      setResult({
-        type: "runGru",
-        data: data,
-        message: "GRU model executed successfully!",
-        timestamp: new Date().toISOString()
-      });
-      setActiveTab("results");
-    } catch (error) {
-      setResult({
-        type: "error",
-        message: "Failed to run GRU model",
-        error: error.message
-      });
+      if (!res.ok) throw new Error(data.error || "GRU failed");
+
+      // 4. Save result directly to real Firestore
+      const record = {
+        student_id: studentId,
+        week: latestWeek,
+        reconstruction_error: data.reconstruction_error,
+        risk_level: data.risk_level,
+        risk_trend: data.risk_trend,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, "student_gru_risk_history", gruRlDocId(studentId, latestWeek)), record);
+
+      setGruResult(record);
+    } catch (e) {
+      setGruError(e.message);
     } finally {
-      setLoading(false);
+      setGruLoading(false);
     }
   };
 
   const runRl = async () => {
-    if (!validateStudentId(studentId)) {
-      setStudentIdError("Valid 4-digit Student ID required");
-      return;
-    }
-    
-    setLoading(true);
-    setLastAction("runRl");
+    setRlLoading(true);
+    setRlResult(null);
+    setRlError(null);
     try {
-      const res = await fetch(`${BASE_URL}/rl/run/${studentId}`);
+      // 1. Read last 10 weeks from real Firestore
+      const allWeeks = await getStudentWeeks(studentId);
+      if (allWeeks.length < 10) throw new Error("Need at least 10 weeks of data");
+      const weeks    = allWeeks.slice(-10).map(extractWeekFields);
+
+      // 2. Read latest GRU result from real Firestore
+      const gruSnap  = await getDocs(
+        query(collection(db, "student_gru_risk_history"), where("student_id", "==", studentId))
+      );
+      if (gruSnap.empty) throw new Error("No GRU result found. Run GRU first.");
+      const gruDocs  = gruSnap.docs.map(d => d.data()).sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week));
+      const latestGru = gruDocs[gruDocs.length - 1];
+
+      // 3. Read previous RL record for streak/fatigue tracking
+      const rlSnap   = await getDocs(
+        query(collection(db, "student_rl_intervention_history"), where("student_id", "==", studentId))
+      );
+      let last_action = "SOFT_NUDGE", no_response_streak = 0, fatigue_level = 0;
+      if (!rlSnap.empty) {
+        const prev = rlSnap.docs.map(d => d.data()).sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week)).pop();
+        last_action        = prev.action || "SOFT_NUDGE";
+        no_response_streak = prev.no_response_streak || 0;
+        fatigue_level      = prev.fatigue_level || 0;
+        if (latestGru.risk_trend === "INCREASING")  no_response_streak += 1;
+        if (latestGru.risk_trend === "DECREASING")  no_response_streak  = 0;
+        if (last_action === "REMINDER" || last_action === "PEER_CHEER") fatigue_level += 1;
+        if (last_action === "HUMAN_ESCALATION")     fatigue_level = 0;
+      }
+
+      // 4. Call backend for RL computation only (no Firestore in backend)
+      const res = await fetch(`${BASE_URL}/rl/compute-only`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeks, risk_trend: latestGru.risk_trend, last_action, no_response_streak, fatigue_level }),
+      });
       const data = await res.json();
-      setResult({
-        type: "runRl",
-        data: data,
-        message: "RL model executed successfully!",
-        timestamp: new Date().toISOString()
-      });
-      setActiveTab("results");
-    } catch (error) {
-      setResult({
-        type: "error",
-        message: "Failed to run RL model",
-        error: error.message
-      });
+      if (!res.ok) throw new Error(data.error || "RL failed");
+
+      // 5. Save result directly to real Firestore
+      const record = {
+        student_id: studentId,
+        week: latestGru.week,
+        risk_level: data.risk_level || latestGru.risk_level,
+        risk_trend: data.risk_trend || latestGru.risk_trend,
+        action: data.action,
+        decision_reason: data.decision_reason,
+        last_action,
+        no_response_streak,
+        fatigue_level,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, "student_rl_intervention_history", gruRlDocId(studentId, latestGru.week)), record);
+
+      setRlResult(record);
+    } catch (e) {
+      setRlError(e.message);
     } finally {
-      setLoading(false);
+      setRlLoading(false);
     }
   };
 
-  /* =========================
-     RESULT RENDERERS
-  ========================= */
-
-  const renderRiskIndicator = (riskLevel) => {
-    if (!riskLevel) return null;
-    
-    const isHighRisk = riskLevel === "HIGH";
-    const isMediumRisk = riskLevel === "MEDIUM";
-    
-    return (
-      <div className="flex flex-col space-y-3">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded-full ${isHighRisk ? 'bg-red-500' : isMediumRisk ? 'bg-yellow-500' : 'bg-green-500'}`} />
-            <span className="font-semibold text-lg">
-              {riskLevel} Risk
-            </span>
-          </div>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div 
-            className={`h-2.5 rounded-full ${
-              isHighRisk ? 'bg-red-500' : 
-              isMediumRisk ? 'bg-yellow-500' : 'bg-green-500'
-            }`}
-            style={{ width: isHighRisk ? '100%' : isMediumRisk ? '60%' : '30%' }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  const renderTrendIndicator = (trend) => {
-    if (!trend) return null;
-    
-    const trendConfig = {
-      'INCREASING': { icon: '📈', color: 'text-red-600', bg: 'bg-red-50' },
-      'DECREASING': { icon: '📉', color: 'text-green-600', bg: 'bg-green-50' },
-      'STABLE': { icon: '➡️', color: 'text-yellow-600', bg: 'bg-yellow-50' }
-    };
-    
-    const config = trendConfig[trend] || { icon: '➡️', color: 'text-gray-600', bg: 'bg-gray-50' };
-    
-    return (
-      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${config.bg} ${config.color}`}>
-        <span>{config.icon}</span>
-        <span className="font-medium">{trend}</span>
-      </div>
-    );
-  };
-
-  const renderActionBadge = (action) => {
-    if (!action) return null;
-    
-    const actionConfig = {
-      'SOFT_NUDGE': { color: 'bg-blue-100 text-blue-800', icon: '🔔' },
-      'HARD_NUDGE': { color: 'bg-orange-100 text-orange-800', icon: '⚠️' },
-      'ALERT': { color: 'bg-red-100 text-red-800', icon: '🚨' },
-      'INTERVENTION': { color: 'bg-purple-100 text-purple-800', icon: '🤝' }
-    };
-    
-    const config = actionConfig[action] || { color: 'bg-gray-100 text-gray-800', icon: '📋' };
-    
-    return (
-      <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold ${config.color}`}>
-        <span>{config.icon}</span>
-        {action.replace(/_/g, ' ')}
-      </span>
-    );
-  };
-
-  const renderMetricCard = (icon, label, value, subValue = null) => {
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-indigo-200 transition">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-2xl">{icon}</span>
-          <span className="text-sm text-gray-600">{label}</span>
-        </div>
-        <div className="text-2xl font-bold">{value}</div>
-        {subValue && <div className="text-xs text-gray-500 mt-1">{subValue}</div>}
-      </div>
-    );
-  };
-
-  const renderGruResult = () => {
-    if (!result || result.type !== "runGru" || !result.data) return null;
-    
-    const { status, record } = result.data;
-    
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-3xl">🧠</span>
-          <div>
-            <h3 className="font-bold text-indigo-800">GRU Model Prediction</h3>
-            <p className="text-indigo-600">{status || "Prediction completed"}</p>
-            <p className="text-sm text-indigo-500 mt-1">
-              Student: {studentId} • {new Date(result.timestamp).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {record && (
-          <>
-            {/* Main Record Card */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-4 border-b border-gray-200">
-                <h4 className="font-semibold text-indigo-900">Prediction Record</h4>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Student ID */}
-                  <div className="bg-indigo-50 rounded-lg p-4">
-                    <div className="text-sm text-indigo-600 mb-1">Student ID</div>
-                    <div className="text-2xl font-bold text-indigo-900">{record.student_id}</div>
-                  </div>
-
-                  {/* Week */}
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <div className="text-sm text-blue-600 mb-1">Week</div>
-                    <div className="text-2xl font-bold text-blue-900">{record.week}</div>
-                  </div>
-
-                  {/* Risk Level with Indicator */}
-                  <div className="bg-red-50 rounded-lg p-4">
-                    <div className="text-sm text-red-600 mb-1">Risk Level</div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${record.risk_level === 'HIGH' ? 'bg-red-500' : record.risk_level === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'}`} />
-                      <div className="text-2xl font-bold text-red-900">{record.risk_level}</div>
-                    </div>
-                  </div>
-
-                  {/* Risk Trend */}
-                  <div className="bg-purple-50 rounded-lg p-4">
-                    <div className="text-sm text-purple-600 mb-1">Risk Trend</div>
-                    <div className="flex items-center gap-2">
-                      {renderTrendIndicator(record.risk_trend)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reconstruction Error */}
-                {record.reconstruction_error !== undefined && (
-                  <div className="mt-6 bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 mb-2">Reconstruction Error</div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-3xl font-bold text-indigo-600">
-                        {record.reconstruction_error.toFixed(4)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className="bg-indigo-600 h-3 rounded-full"
-                            style={{ width: `${Math.min(record.reconstruction_error * 100, 100)}%` }}
-                          />
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Anomaly score: {record.reconstruction_error > 0.1 ? 'High' : record.reconstruction_error > 0.05 ? 'Medium' : 'Low'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Timestamp */}
-                <div className="mt-4 text-sm text-gray-500 flex items-center gap-2">
-                  <span>🕒</span>
-                  Created: {new Date(record.createdAt).toLocaleString()}
-                </div>
-              </div>
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {renderMetricCard('📊', 'Risk Assessment', record.risk_level, `Trend: ${record.risk_trend}`)}
-              {renderMetricCard('📅', 'Analysis Week', record.week, 'Current period')}
-              {renderMetricCard('🎯', 'Confidence', 
-                record.reconstruction_error ? 
-                  `${((1 - record.reconstruction_error) * 100).toFixed(1)}%` : 
-                  'N/A'
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Raw JSON Toggle */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="w-full px-6 py-3 bg-gray-50 text-left font-medium flex items-center justify-between hover:bg-gray-100 transition"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-gray-600">📦</span>
-              Raw API Response
-            </span>
-            <span className="text-gray-500">{showRawJson ? '▼' : '▶'}</span>
-          </button>
-          {showRawJson && (
-            <pre className="p-4 bg-gray-900 text-gray-100 overflow-auto text-sm max-h-96">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderRlResult = () => {
-    if (!result || result.type !== "runRl" || !result.data) return null;
-    
-    const { status, record } = result.data;
-    
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-3xl">🤖</span>
-          <div>
-            <h3 className="font-bold text-indigo-800">RL Model Recommendation</h3>
-            <p className="text-indigo-600">{status || "Decision completed"}</p>
-            <p className="text-sm text-indigo-500 mt-1">
-              Student: {studentId} • {new Date(result.timestamp).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {record && (
-          <>
-            {/* Main Action Card */}
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl p-6 shadow-lg">
-              <div className="text-sm opacity-90 mb-2">Recommended Action</div>
-              <div className="text-3xl font-bold mb-4">{renderActionBadge(record.action)}</div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                <div>
-                  <div className="text-indigo-200 text-sm">Risk Level</div>
-                  <div className="font-semibold">{record.risk_level}</div>
-                </div>
-                <div>
-                  <div className="text-indigo-200 text-sm">Risk Trend</div>
-                  <div className="font-semibold">{record.risk_trend}</div>
-                </div>
-                <div>
-                  <div className="text-indigo-200 text-sm">No Response Streak</div>
-                  <div className="font-semibold">{record.no_response_streak} weeks</div>
-                </div>
-                <div>
-                  <div className="text-indigo-200 text-sm">Fatigue Level</div>
-                  <div className="font-semibold">{record.fatigue_level}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Decision Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Decision Reason */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h4 className="font-semibold mb-4 flex items-center gap-2">
-                  <span className="text-indigo-600">📋</span>
-                  Decision Reason
-                </h4>
-                <div className="bg-indigo-50 rounded-lg p-4">
-                  <span className="text-indigo-800 font-medium">{record.decision_reason}</span>
-                </div>
-              </div>
-
-              {/* Last Action */}
-              {record.last_action && (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h4 className="font-semibold mb-4 flex items-center gap-2">
-                    <span className="text-indigo-600">🔄</span>
-                    Last Action Taken
-                  </h4>
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <span className="text-blue-800 font-medium">{record.last_action.replace(/_/g, ' ')}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Record Details */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
-                <h4 className="font-semibold">Complete Decision Record</h4>
-              </div>
-              <div className="p-6">
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Student ID</dt>
-                    <dd className="text-base font-medium">{record.student_id}</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Week</dt>
-                    <dd className="text-base font-medium">{record.week}</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Risk Level</dt>
-                    <dd className="text-base font-medium">
-                      <span className={`inline-flex items-center gap-1 ${
-                        record.risk_level === 'HIGH' ? 'text-red-600' : 
-                        record.risk_level === 'MEDIUM' ? 'text-yellow-600' : 'text-green-600'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${
-                          record.risk_level === 'HIGH' ? 'bg-red-600' : 
-                          record.risk_level === 'MEDIUM' ? 'bg-yellow-600' : 'bg-green-600'
-                        }`} />
-                        {record.risk_level}
-                      </span>
-                    </dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Risk Trend</dt>
-                    <dd className="text-base font-medium">{record.risk_trend}</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Action Taken</dt>
-                    <dd className="text-base font-medium">{record.action}</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">No Response Streak</dt>
-                    <dd className="text-base font-medium">{record.no_response_streak} weeks</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Fatigue Level</dt>
-                    <dd className="text-base font-medium">{record.fatigue_level}</dd>
-                  </div>
-                  <div className="border-b border-gray-100 pb-2">
-                    <dt className="text-sm text-gray-500">Created At</dt>
-                    <dd className="text-base font-medium">{new Date(record.createdAt).toLocaleString()}</dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-
-            {/* Status Timeline */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h4 className="font-semibold mb-4 flex items-center gap-2">
-                <span className="text-indigo-600">⏱️</span>
-                Decision Timeline
-              </h4>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Current Decision: {record.action}</span>
-                </div>
-                {record.last_action && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-sm text-gray-600">Previous Action: {record.last_action}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Decision Reason: {record.decision_reason}</span>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Raw JSON Toggle */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="w-full px-6 py-3 bg-gray-50 text-left font-medium flex items-center justify-between hover:bg-gray-100 transition"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-gray-600">📦</span>
-              Raw API Response
-            </span>
-            <span className="text-gray-500">{showRawJson ? '▼' : '▶'}</span>
-          </button>
-          {showRawJson && (
-            <pre className="p-4 bg-gray-900 text-gray-100 overflow-auto text-sm max-h-96">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderAddWeekResult = () => {
-    if (!result || result.type !== "addWeek") return null;
-    
-    return (
-      <div className="space-y-6">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-3xl">✅</span>
-          <div>
-            <h3 className="font-bold text-green-800">Success!</h3>
-            <p className="text-green-600">{result.message}</p>
-            <p className="text-sm text-green-500 mt-1">
-              Student: {studentId} • {new Date(result.timestamp).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {/* Raw JSON Toggle */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="w-full px-6 py-3 bg-gray-50 text-left font-medium flex items-center justify-between hover:bg-gray-100 transition"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-gray-600">📦</span>
-              Raw API Response
-            </span>
-            <span className="text-gray-500">{showRawJson ? '▼' : '▶'}</span>
-          </button>
-          {showRawJson && (
-            <pre className="p-4 bg-gray-900 text-gray-100 overflow-auto text-sm max-h-96">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderAdd10WeeksResult = () => {
-    if (!result || result.type !== "add10Weeks") return null;
-    
-    return (
-      <div className="space-y-6">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-3xl">📅</span>
-          <div>
-            <h3 className="font-bold text-green-800">10 Weeks Generated!</h3>
-            <p className="text-green-600">
-              Pattern: {result.pattern === "LOW" ? "Low Risk (Engaged Student)" : "High Risk (At-Risk Student)"}
-            </p>
-            <p className="text-sm text-green-500 mt-1">
-              Student: {studentId} • {new Date(result.timestamp).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {/* Raw JSON Toggle */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="w-full px-6 py-3 bg-gray-50 text-left font-medium flex items-center justify-between hover:bg-gray-100 transition"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-gray-600">📦</span>
-              Raw API Response
-            </span>
-            <span className="text-gray-500">{showRawJson ? '▼' : '▶'}</span>
-          </button>
-          {showRawJson && (
-            <pre className="p-4 bg-gray-900 text-gray-100 overflow-auto text-sm max-h-96">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderGetLast10WeeksResult = () => {
-    if (!result || result.type !== "getLast10Weeks") return null;
-    
-    return (
-      <div className="space-y-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-3xl">📊</span>
-          <div>
-            <h3 className="font-bold text-blue-800">Historical Data Retrieved</h3>
-            <p className="text-blue-600">{result.message}</p>
-            <p className="text-sm text-blue-500 mt-1">
-              Student: {studentId} • {new Date(result.timestamp).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {/* Raw JSON Toggle */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="w-full px-6 py-3 bg-gray-50 text-left font-medium flex items-center justify-between hover:bg-gray-100 transition"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-gray-600">📦</span>
-              Raw API Response
-            </span>
-            <span className="text-gray-500">{showRawJson ? '▼' : '▶'}</span>
-          </button>
-          {showRawJson && (
-            <pre className="p-4 bg-gray-900 text-gray-100 overflow-auto text-sm max-h-96">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderErrorResult = () => {
-    if (!result || result.type !== "error") return null;
-    
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <span className="text-3xl">❌</span>
-          <h3 className="text-xl font-bold text-red-800">Error</h3>
-        </div>
-        <p className="text-red-600 mb-2">{result.message}</p>
-        {result.error && (
-          <pre className="bg-red-100 p-3 rounded-lg text-red-800 text-sm">
-            {result.error}
-          </pre>
-        )}
-      </div>
-    );
-  };
-
-  const renderResult = () => {
-    if (!result) return null;
-
-    switch (result.type) {
-      case "addWeek":
-        return renderAddWeekResult();
-      case "add10Weeks":
-        return renderAdd10WeeksResult();
-      case "getLast10Weeks":
-        return renderGetLast10WeeksResult();
-      case "runGru":
-        return renderGruResult();
-      case "runRl":
-        return renderRlResult();
-      case "error":
-        return renderErrorResult();
-      default:
-        return (
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </div>
-        );
+  const clearWeeks = async () => {
+    setClearLoading(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db, "student_weekly_records"), where("student_id", "==", studentId))
+      );
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      setConfirmClear(false);
+      resetResults();
+      await loadStudent(studentId);
+    } catch (e) {
+      alert("Failed to clear: " + e.message);
+    } finally {
+      setClearLoading(false);
     }
   };
 
-  /* =========================
-     MAIN RENDER
-  ========================= */
+  const fillForm = (pattern) => {
+    const weeks = PRESET_WEEKS[pattern];
+    const pick  = weeks[Math.floor(Math.random() * weeks.length)];
+    setWeekForm({ ...pick });
+  };
 
+  const handleFormChange = (e) => {
+    setWeekForm({ ...weekForm, [e.target.name]: e.target.value });
+  };
+
+  // ─── Derived values ──────────────────────────────────────────────────────────
+  const weekCount   = studentData?.weeksFetched ?? 0;
+  const weeks       = studentData?.weeks ?? [];
+  const hasEnough   = weekCount >= 10;
+  const hasStudent  = studentData && !studentData.error;
+  const gruRan      = !!gruResult;
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - Navy Blue Theme */}
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Header ── */}
       <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 text-white shadow-lg">
-        <div className="container mx-auto px-6 py-8">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <span className="text-4xl">🎓</span>
-            Student Behavior Intelligence Dashboard
-          </h1>
-          <p className="mt-2 text-indigo-200">Monitor, analyze, and predict student engagement patterns</p>
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <h1 className="text-2xl font-bold">Student Disengagement Analyzer</h1>
+          <p className="text-indigo-300 text-sm mt-1">GRU + RL model — V3</p>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        {/* Student Selection Card - Navy Blue Theme */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">
-                Student ID (4 digits)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="0000"
-                  value={studentId}
-                  onChange={handleStudentIdChange}
-                  maxLength="4"
-                  className={`w-full px-4 py-2 border ${
-                    studentIdError ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition font-mono text-center text-lg`}
-                />
-                {studentId && !studentIdError && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">✓</span>
-                )}
-              </div>
-              {studentIdError && (
-                <p className="text-sm text-red-500 mt-1">{studentIdError}</p>
-              )}
-            </div>
-            
-            <div className="w-64">
-              <label className="block text-sm font-semibold text-indigo-900 mb-2">
-                Risk Pattern
-              </label>
-              <div className="relative">
-                <select
-                  value={pattern}
-                  onChange={(e) => setPattern(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition appearance-none bg-white"
-                >
-                  <option value="LOW" className="py-2">📊 Low Risk (Engaged Student)</option>
-                  <option value="HIGH" className="py-2">⚠️ High Risk (At-Risk Student)</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
+        {/* ── Student Lookup ── */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-800 mb-4">Select Student</h2>
+          <div className="flex flex-wrap items-start gap-3">
+            <div>
+              <input
+                type="text"
+                placeholder="4-digit ID (e.g. 0001)"
+                value={studentId}
+                onChange={handleIdChange}
+                onKeyDown={(e) => e.key === "Enter" && validateId(studentId) && loadStudent()}
+                maxLength={4}
+                className={`w-44 px-4 py-2 border rounded-lg font-mono text-center text-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                  idError ? "border-red-400" : "border-slate-300"
+                }`}
+              />
+              {idError && <p className="text-xs text-red-500 mt-1">{idError}</p>}
+            </div>
             <button
-              onClick={() => generatePattern(pattern)}
-              disabled={!studentId || !!studentIdError}
-              className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-900 transition shadow-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => loadStudent()}
+              disabled={!validateId(studentId) || loadingStudent}
+              className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
             >
-              Generate Sample Data
+              {loadingStudent ? "Loading…" : "Load Student"}
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200 mb-6">
-          <button
-            onClick={() => setActiveTab("input")}
-            className={`px-6 py-3 font-medium transition ${
-              activeTab === "input"
-                ? "text-indigo-700 border-b-2 border-indigo-700 bg-indigo-50"
-                : "text-gray-600 hover:text-indigo-700 hover:bg-indigo-50"
-            }`}
-          >
-            📝 Data Input
-          </button>
-          <button
-            onClick={() => setActiveTab("results")}
-            className={`px-6 py-3 font-medium transition ${
-              activeTab === "results"
-                ? "text-indigo-700 border-b-2 border-indigo-700 bg-indigo-50"
-                : "text-gray-600 hover:text-indigo-700 hover:bg-indigo-50"
-            }`}
-          >
-            🤖 Results
-          </button>
-        </div>
+        {/* ── Status bar ── */}
+        {hasStudent && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-6 text-sm">
+              <span className="font-mono font-semibold text-lg text-slate-900">{studentId}</span>
+              <span className={`font-medium ${weekCount === 0 ? "text-slate-400" : "text-slate-700"}`}>
+                {weekCount === 0 ? "No records yet" : `${weekCount} week${weekCount > 1 ? "s" : ""} on record`}
+              </span>
+              {weekCount > 0 && (
+                <span className="text-slate-500">
+                  Latest: <span className="font-medium text-slate-700">{weeks[weeks.length - 1]?.week || "—"}</span>
+                </span>
+              )}
+              {hasEnough ? (
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Ready for prediction</span>
+              ) : (
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  Need {10 - weekCount} more week{10 - weekCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
 
-        {/* Input Tab */}
-        {activeTab === "input" && (
-          <>
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-              {Object.keys(formData).map((key) => (
-                <div key={key} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-indigo-200 transition">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="mr-2">{fieldConfig[key].icon}</span>
-                    {fieldConfig[key].label}
-                  </label>
-                  <input
-                    name={key}
-                    type="number"
-                    value={formData[key]}
-                    onChange={handleChange}
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">{fieldConfig[key].description}</p>
+            {/* Clear button */}
+            {!confirmClear ? (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1.5 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
+              >
+                🗑️ Clear Records
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-red-600 font-medium">Delete all {weekCount} records?</span>
+                <button
+                  onClick={clearWeeks}
+                  disabled={clearLoading}
+                  className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+                >
+                  {clearLoading ? "Deleting…" : "Yes, Delete"}
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="px-3 py-1.5 border border-slate-300 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Error loading student ── */}
+        {studentData?.error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
+            Could not load student data. Check that the backend is running.
+          </div>
+        )}
+
+        {/* ── Main content (tabs) ── */}
+        {hasStudent && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex border-b border-slate-200 px-4 overflow-x-auto">
+              <TabButton active={activeTab === "data"} onClick={() => setActiveTab("data")}>
+                📊 Weekly Records {weekCount > 0 && `(${weekCount})`}
+              </TabButton>
+              <TabButton active={activeTab === "add"} onClick={() => setActiveTab("add")}>
+                ➕ Add Data
+              </TabButton>
+              <TabButton active={activeTab === "predict"} onClick={() => setActiveTab("predict")}>
+                🧠 Predict Risk
+              </TabButton>
+            </div>
+
+            {/* ── TAB: Weekly Records ── */}
+            {activeTab === "data" && (
+              <div className="p-6">
+                {weekCount === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <p className="text-4xl mb-3">📭</p>
+                    <p className="font-medium text-slate-600">No records found for student {studentId}</p>
+                    <p className="text-sm mt-1">Go to <strong>Add Data</strong> to initialize this student.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">#</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">Week</th>
+                          {Object.keys(FIELD_LABELS).map((k) => (
+                            <th key={k} className="px-3 py-2 text-right font-semibold text-slate-600 whitespace-nowrap">
+                              {FIELD_LABELS[k]}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {weeks.map((w, i) => (
+                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                            <td className="px-3 py-2 text-slate-400 font-mono">{i + 1}</td>
+                            <td className="px-3 py-2 font-mono text-slate-700 whitespace-nowrap">{w.week || `W${i + 1}`}</td>
+                            {Object.keys(FIELD_LABELS).map((k) => (
+                              <td key={k} className="px-3 py-2 text-right font-mono text-slate-700">
+                                {k === "response_rate"
+                                  ? Number(w[k]).toFixed(2)
+                                  : w[k] ?? "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Add Data ── */}
+            {activeTab === "add" && (
+              <div className="p-6 space-y-8">
+
+                {/* Initialize section — shown when no records */}
+                {weekCount === 0 && (
+                  <div className="rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50 p-6">
+                    <h3 className="text-base font-semibold text-indigo-900 mb-1">Initialize Student</h3>
+                    <p className="text-sm text-indigo-600 mb-5">
+                      This student has no records. Choose a risk pattern to load 10 pre-built weeks.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                      {Object.entries(PATTERN_CONFIG).map(([key, cfg]) => (
+                        <button
+                          key={key}
+                          onClick={() => setInitPattern(key)}
+                          className={`relative p-4 rounded-xl border-2 text-left transition ${
+                            initPattern === key
+                              ? `border-${cfg.color}-500 bg-${cfg.color}-50`
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`w-3 h-3 rounded-full ${cfg.dot}`} />
+                            <span className="font-semibold text-sm text-slate-800">{cfg.label}</span>
+                          </div>
+                          <p className="text-xs text-slate-500">{cfg.desc}</p>
+                          {initPattern === key && (
+                            <span className="absolute top-2 right-2 text-xs font-bold text-indigo-600">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Preview of first week */}
+                    <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                        Preview — Week 1 of 10
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {Object.entries(FIELD_LABELS).map(([k, label]) => (
+                          <div key={k} className="bg-slate-50 rounded-lg p-2 text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+                            <p className="text-sm font-bold text-slate-800">
+                              {k === "response_rate"
+                                ? PRESET_WEEKS[initPattern][0][k].toFixed(2)
+                                : PRESET_WEEKS[initPattern][0][k]}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={initializeStudent}
+                      disabled={initLoading}
+                      className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold transition"
+                    >
+                      {initLoading ? "Saving…" : `Initialize with 10 ${PATTERN_CONFIG[initPattern].label} Weeks →`}
+                    </button>
+                  </div>
+                )}
+
+                {/* Add single week */}
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800 mb-1">Add Single Week</h3>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Quick-fill from a pattern, then adjust values and save.
+                  </p>
+
+                  {/* Quick fill buttons */}
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    <span className="text-xs font-medium text-slate-500 self-center mr-1">Quick fill:</span>
+                    {Object.entries(PATTERN_CONFIG).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        onClick={() => fillForm(key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition
+                          ${key === "LOW"    ? "border-green-300  bg-green-50  text-green-700  hover:bg-green-100"  : ""}
+                          ${key === "NORMAL" ? "border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100" : ""}
+                          ${key === "HIGH"   ? "border-red-300    bg-red-50    text-red-700    hover:bg-red-100"    : ""}
+                        `}
+                      >
+                        <span className={`inline-block w-2 h-2 rounded-full mr-1 ${cfg.dot}`} />
+                        {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Form grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+                    {Object.keys(FIELD_LABELS).map((k) => (
+                      <FieldInput
+                        key={k}
+                        name={k}
+                        value={weekForm[k]}
+                        onChange={handleFormChange}
+                      />
+                    ))}
+                  </div>
+
+                  {addMsg && (
+                    <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
+                      addMsg.type === "ok"
+                        ? "bg-green-50 border border-green-200 text-green-700"
+                        : "bg-red-50 border border-red-200 text-red-700"
+                    }`}>
+                      {addMsg.type === "ok" ? "✅" : "❌"} {addMsg.text}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={addSingleWeek}
+                    disabled={addLoading}
+                    className="px-6 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 font-semibold transition"
+                  >
+                    {addLoading ? "Saving…" : "Add This Week →"}
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
-            {/* Action Buttons - Navy Blue Theme */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <button
-                onClick={addWeek}
-                disabled={loading || !studentId || !!studentIdError}
-                className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md"
-              >
-                {loading && lastAction === "addWeek" ? '⏳ Processing...' : '➕ Add Single Week'}
-              </button>
+            {/* ── TAB: Predict Risk ── */}
+            {activeTab === "predict" && (
+              <div className="p-6 space-y-8">
 
-              <button
-                onClick={add10Weeks}
-                disabled={loading || !studentId || !!studentIdError}
-                className="px-4 py-3 bg-indigo-700 text-white rounded-lg hover:bg-indigo-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md"
-              >
-                {loading && lastAction === "add10Weeks" ? '⏳ Processing...' : '📅 Generate 10 Weeks'}
-              </button>
+                {/* Requirements notice */}
+                {!hasEnough && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                    ⚠️ GRU prediction needs <strong>at least 10 weeks</strong> of data.
+                    This student has <strong>{weekCount}</strong>. Go to <strong>Add Data</strong> to add more.
+                  </div>
+                )}
 
-              <button
-                onClick={getLast10Weeks}
-                disabled={loading || !studentId || !!studentIdError}
-                className="px-4 py-3 bg-indigo-800 text-white rounded-lg hover:bg-indigo-900 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md"
-              >
-                {loading && lastAction === "getLast10Weeks" ? '⏳ Processing...' : '📊 View Last 10 Weeks'}
-              </button>
+                {/* GRU section */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-indigo-50 px-5 py-4 flex items-center justify-between border-b border-slate-200">
+                    <div>
+                      <h3 className="font-semibold text-indigo-900">🧠 GRU Model</h3>
+                      <p className="text-xs text-indigo-600 mt-0.5">Reads last 10 weeks → computes reconstruction error → classifies risk</p>
+                    </div>
+                    <button
+                      onClick={runGru}
+                      disabled={!hasEnough || gruLoading}
+                      className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-semibold transition"
+                    >
+                      {gruLoading ? "Running…" : "Run GRU"}
+                    </button>
+                  </div>
 
-              <button
-                onClick={runGru}
-                disabled={loading || !studentId || !!studentIdError}
-                className="px-4 py-3 bg-indigo-900 text-white rounded-lg hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md"
-              >
-                {loading && lastAction === "runGru" ? '⏳ Processing...' : '🧠 Run GRU Model'}
-              </button>
+                  <div className="p-5">
+                    {gruLoading && (
+                      <div className="flex items-center gap-3 text-indigo-600 text-sm">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600" />
+                        Analyzing 10 weeks of behavior data…
+                      </div>
+                    )}
 
-              <button
-                onClick={runRl}
-                disabled={loading || !studentId || !!studentIdError}
-                className="px-4 py-3 bg-indigo-950 text-white rounded-lg hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md"
-              >
-                {loading && lastAction === "runRl" ? '⏳ Processing...' : '🤖 Run RL Model'}
-              </button>
-            </div>
-          </>
-        )}
+                    {gruError && (
+                      <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                        ❌ {gruError}
+                      </div>
+                    )}
 
-        {/* Results Tab */}
-        {activeTab === "results" && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            {renderResult()}
+                    {gruResult && !gruLoading && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-2">Risk Level</p>
+                            <RiskBadge level={gruResult.risk_level} />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">Reconstruction Error</p>
+                            <p className="text-xl font-bold font-mono text-slate-800">
+                              {gruResult.reconstruction_error?.toFixed(6)}
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">Risk Trend</p>
+                            <TrendBadge trend={gruResult.risk_trend} />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">Week</p>
+                            <p className="font-mono font-semibold text-slate-800">{gruResult.week || "—"}</p>
+                          </div>
+                        </div>
+
+                        {/* Error threshold visual */}
+                        <div className="bg-slate-50 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                            V3 Threshold Scale
+                          </p>
+                          <div className="relative h-3 bg-gradient-to-r from-green-200 via-yellow-200 to-red-300 rounded-full">
+                            {/* Threshold markers */}
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-green-600" style={{ left: "37%" }} />
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-600" style={{ left: "48%" }} />
+                            {/* Current position */}
+                            {(() => {
+                              const err   = gruResult.reconstruction_error || 0;
+                              const maxE  = 0.06;
+                              const pct   = Math.min((err / maxE) * 100, 100);
+                              return (
+                                <div
+                                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-800 border-2 border-white shadow"
+                                  style={{ left: `calc(${pct}% - 8px)` }}
+                                />
+                              );
+                            })()}
+                          </div>
+                          <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+                            <span>LOW ≤ 0.0208</span>
+                            <span>NORMAL ≤ 0.0272</span>
+                            <span>HIGH &gt; 0.0272</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!gruResult && !gruLoading && !gruError && (
+                      <p className="text-sm text-slate-400">Click "Run GRU" to analyze this student's risk level.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* RL section */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-purple-50 px-5 py-4 flex items-center justify-between border-b border-slate-200">
+                    <div>
+                      <h3 className="font-semibold text-purple-900">🤖 RL Agent</h3>
+                      <p className="text-xs text-purple-600 mt-0.5">Uses GRU risk output → decides best intervention action</p>
+                    </div>
+                    <button
+                      onClick={runRl}
+                      disabled={!gruRan || rlLoading}
+                      className="px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-semibold transition"
+                    >
+                      {rlLoading ? "Running…" : "Run RL"}
+                    </button>
+                  </div>
+
+                  <div className="p-5">
+                    {!gruRan && (
+                      <p className="text-sm text-slate-400">Run the GRU model first — RL uses its output.</p>
+                    )}
+
+                    {rlLoading && (
+                      <div className="flex items-center gap-3 text-purple-600 text-sm">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600" />
+                        Deciding intervention…
+                      </div>
+                    )}
+
+                    {rlError && (
+                      <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                        ❌ {rlError}
+                      </div>
+                    )}
+
+                    {rlResult && !rlLoading && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="bg-purple-50 rounded-xl p-4">
+                            <p className="text-xs text-purple-600 mb-2">Recommended Action</p>
+                            <ActionBadge action={rlResult.action} />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">Risk Level</p>
+                            <RiskBadge level={rlResult.risk_level} />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">No-Response Streak</p>
+                            <p className="text-xl font-bold text-slate-800">{rlResult.no_response_streak ?? 0}</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-4">
+                            <p className="text-xs text-slate-500 mb-1">Fatigue Level</p>
+                            <p className="text-xl font-bold text-slate-800">{rlResult.fatigue_level ?? 0}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-purple-700 mb-1">Decision Reason</p>
+                          <p className="text-sm text-purple-900">{rlResult.decision_reason || "—"}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
           </div>
         )}
 
-        {/* Loading Overlay */}
-        {loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 shadow-xl flex items-center gap-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <span className="text-lg font-medium">Processing request...</span>
-            </div>
+        {/* ── Empty state (not searched yet) ── */}
+        {!studentData && !loadingStudent && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400">
+            <p className="text-5xl mb-4">🎓</p>
+            <p className="text-lg font-medium text-slate-600">Enter a 4-digit student ID above</p>
+            <p className="text-sm mt-1">Then click Load Student to view records and run predictions.</p>
           </div>
         )}
+
       </div>
     </div>
   );

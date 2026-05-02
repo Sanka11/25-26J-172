@@ -215,6 +215,15 @@ const {
 app.post("/api/student/add-10-weeks", addTenWeeks);
 
 // ----------------------------------------------------
+// Clear all weekly records for a student
+// ----------------------------------------------------
+const {
+  clearStudentWeeks,
+} = require("./src/http/clearStudentWeeksController");
+
+app.delete("/api/student/clear-weeks/:studentId", clearStudentWeeks);
+
+// ----------------------------------------------------
 // Run GRU for selected student
 // ----------------------------------------------------
 const {
@@ -262,6 +271,15 @@ const {
 } = require("./src/http/getPeerCheerController");
 
 app.get("/api/ml/peer-cheer", getPeerCheerStudents);
+
+// ----------------------------------------------------
+// Compute-only GRU + RL (no Firestore — frontend saves results)
+// ----------------------------------------------------
+const { computeGru } = require("./src/http/computeGruController");
+const { computeRl }  = require("./src/http/computeRlController");
+
+app.post("/api/gru/compute-only", computeGru);
+app.post("/api/rl/compute-only",  computeRl);
 
 // ----------------------------------------------------
 // Export Firebase HTTPS function
