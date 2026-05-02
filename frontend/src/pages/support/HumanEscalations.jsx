@@ -80,7 +80,8 @@ export default function HumanEscalations() {
       filtered = filtered.filter(item => 
         item.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        item.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.mobile?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 

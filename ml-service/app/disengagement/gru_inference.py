@@ -7,9 +7,22 @@ import os
 
 BASE_DIR = os.path.dirname(__file__)
 
-MODEL_PATH = os.path.join(BASE_DIR, "gru_autoencoder.keras")
-SCALER_PATH = os.path.join(BASE_DIR, "gru_scaler.joblib")
-THRESHOLD_PATH = os.path.join(BASE_DIR, "gru_thresholds.joblib")
+# --------------------------------------------------
+# 🔥 VERSION SWITCH (SAFE)
+# --------------------------------------------------
+USE_V3 = True   # ✅ Set True to use new model, False to fallback
+
+# --------------------------------------------------
+# Load correct model files
+# --------------------------------------------------
+if USE_V3:
+    MODEL_PATH = os.path.join(BASE_DIR, "gru_autoencoder_v3.keras")
+    SCALER_PATH = os.path.join(BASE_DIR, "gru_scaler_v3.joblib")
+    THRESHOLD_PATH = os.path.join(BASE_DIR, "gru_thresholds_v3.joblib")
+else:
+    MODEL_PATH = os.path.join(BASE_DIR, "gru_autoencoder.keras")
+    SCALER_PATH = os.path.join(BASE_DIR, "gru_scaler.joblib")
+    THRESHOLD_PATH = os.path.join(BASE_DIR, "gru_thresholds.joblib")
 
 # --------------------------------------------------
 # Load trained artifacts (ONCE)
@@ -17,6 +30,8 @@ THRESHOLD_PATH = os.path.join(BASE_DIR, "gru_thresholds.joblib")
 gru_model = tf.keras.models.load_model(MODEL_PATH)
 scaler = joblib.load(SCALER_PATH)
 thresholds = joblib.load(THRESHOLD_PATH)
+
+print("✅ GRU Model Loaded:", MODEL_PATH)
 
 # --------------------------------------------------
 # ⚠️ MUST MATCH TRAINING EXACTLY
@@ -43,7 +58,7 @@ def compute_gru_risk(last_10_weeks: list):
     """
 
     # --------------------------------------------------
-    # Convert to NumPy array (ATTRIBUTE ACCESS)
+    # Convert to NumPy array (IMPORTANT: ORDER MATTERS)
     # --------------------------------------------------
     X = np.array(
         [[getattr(w, f) for f in FEATURE_ORDER] for w in last_10_weeks],
@@ -59,12 +74,6 @@ def compute_gru_risk(last_10_weeks: list):
         X = np.vstack([pad, X])
 
     # --------------------------------------------------
-    # DEBUG — raw values
-    # --------------------------------------------------
-    print("DEBUG | Raw GRU input (first week):", X[0])
-    print("DEBUG | Raw min/max:", float(X.min()), float(X.max()))
-
-    # --------------------------------------------------
     # Final shape check
     # --------------------------------------------------
     if X.shape != (SEQ_LEN, len(FEATURE_ORDER)):
@@ -73,11 +82,15 @@ def compute_gru_risk(last_10_weeks: list):
         )
 
     # --------------------------------------------------
+    # DEBUG — raw values
+    # --------------------------------------------------
+    print("DEBUG | Raw input (first week):", X[0])
+    print("DEBUG | Raw min/max:", float(X.min()), float(X.max()))
+
+    # --------------------------------------------------
     # Scale using TRAINED scaler
     # --------------------------------------------------
     X_scaled = scaler.transform(X)
-
-    # Add batch dimension → (1, 10, 10)
     X_scaled = np.expand_dims(X_scaled, axis=0)
 
     # --------------------------------------------------
@@ -104,15 +117,28 @@ def compute_gru_risk(last_10_weeks: list):
     print("DEBUG | Thresholds:", thresholds)
 
     # --------------------------------------------------
-    # Risk classification (MATCH TRAINING LOGIC)
+    # 🔥 Risk classification (supports BOTH models)
     # --------------------------------------------------
-    if recon_error <= thresholds["p95"]:
-        risk = "LOW"
-    elif recon_error <= thresholds["p97"]:
-        risk = "NORMAL"
+    if "low" in thresholds:
+        # ✅ NEW MODEL (v3)
+        if recon_error <= thresholds["low"]:
+            risk = "LOW"
+        elif recon_error <= thresholds["normal"]:
+            risk = "NORMAL"
+        else:
+            risk = "HIGH"
     else:
-        risk = "HIGH"
+        # ⚠️ OLD MODEL fallback
+        if recon_error <= thresholds["p95"]:
+            risk = "LOW"
+        elif recon_error <= thresholds["p97"]:
+            risk = "NORMAL"
+        else:
+            risk = "HIGH"
 
+    # --------------------------------------------------
+    # FINAL OUTPUT (DO NOT CHANGE STRUCTURE)
+    # --------------------------------------------------
     return {
         "risk_level": risk,
         "reconstruction_error": recon_error

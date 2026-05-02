@@ -59,6 +59,13 @@ export default function PeerCheerDashboard() {
       item.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.mobile?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.peer_details?.some(peer =>
+        peer.peer_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        peer.peer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        peer.peer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        peer.peer_mobile?.toLowerCase().includes(searchTerm.toLowerCase())
+      ) ||
       item.peers?.some(peer => peer.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
@@ -93,7 +100,10 @@ export default function PeerCheerDashboard() {
     return 'from-slate-400 to-slate-500';
   };
 
-  const maxPeerCount = Math.max(...data.map(item => item.peers?.length || 0));
+  const maxPeerCount = Math.max(
+    1,
+    ...data.map(item => item.peer_details?.length || item.peers?.length || 0)
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -339,7 +349,21 @@ export default function PeerCheerDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1.5 max-w-md">
-                          {row.peers && row.peers.length > 0 ? (
+                          {row.peer_details && row.peer_details.length > 0 ? (
+                            row.peer_details.map((peer, peerIndex) => (
+                              <div
+                                key={`${row.student_id}-${peer.peer_id}-${peerIndex}`}
+                                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-slate-50 to-slate-100 text-slate-700 border border-slate-200 hover:border-blue-300 hover:from-blue-50 hover:to-indigo-50 transition-all cursor-default"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-semibold">{peer.peer_name || peer.peer_id}</span>
+                                  <span className="text-slate-400 text-[10px]">{peer.peer_email || "No email"}</span>
+                                  <span className="text-slate-400 text-[10px]">{peer.peer_mobile || "No mobile"}</span>
+                                </div>
+                              </div>
+                            ))
+                          ) : row.peers && row.peers.length > 0 ? (
+                            // Fallback to old peers array if peer_details not available
                             row.peers.map((peer, peerIndex) => (
                               <span
                                 key={`${row.student_id}-${peer}-${peerIndex}`}
@@ -352,12 +376,12 @@ export default function PeerCheerDashboard() {
                             <span className="text-slate-400 text-sm italic">No peers assigned</span>
                           )}
                         </div>
-                        {row.peers && row.peers.length > 0 && (
+                        {row.peer_details && row.peer_details.length > 0 && (
                           <div className="mt-2">
                             <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div 
-                                className={`h-full rounded-full bg-gradient-to-r ${getPeerCountGradient(row.peers.length, maxPeerCount)}`}
-                                style={{ width: `${(row.peers.length / maxPeerCount) * 100}%` }}
+                                className={`h-full rounded-full bg-gradient-to-r ${getPeerCountGradient(row.peer_details.length, maxPeerCount)}`}
+                                style={{ width: `${(row.peer_details.length / maxPeerCount) * 100}%` }}
                               ></div>
                             </div>
                           </div>

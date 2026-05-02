@@ -1,4 +1,5 @@
 const admin = require("../firebase");
+const { findStudentById } = require("./studentDataLookup");
 const db = admin.firestore();
 
 async function getHumanEscalations(req, res) {
@@ -17,21 +18,27 @@ async function getHumanEscalations(req, res) {
       const rl = doc.data();
       const studentId = rl.student_id;
 
-      // fetch student details
-      const studentDoc = await db
-        .collection("Student_data")
-        .doc(studentId)
-        .get();
-
-      const student = studentDoc.data();
+      const student = await findStudentById(db, studentId);
+      const studentData = student.data;
 
       results.push({
         student_id: studentId,
         week: rl.week,
         risk_level: rl.risk_level,
-        name: student?.name || "Unknown",
-        email: student?.email || "",
-        mobile: student?.mobile || "",
+        risk_trend: rl.risk_trend || "STABLE",
+        reconstruction_error: rl.reconstruction_error || null,
+        // At-risk student contact details
+        name: studentData.name || "Unknown",
+        email: studentData.email,
+        mobile: studentData.mobile,
+        // Additional student info
+        department: studentData.department,
+        year: studentData.year,
+        status: studentData.status,
+        // Intervention details
+        action: rl.action || "HUMAN_ESCALATION",
+        decision_reason: rl.decision_reason || "",
+        run_date: rl.run_date || null
       });
 
     }

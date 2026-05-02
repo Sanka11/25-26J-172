@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { 
-  Search, 
-  Users, 
-  User, 
+import {
+  Search,
+  Users,
+  User,
   RefreshCw,
   TrendingUp,
   TrendingDown,
@@ -13,7 +13,8 @@ import {
   Download,
   Filter
 } from "lucide-react";
-import { mlApi } from "../../services/mlApi";
+import { db } from "../../config/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 export default function RlHistory() {
   const [studentId, setStudentId] = useState("");
@@ -21,13 +22,13 @@ export default function RlHistory() {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(null); // 'single' or 'all'
 
-  // 🌍 Get ALL students
+  // Get ALL students
   const fetchAllHistory = async () => {
     try {
       setLoading(true);
       setViewMode('all');
-      const res = await mlApi.get("/ml/rl-history");
-      setHistory(Array.isArray(res.data) ? res.data : []);
+      const snapshot = await getDocs(collection(db, "student_rl_intervention_history"));
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (err) {
       console.error(err);
       alert("Failed to fetch all students history");
@@ -37,7 +38,7 @@ export default function RlHistory() {
     }
   };
 
-  // 🔎 Get SINGLE student
+  // Get SINGLE student
   const fetchSingleHistory = async () => {
     if (!studentId.trim()) {
       alert("Please enter a student ID");
@@ -47,8 +48,12 @@ export default function RlHistory() {
     try {
       setLoading(true);
       setViewMode('single');
-      const res = await mlApi.get(`/ml/rl-history/${studentId.trim()}`);
-      setHistory(Array.isArray(res.data) ? res.data : [res.data].filter(Boolean));
+      const q = query(
+        collection(db, "student_rl_intervention_history"),
+        where("student_id", "==", studentId.trim())
+      );
+      const snapshot = await getDocs(q);
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (err) {
       console.error(err);
       alert("Failed to fetch student history");

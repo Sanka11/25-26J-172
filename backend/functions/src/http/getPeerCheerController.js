@@ -1,4 +1,5 @@
 const admin = require("../firebase");
+const { findStudentById } = require("./studentDataLookup");
 const db = admin.firestore();
 
 async function getPeerCheerStudents(req, res) {
@@ -17,22 +18,53 @@ async function getPeerCheerStudents(req, res) {
       const rl = doc.data();
       const studentId = rl.student_id;
 
-      // Fetch student data
-      const studentDoc = await db
-        .collection("Student_data")
-        .doc(studentId)
-        .get();
+      const student = await findStudentById(db, studentId);
+      const studentData = student.data;
 
-      const student = studentDoc.data();
+      const peersList = studentData.peers;
+      
+      // If peers exist, fetch peer student details
+      const peerDetails = [];
+      if (peersList.length > 0) {
+        for (const peerId of peersList) {
+          const peer = await findStudentById(db, peerId);
+          const peerData = peer.data;
+
+          if (peer.collectionName) {
+            peerDetails.push({
+              peer_id: peerId.trim(),
+              peer_name: peerData.name || peerId,
+              peer_email: peerData.email,
+              peer_mobile: peerData.mobile,
+            });
+          } else {
+            peerDetails.push({
+              peer_id: peerId.trim(),
+              peer_name: peerId.trim(),
+              peer_email: "",
+              peer_mobile: "",
+            });
+          }
+        }
+      }
 
       results.push({
         student_id: studentId,
         week: rl.week,
         risk_level: rl.risk_level,
-        name: student?.name || "Unknown",
-        email: student?.email || "",
-        mobile: student?.mobile || "",
-        peers: student?.peers || []
+        risk_trend: rl.risk_trend || "STABLE",
+        reconstruction_error: rl.reconstruction_error || null,
+        // At-risk student contact details
+        name: studentData.name || "Unknown",
+        email: studentData.email,
+        mobile: studentData.mobile,
+        // Peers assigned to this at-risk student
+        peers: peersList,
+        peer_details: peerDetails,
+        // Additional student info
+        department: studentData.department,
+        year: studentData.year,
+        status: studentData.status
       });
 
     }
