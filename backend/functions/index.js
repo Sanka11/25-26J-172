@@ -1,13 +1,6 @@
 require("dotenv").config();
 
-// Quiz controllers
-const {
-  createQuiz,
-  submitQuiz,
-  getAllQuizzes,
-  getQuizByLevel,
-  fetchQuizByUser,
-} = require("./src/http/quizController");
+
 const {
   getAllWorkloads,
   updateTaskCompletion,
@@ -76,27 +69,17 @@ const {
 // Express API (for RL & disengagement etc.)
 exports.api = require("./api").api;
 
-// -------------------------------
-// Recommendation savindi
-// -------------------------------
-exports.getRecommendations = getRecommendations;
+
+
+
+
 
 // -------------------------------
-// Quiz exports savindi
-// -------------------------------
-exports.createQuiz = createQuiz;
-exports.submitQuiz = submitQuiz;
-exports.getAllQuizzes = getAllQuizzes;
-exports.getQuizByLevel = getQuizByLevel;
-exports.fetchQuizByUser = fetchQuizByUser;
-
-// -------------------------------
-// Workload savindi
+// Workload it22370228
 // -------------------------------
 exports.getAllWorkloads = getAllWorkloads;
 exports.updateTaskCompletion = updateTaskCompletion;
 exports.triggerManualWarningEmail = triggerManualWarningEmail;
-
 exports.generateLectureAlerts = generateLectureAlerts;
 exports.getWeeklyWorkload = getWeeklyWorkload;
 exports.generateOverloadReminders = generateOverloadReminders;
@@ -106,6 +89,13 @@ exports.generateBusyWeekReminders = generateBusyWeekReminders;
 exports.getEnrolledSubjects = getEnrolledSubjects;
 exports.generateWorkload = generateWorkload;
 exports.dailyWorkloadEmailScheduler = dailyWorkloadEmailScheduler;
+// -------------------------------
+// Recommendation it22370228
+// -------------------------------
+exports.getRecommendations = getRecommendations;
+
+
+
 
 // -------------------------------
 // ML exports

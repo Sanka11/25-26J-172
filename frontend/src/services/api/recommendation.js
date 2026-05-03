@@ -1,5 +1,5 @@
 import axios from "axios";
-import { appConfig } from "../../config/env"; // Make sure this path points to your config file!
+import { appConfig } from "../../config/env";
 
 /**
  * Fetches personalized AI recommendations for a student or batch of students.
