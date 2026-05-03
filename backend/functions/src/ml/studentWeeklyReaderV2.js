@@ -32,20 +32,38 @@ async function getStudentWeeklyActivityV2(studentId, limit = 10) {
 
   // ---------------------------------------------
   // Firestore → GRU feature mapping
+  // Supports direct training format (login_count etc.)
+  // and legacy mapped format (login_freq etc.)
   // ---------------------------------------------
   const weeks = snapshot.docs.map(doc => {
     const row = doc.data();
 
+    // Direct training format — stored by addStudentWeeklyRecordController
+    if (row.login_count !== undefined) {
+      return {
+        login_count: Number(row.login_count) || 0,
+        avg_session_duration_min: Number(row.avg_session_duration_min) || 0,
+        total_active_time_min: Number(row.total_active_time_min) || 0,
+        days_since_last_login: Number(row.days_since_last_login) || 0,
+        page_views: Number(row.page_views) || 0,
+        assignments_submitted: Number(row.assignments_submitted) || 0,
+        on_time_submissions: Number(row.on_time_submissions) || 0,
+        late_submissions: Number(row.late_submissions) || 0,
+        alerts_responded: Number(row.alerts_responded) || 0,
+        response_rate: Number(row.response_rate) || 0,
+        week: row.week,
+      };
+    }
+
+    // Legacy mapped format
     const loginCount = row.login_freq ?? 0;
     const sessionDuration = row.session_duration ?? 0;
     const assignmentCompletion = row.assignment_completion ?? 0;
     const alertsResponded = row.alert_interactions ?? 0;
     const alertsSent = row.alerts_sent ?? 1;
-
     const assignmentsSubmitted = Math.round(assignmentCompletion * 5);
 
     return {
-      // ✅ GRU TRAINING FEATURES (EXACT MATCH)
       login_count: loginCount,
       avg_session_duration_min: sessionDuration,
       total_active_time_min: loginCount * sessionDuration,
@@ -55,14 +73,10 @@ async function getStudentWeeklyActivityV2(studentId, limit = 10) {
         (row.forum_posts ?? 0) * 5
       ),
       assignments_submitted: assignmentsSubmitted,
-      on_time_submissions: Math.round(
-        assignmentsSubmitted * assignmentCompletion
-      ),
+      on_time_submissions: Math.round(assignmentsSubmitted * assignmentCompletion),
       late_submissions: row.late_submissions ?? 0,
       alerts_responded: alertsResponded,
       response_rate: alertsResponded / Math.max(alertsSent, 1),
-
-      // (optional metadata, safe to keep)
       week: row.week,
     };
   });

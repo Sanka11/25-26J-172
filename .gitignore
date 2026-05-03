@@ -39,6 +39,7 @@ backend/.firebase/
 # Emulator artifacts
 firebase-debug.log
 firebase-debug.*.log
+backend/emulator-data/
 
 # -------------------------------
 # Python (ML service)
@@ -97,7 +98,7 @@ firebase-adminsdk-*.json
 .firebase/
 .gcloud/
 backend/functions/serviceAccountKey.json
-
+firebase_adminkey.json
 # -------------------------------
 # Frontend caches
 # -------------------------------

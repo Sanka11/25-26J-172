@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 # --------------------------------------------------
@@ -38,10 +38,11 @@ class RLOnlyRequest(BaseModel):
 
 # --------------------------------------------------
 # FULL PIPELINE REQUEST (GRU → RL)
+# risk_trend is now computed internally from GRU — field kept optional for backward compat
 # --------------------------------------------------
 class DisengagementRequest(BaseModel):
     last_10_weeks: List[WeeklyActivity]
-    risk_trend: str
+    risk_trend: Optional[str] = None
     last_action: str
     no_response_streak: int
     fatigue_level: int
