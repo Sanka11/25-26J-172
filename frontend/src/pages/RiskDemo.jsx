@@ -24,7 +24,7 @@ const ROLE_CONFIG = {
         label: "💡 Recommendations",
         desc: "AI-curated study advice",
       },
-      { to: "/levels", label: "📝 Quizzes", desc: "Test your knowledge" },
+      
       {
         to: "/WorkloadDashboard",
         label: "📅 Workload",
