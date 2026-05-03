@@ -1498,5 +1498,23 @@
     "datetime": "2026-05-01T15:19:40.032613",
     "question": "what is plagarisam",
     "answer": "Plagiarism means using someone else's words, ideas, or work as your own without proper credit. To avoid it, cite your sources clearly and use quotation marks for exact copied text."
+  },
+  {
+    "timestamp": 1777806230.6730382,
+    "datetime": "2026-05-03T16:33:50.673038",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1777823351.4645765,
+    "datetime": "2026-05-03T21:19:11.464576",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1777823424.7670949,
+    "datetime": "2026-05-03T21:20:24.767094",
+    "question": "what is SDLC",
+    "answer": "SDLC stands for Software Development Life Cycle. It's a process that outlin\u001b[6D\u001b[K\noutlines the steps and phases involved in developing software products.\n\nThe main phases of SDLC are:\n\n1. Planning\n2. Analysis\n3. Design\n4. Implementation\n5. Testing\n6. Deployment\n7. Maintenance."
   }
 ]
