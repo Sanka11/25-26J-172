@@ -2,6 +2,8 @@ const fetch = require("node-fetch");
 
 const ML_URL = "http://127.0.0.1:8000";
 
+const EPS = 0.002;
+
 exports.computeGru = async (req, res) => {
   try {
     const { weeks, previous_error } = req.body;
@@ -25,8 +27,9 @@ exports.computeGru = async (req, res) => {
 
     let risk_trend = "STABLE";
     if (previous_error !== null && previous_error !== undefined) {
-      if (reconstruction_error > previous_error) risk_trend = "INCREASING";
-      else if (reconstruction_error < previous_error) risk_trend = "DECREASING";
+      const delta = reconstruction_error - previous_error;
+      if (delta > EPS) risk_trend = "INCREASING";
+      else if (delta < -EPS) risk_trend = "DECREASING";
     }
 
     return res.json({ risk_level, reconstruction_error, risk_trend });

@@ -1,616 +1,501 @@
-import { useEffect, useState } from "react";
-import { getGruHistory } from "../../services/gruHistoryService";
+import { useEffect, useState, useMemo } from "react";
+import { db } from "../../config/firebase";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+
+const COLLECTION = "student_gru_risk_history";
+
+const RISK_CFG = {
+  high:   { badge: "bg-red-50 text-red-700 border-red-200",             dot: "bg-red-500"     },
+  medium: { badge: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500"   },
+  low:    { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+};
+
+function RiskBadge({ level }) {
+  const key = level?.toLowerCase();
+  const c = RISK_CFG[key] || { badge: "bg-slate-50 text-slate-500 border-slate-200", dot: "bg-slate-300" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${c.badge}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`} />
+      {level?.toUpperCase() || "—"}
+    </span>
+  );
+}
+
+function TrendPill({ trend }) {
+  const map = {
+    increasing: { label: "Increasing", cls: "text-red-600 border-red-200 bg-red-50",          icon: "↑" },
+    decreasing: { label: "Decreasing", cls: "text-emerald-600 border-emerald-200 bg-emerald-50", icon: "↓" },
+    stable:     { label: "Stable",     cls: "text-slate-500 border-slate-200 bg-slate-50",    icon: "→" },
+  };
+  const c = map[trend?.toLowerCase()] || { label: trend || "—", cls: "text-slate-400 border-slate-200 bg-slate-50", icon: "—" };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${c.cls}`}>
+      <span className="font-semibold">{c.icon}</span>{c.label}
+    </span>
+  );
+}
+
+function ErrorBar({ value, max }) {
+  const pct = max > 0 ? Math.min((value || 0) / max, 1) * 100 : 0;
+  const color = pct > 75 ? "bg-red-400" : pct > 50 ? "bg-amber-400" : pct > 25 ? "bg-blue-400" : "bg-emerald-400";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-xs font-semibold text-slate-600 tabular-nums">
+        {value != null ? value.toFixed(4) : "—"}
+      </span>
+      <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function Chip({ label, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200">
+      {label}
+      <button onClick={onRemove} className="ml-0.5 font-bold hover:opacity-70">×</button>
+    </span>
+  );
+}
+
+const TrashIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+
+function ConfirmInline({ message, onConfirm, onCancel, loading }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs text-slate-600 font-medium">{message}</span>
+      <button
+        onClick={onConfirm} disabled={loading}
+        className="px-3 py-1 bg-blue-950 hover:bg-blue-900 text-white text-xs font-semibold rounded-md disabled:opacity-50 transition"
+      >
+        {loading ? "Deleting…" : "Delete"}
+      </button>
+      <button
+        onClick={onCancel} disabled={loading}
+        className="px-3 py-1 border border-slate-300 text-slate-600 text-xs rounded-md hover:bg-slate-50 transition"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function formatDate(ts) {
+  if (!ts) return "—";
+  const d = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+  return d.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function GruRiskHistory() {
-  const [data, setData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
-  const [studentId, setStudentId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [searchMode, setSearchMode] = useState("all");
-  const [sortConfig, setSortConfig] = useState({ key: 'week', direction: 'desc' });
+  const [data, setData]             = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [search, setSearch]         = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
-  const [stats, setStats] = useState({
-    totalRecords: 0,
-    highRisk: 0,
-    mediumRisk: 0,
-    lowRisk: 0,
-    avgError: 0,
-    maxError: 0,
-    uniqueStudents: 0
-  });
+  const [expandedId, setExpandedId] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll]       = useState(null);
+  const [confirmDeleteRecord, setConfirmDeleteRecord] = useState(null);
+  const [deleting, setDeleting]                       = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const result = await getGruHistory(searchMode === 'single' ? studentId || null : null);
-      setData(result);
-      setFilteredData(result);
-      calculateStats(result);
-    } catch (error) {
-      console.error("Error loading data:", error);
+      const snap = await getDocs(collection(db, COLLECTION));
+      setData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("GRU history fetch error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
-    filterAndSortData();
-  }, [data, riskFilter, sortConfig, studentId, searchMode]);
-
-  const calculateStats = (data) => {
-    // Calculate actual stats from the data
-    const highCount = data.filter(item => item.risk_level?.toLowerCase() === 'high').length;
-    const mediumCount = data.filter(item => item.risk_level?.toLowerCase() === 'medium').length;
-    const lowCount = data.filter(item => item.risk_level?.toLowerCase() === 'low').length;
-    
-    // Calculate average error
-    let avgError = 0;
-    const errors = data.map(item => item.reconstruction_error || 0).filter(val => val > 0);
-    if (errors.length > 0) {
-      avgError = (errors.reduce((a, b) => a + b, 0) / errors.length).toFixed(4);
+  const deleteRecord = async () => {
+    if (!confirmDeleteRecord) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, COLLECTION, confirmDeleteRecord.docId));
+      setData(prev => prev.filter(r => r.id !== confirmDeleteRecord.docId));
+      setConfirmDeleteRecord(null);
+    } catch (err) {
+      console.error("Delete record error:", err);
+      alert("Failed to delete record: " + err.message);
+    } finally {
+      setDeleting(false);
     }
+  };
 
-    // Calculate max error for progress bars
-    const maxError = Math.max(...data.map(item => item.reconstruction_error || 0));
+  const deleteAllForStudent = async () => {
+    if (!confirmDeleteAll) return;
+    setDeleting(true);
+    try {
+      const toDelete = data.filter(r => r.student_id === confirmDeleteAll);
+      await Promise.all(toDelete.map(r => deleteDoc(doc(db, COLLECTION, r.id))));
+      setData(prev => prev.filter(r => r.student_id !== confirmDeleteAll));
+      if (expandedId === confirmDeleteAll) setExpandedId(null);
+      setConfirmDeleteAll(null);
+    } catch (err) {
+      console.error("Delete all error:", err);
+      alert("Failed to delete records: " + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-    // Count unique students
-    const uniqueStudents = new Set(data.map(item => item.student_id).filter(id => id)).size;
-
-    setStats({
-      totalRecords: data.length,
-      highRisk: highCount,
-      mediumRisk: mediumCount,
-      lowRisk: lowCount,
-      avgError: avgError,
-      maxError: maxError,
-      uniqueStudents: uniqueStudents
+  const studentMap = useMemo(() => {
+    const map = {};
+    data.forEach(item => {
+      if (!item.student_id) return;
+      (map[item.student_id] = map[item.student_id] || []).push(item);
     });
+    Object.values(map).forEach(arr => arr.sort((a, b) => (b.week || 0) - (a.week || 0)));
+    return map;
+  }, [data]);
+
+  const students = useMemo(() =>
+    Object.entries(studentMap).map(([sid, recs]) => ({
+      student_id: sid,
+      latest: recs[0],
+      history: recs,
+    }))
+  , [studentMap]);
+
+  const maxError = useMemo(() =>
+    Math.max(1, ...data.map(r => r.reconstruction_error || 0))
+  , [data]);
+
+  const stats = useMemo(() => {
+    const latest = students.map(s => s.latest);
+    return {
+      students:   students.length,
+      records:    data.length,
+      highRisk:   latest.filter(r => r.risk_level?.toLowerCase() === "high").length,
+      mediumRisk: latest.filter(r => r.risk_level?.toLowerCase() === "medium").length,
+      lowRisk:    latest.filter(r => r.risk_level?.toLowerCase() === "low").length,
+    };
+  }, [students, data]);
+
+  const filtered = useMemo(() =>
+    students.filter(s => {
+      if (search      && !s.student_id.toLowerCase().includes(search.toLowerCase())) return false;
+      if (riskFilter !== "all" && s.latest.risk_level?.toLowerCase() !== riskFilter) return false;
+      return true;
+    })
+  , [students, search, riskFilter]);
+
+  const toggle = (sid) => {
+    setConfirmDeleteAll(null);
+    setConfirmDeleteRecord(null);
+    setExpandedId(p => p === sid ? null : sid);
   };
-
-  const filterAndSortData = () => {
-    let filtered = [...data];
-
-    // Apply student ID filter based on search mode
-    if (searchMode === 'single' && studentId) {
-      filtered = filtered.filter(item => 
-        item.student_id?.toLowerCase() === studentId.toLowerCase()
-      );
-    }
-
-    // Apply risk filter
-    if (riskFilter !== 'all') {
-      filtered = filtered.filter(item => 
-        item.risk_level?.toLowerCase() === riskFilter.toLowerCase()
-      );
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      if (sortConfig.key === 'week') {
-        return sortConfig.direction === 'asc' 
-          ? (a.week || 0) - (b.week || 0)
-          : (b.week || 0) - (a.week || 0);
-      }
-      if (sortConfig.key === 'reconstruction_error') {
-        return sortConfig.direction === 'asc'
-          ? (a.reconstruction_error || 0) - (b.reconstruction_error || 0)
-          : (b.reconstruction_error || 0) - (a.reconstruction_error || 0);
-      }
-      return 0;
-    });
-
-    setFilteredData(filtered);
-  };
-
-  const handleSort = (key) => {
-    const direction = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc';
-    
-    const sorted = [...filteredData].sort((a, b) => {
-      if (key === 'week') {
-        return direction === 'asc' 
-          ? (a.week || 0) - (b.week || 0)
-          : (b.week || 0) - (a.week || 0);
-      }
-      if (key === 'reconstruction_error') {
-        return direction === 'asc'
-          ? (a.reconstruction_error || 0) - (b.reconstruction_error || 0)
-          : (b.reconstruction_error || 0) - (a.reconstruction_error || 0);
-      }
-      return 0;
-    });
-
-    setFilteredData(sorted);
-    setSortConfig({ key, direction });
-  };
-
-  const getRiskColor = (level) => {
-    switch(level?.toLowerCase()) {
-      case 'high': return 'bg-gradient-to-r from-red-50 to-red-100 text-red-700 border-red-200';
-      case 'medium': return 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-700 border-amber-200';
-      case 'low': return 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200';
-      default: return 'bg-gradient-to-r from-slate-50 to-slate-100 text-slate-600 border-slate-200';
-    }
-  };
-
-  const getTrendIcon = (trend) => {
-    switch(trend?.toLowerCase()) {
-      case 'increasing':
-        return (
-          <span className="inline-flex items-center gap-1 text-red-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-            Increasing
-          </span>
-        );
-      case 'decreasing':
-        return (
-          <span className="inline-flex items-center gap-1 text-green-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-            </svg>
-            Decreasing
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-slate-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
-            </svg>
-            Stable
-          </span>
-        );
-    }
-  };
-
-  const getErrorGradient = (error) => {
-    if (!stats.maxError) return 'from-slate-500 to-slate-500';
-    const percentage = (error / stats.maxError) * 100;
-    if (percentage > 75) return 'from-red-500 to-rose-500';
-    if (percentage > 50) return 'from-amber-500 to-orange-500';
-    if (percentage > 25) return 'from-blue-500 to-indigo-500';
-    return 'from-emerald-500 to-teal-500';
-  };
-
-  const clearFilters = () => {
-    setStudentId("");
-    setRiskFilter("all");
-    setSearchMode("all");
-    loadData();
-  };
-
-  // Calculate max risk count for distribution chart
-  const maxRiskCount = Math.max(stats.highRisk, stats.mediumRisk, stats.lowRisk);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Decorative Header Gradient */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 h-2"></div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header with Icon */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl p-3 shadow-lg shadow-blue-500/20">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-0.5 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-600" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-blue-900 flex items-center justify-center shadow-sm shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                GRU Risk History
-              </h1>
-              <p className="text-slate-500 mt-1 flex items-center">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></span>
-                Monitor and analyze GRU model risk predictions over time
+              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">GRU Risk History</h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                GRU model risk predictions · latest snapshot per student · click to expand
               </p>
             </div>
           </div>
-          
-          {/* Live Indicator */}
-          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-slate-200">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-sm">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
             </span>
-            <span className="text-sm font-medium text-slate-600">Live</span>
+            <span className="text-xs font-medium text-slate-600">Live</span>
           </div>
         </div>
 
-        {/* Stats Cards with Icons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
-          <div className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-blue-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Total Records</p>
-                <p className="text-3xl font-bold text-slate-800">{stats.totalRecords}</p>
-                <p className="text-xs text-slate-400 mt-1">Risk assessments</p>
-              </div>
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 group-hover:from-blue-100 group-hover:to-indigo-100 rounded-xl p-3 transition-colors">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            { label: "Students Tracked", value: stats.students,   accent: "border-blue-700",   num: "text-blue-900"  },
+            { label: "Total Records",    value: stats.records,    accent: "border-slate-300",  num: "text-slate-800" },
+            { label: "High Risk",        value: stats.highRisk,   accent: "border-red-400",    num: "text-slate-800" },
+            { label: "Medium Risk",      value: stats.mediumRisk, accent: "border-amber-400",  num: "text-slate-800" },
+            { label: "Low Risk",         value: stats.lowRisk,    accent: "border-emerald-400",num: "text-slate-800" },
+          ].map(({ label, value, accent, num }) => (
+            <div key={label} className={`bg-white rounded-xl px-4 py-4 border border-slate-200 border-l-4 ${accent} shadow-sm`}>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 leading-none">{label}</p>
+              <p className={`text-2xl font-bold leading-none ${num}`}>{value}</p>
             </div>
-          </div>
-
-          <div className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-red-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">High Risk</p>
-                <p className="text-3xl font-bold text-red-600">{stats.highRisk}</p>
-                <p className="text-xs text-slate-400 mt-1">Critical attention</p>
-              </div>
-              <div className="bg-gradient-to-br from-red-50 to-rose-50 group-hover:from-red-100 group-hover:to-rose-100 rounded-xl p-3 transition-colors">
-                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-amber-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Medium Risk</p>
-                <p className="text-3xl font-bold text-amber-600">{stats.mediumRisk}</p>
-                <p className="text-xs text-slate-400 mt-1">Monitor closely</p>
-              </div>
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 group-hover:from-amber-100 group-hover:to-orange-100 rounded-xl p-3 transition-colors">
-                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-emerald-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Low Risk</p>
-                <p className="text-3xl font-bold text-emerald-600">{stats.lowRisk}</p>
-                <p className="text-xs text-slate-400 mt-1">On track</p>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 group-hover:from-emerald-100 group-hover:to-teal-100 rounded-xl p-3 transition-colors">
-                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-purple-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Avg Error</p>
-                <p className="text-3xl font-bold text-purple-600">{stats.avgError}</p>
-                <p className="text-xs text-slate-400 mt-1">Reconstruction error</p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 group-hover:from-purple-100 group-hover:to-pink-100 rounded-xl p-3 transition-colors">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Risk Distribution Chart - Only show if there are records */}
-        {stats.totalRecords > 0 && (
-          <div className="bg-white rounded-2xl p-6 mb-8 border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-700 mb-4">Risk Distribution</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">High Risk</span>
-                  <span className="font-medium text-red-600">{stats.highRisk}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-red-500 to-rose-500"
-                    style={{ width: `${(stats.highRisk / stats.totalRecords) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">Medium Risk</span>
-                  <span className="font-medium text-amber-600">{stats.mediumRisk}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
-                    style={{ width: `${(stats.mediumRisk / stats.totalRecords) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">Low Risk</span>
-                  <span className="font-medium text-emerald-600">{stats.lowRisk}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                    style={{ width: `${(stats.lowRisk / stats.totalRecords) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
+        {/* Filter bar */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 max-w-xs">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search student ID…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-800/20 focus:border-blue-800 transition-all"
+              />
             </div>
+            <select
+              value={riskFilter}
+              onChange={e => setRiskFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-800/20 focus:border-blue-800 transition-all"
+            >
+              <option value="all">All Risk Levels</option>
+              <option value="high">High Risk</option>
+              <option value="medium">Medium Risk</option>
+              <option value="low">Low Risk</option>
+            </select>
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="bg-blue-900 hover:bg-blue-950 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all shadow-sm disabled:opacity-50 shrink-0"
+            >
+              <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {loading ? "Loading…" : "Refresh"}
+            </button>
           </div>
-        )}
-
-        {/* Search and Filter Section */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-8 border border-slate-200 shadow-sm">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-            {/* Search Mode Toggle */}
-            <div className="flex bg-slate-100 rounded-xl p-1 w-full md:w-auto">
-              <button
-                onClick={() => setSearchMode("all")}
-                className={`flex-1 md:flex-none px-4 py-2 rounded-lg transition-all ${
-                  searchMode === "all" 
-                    ? "bg-white text-blue-600 shadow-sm" 
-                    : "text-slate-600 hover:text-blue-600 hover:bg-white/50"
-                }`}
-              >
-                All Students
-              </button>
-              <button
-                onClick={() => setSearchMode("single")}
-                className={`flex-1 md:flex-none px-4 py-2 rounded-lg transition-all ${
-                  searchMode === "single" 
-                    ? "bg-white text-blue-600 shadow-sm" 
-                    : "text-slate-600 hover:text-blue-600 hover:bg-white/50"
-                }`}
-              >
-                Single Student
-              </button>
-            </div>
-
-            {/* Student ID Input */}
-            {searchMode === "single" && (
-              <div className="w-full md:flex-1 max-w-md">
-                <div className="relative">
-                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Enter Student ID"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Risk Level Filter */}
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <select
-                value={riskFilter}
-                onChange={(e) => setRiskFilter(e.target.value)}
-                className="flex-1 md:flex-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              >
-                <option value="all">All Risk Levels</option>
-                <option value="high">High Risk</option>
-                <option value="medium">Medium Risk</option>
-                <option value="low">Low Risk</option>
-              </select>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 w-full md:w-auto">
-              <button
-                onClick={loadData}
-                disabled={loading || (searchMode === 'single' && !studentId)}
-                className="flex-1 md:flex-none bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    Search
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={clearFilters}
-                className="flex-1 md:flex-none bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl transition-all border border-slate-200 shadow-sm hover:shadow"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          {/* Active Filters Display */}
-          {(studentId || riskFilter !== 'all') && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="text-sm text-slate-500">Active filters:</span>
-              {studentId && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  Student: {studentId}
-                  <button onClick={() => setStudentId("")} className="ml-1 hover:text-blue-900 font-bold">×</button>
-                </span>
-              )}
-              {riskFilter !== 'all' && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  Risk: {riskFilter}
-                  <button onClick={() => setRiskFilter("all")} className="ml-1 hover:text-blue-900 font-bold">×</button>
-                </span>
-              )}
+          {(search || riskFilter !== "all") && (
+            <div className="mt-3 flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-slate-400">Active filters:</span>
+              {search           && <Chip label={`ID: ${search}`}          onRemove={() => setSearch("")} />}
+              {riskFilter !== "all" && <Chip label={`Risk: ${riskFilter}`} onRemove={() => setRiskFilter("all")} />}
             </div>
           )}
         </div>
 
-        {/* Data Table */}
-        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th 
-                    className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer group"
-                    onClick={() => handleSort('week')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Week
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        {sortConfig.key === 'week' ? (
-                          <span className="text-blue-600">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        ) : (
-                          <span className="text-slate-400">↕️</span>
-                        )}
-                      </span>
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Risk Level
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Trend
-                  </th>
-                  <th 
-                    className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer group"
-                    onClick={() => handleSort('reconstruction_error')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Error
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        {sortConfig.key === 'reconstruction_error' ? (
-                          <span className="text-blue-600">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        ) : (
-                          <span className="text-slate-400">↕️</span>
-                        )}
-                      </span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <div className="relative">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                        </div>
-                        <p className="mt-4 text-slate-600 font-medium">Loading risk history data...</p>
-                        <p className="text-sm text-slate-400">Please wait a moment</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredData.length > 0 ? (
-                  filteredData.map((row, index) => (
-                    <tr 
-                      key={row.id || `${row.student_id}-${row.week}-${index}`} 
-                      className="hover:bg-slate-50 transition-colors group"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="relative">
-                            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-                              {row.student_id?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
-                            {row.risk_level?.toLowerCase() === 'high' && (
-                              <span className="absolute -bottom-1 -right-1 block h-3 w-3 rounded-full ring-2 ring-white bg-red-500"></span>
-                            )}
+        {/* Student list */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+            <p className="text-sm text-slate-500">
+              {loading
+                ? "Loading…"
+                : <><span className="font-semibold text-slate-800">{filtered.length}</span> student{filtered.length !== 1 ? "s" : ""} · <span className="font-semibold text-slate-800">{data.length}</span> total records</>
+              }
+            </p>
+            <span className="text-xs text-slate-400">Click a row to expand</span>
+          </div>
+
+          {loading && (
+            <div className="py-16 flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-9 w-9 border-2 border-blue-200 border-t-blue-800" />
+              <p className="text-sm text-slate-500">Loading GRU risk history…</p>
+            </div>
+          )}
+
+          {!loading && filtered.length === 0 && (
+            <div className="py-16 flex flex-col items-center gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <p className="text-slate-600 font-medium">No records found</p>
+              <p className="text-xs text-slate-400">Try adjusting your filters or run a GRU prediction first</p>
+            </div>
+          )}
+
+          {!loading && filtered.length > 0 && (
+            <div className="divide-y divide-slate-100">
+              {filtered.map(({ student_id, latest, history }) => {
+                const isOpen        = expandedId === student_id;
+                const isDeletingAll = confirmDeleteAll === student_id;
+
+                return (
+                  <div key={student_id} className="group">
+
+                    {/* Student row */}
+                    <div className={`px-5 py-3.5 transition-colors ${isOpen ? "bg-blue-50/40" : "hover:bg-slate-50/80"}`}>
+                      <div className="flex items-center gap-3">
+
+                        <button
+                          onClick={() => toggle(student_id)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left flex-wrap"
+                        >
+                          <div className="h-9 w-9 rounded-lg bg-blue-900 flex items-center justify-center text-white font-bold text-xs shrink-0 select-none">
+                            {student_id?.slice(-2) || "??"}
                           </div>
-                          <span className="ml-3 text-sm font-medium text-slate-800">
-                            {row.student_id || 'N/A'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          Week {row.week || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium border ${getRiskColor(row.risk_level)}`}>
-                          {row.risk_level || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getTrendIcon(row.risk_trend)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-mono text-slate-700">
-                            {row.reconstruction_error ? row.reconstruction_error.toFixed(4) : 'N/A'}
-                          </span>
-                          {row.reconstruction_error && stats.maxError > 0 && (
-                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full bg-gradient-to-r ${getErrorGradient(row.reconstruction_error)}`}
-                                style={{ width: `${(row.reconstruction_error / stats.maxError) * 100}%` }}
-                              ></div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center">
-                        <div className="bg-slate-50 rounded-full p-4 mb-3">
-                          <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                        </div>
-                        <p className="text-slate-700 text-lg font-medium">No risk data available</p>
-                        <p className="text-slate-400 text-sm mt-1">Try adjusting your filters or search criteria</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
 
-          {/* Table Footer */}
-          {!loading && filteredData.length > 0 && (
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  Showing <span className="font-semibold text-slate-800">{filteredData.length}</span> of{' '}
-                  <span className="font-semibold text-slate-800">{data.length}</span> records
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Last updated: {new Date().toLocaleString()}
+                          <div className="min-w-[90px] shrink-0">
+                            <p className="font-mono font-semibold text-slate-800 text-sm leading-none">{student_id}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{history.length} week{history.length !== 1 ? "s" : ""}</p>
+                          </div>
+
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-mono shrink-0">
+                            Week {latest.week ?? "—"}
+                          </span>
+                          <RiskBadge level={latest.risk_level} />
+                          <TrendPill trend={latest.risk_trend} />
+
+                          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                            <span>Error</span>
+                            <ErrorBar value={latest.reconstruction_error} max={maxError} />
+                          </div>
+                        </button>
+
+                        <div className="shrink-0 flex items-center gap-1.5 ml-auto">
+                          {isDeletingAll ? (
+                            <ConfirmInline
+                              message={`Delete all ${history.length} records for ${student_id}?`}
+                              onConfirm={deleteAllForStudent}
+                              onCancel={() => setConfirmDeleteAll(null)}
+                              loading={deleting}
+                            />
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); setConfirmDeleteRecord(null); setConfirmDeleteAll(student_id); }}
+                              className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all"
+                              title="Delete all records for this student"
+                            >
+                              <TrashIcon /> Delete All
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => toggle(student_id)}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                          >
+                            <svg
+                              className={`w-4 h-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded panel */}
+                    {isOpen && (
+                      <div className="border-t border-slate-100 bg-blue-50/20 px-5 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            Week-by-week history — {history.length} record{history.length !== 1 ? "s" : ""}
+                          </p>
+                          <button
+                            onClick={() => toggle(student_id)}
+                            className="text-xs text-slate-400 hover:text-slate-600 transition"
+                          >
+                            Collapse ↑
+                          </button>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-left text-xs text-slate-500 uppercase tracking-wider">
+                                <th className="px-4 py-3 font-semibold">Week</th>
+                                <th className="px-4 py-3 font-semibold">Risk Level</th>
+                                <th className="px-4 py-3 font-semibold">Trend</th>
+                                <th className="px-4 py-3 font-semibold">Reconstruction Error</th>
+                                <th className="px-4 py-3 font-semibold">Run Date</th>
+                                <th className="px-4 py-3 font-semibold w-10" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {history.map((rec, i) => {
+                                const isConfirmingThis = confirmDeleteRecord?.docId === rec.id;
+                                return (
+                                  <tr
+                                    key={rec.id || i}
+                                    className={`group/row transition-colors ${i === 0 ? "bg-blue-50/40" : "hover:bg-slate-50"}`}
+                                  >
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs text-slate-700">Week {rec.week ?? "—"}</span>
+                                        {i === 0 && (
+                                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 text-xs rounded font-semibold">
+                                            latest
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <RiskBadge level={rec.risk_level} />
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <TrendPill trend={rec.risk_trend} />
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <ErrorBar value={rec.reconstruction_error} max={maxError} />
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
+                                      {formatDate(rec.createdAt)}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                      {isConfirmingThis ? (
+                                        <ConfirmInline
+                                          message={`Delete week ${rec.week}?`}
+                                          onConfirm={deleteRecord}
+                                          onCancel={() => setConfirmDeleteRecord(null)}
+                                          loading={deleting}
+                                        />
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            setConfirmDeleteAll(null);
+                                            setConfirmDeleteRecord({ studentId: student_id, docId: rec.id, week: rec.week });
+                                          }}
+                                          className="opacity-0 group-hover/row:opacity-100 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                          title={`Delete week ${rec.week} record`}
+                                        >
+                                          <TrashIcon />
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
-                  {stats.uniqueStudents > 0 && (
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-200">
-                      {stats.uniqueStudents} unique students
-                    </span>
-                  )}
-                </div>
-              </div>
+                );
+              })}
             </div>
           )}
+
+          {!loading && filtered.length > 0 && (
+            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between text-xs text-slate-400">
+              <span>
+                {filtered.length} of {students.length} student{students.length !== 1 ? "s" : ""} · {data.length} total records
+              </span>
+              <span>Updated {new Date().toLocaleTimeString()}</span>
+            </div>
+          )}
+
         </div>
+
       </div>
     </div>
   );

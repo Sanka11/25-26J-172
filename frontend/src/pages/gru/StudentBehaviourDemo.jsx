@@ -301,20 +301,26 @@ export default function StudentBehaviourDemo() {
     setGruError(null);
     try {
       // 1. Read last 10 weeks from real Firestore
-      const allWeeks  = await getStudentWeeks(studentId);
+      const allWeeks   = await getStudentWeeks(studentId);
       if (allWeeks.length < 10) throw new Error("Need at least 10 weeks of data");
-      const last10    = allWeeks.slice(-10);
+      const last10     = allWeeks.slice(-10);
       const latestWeek = last10[last10.length - 1].week;
-      const weeks     = last10.map(extractWeekFields);
+      const latestWeekNum = parseWeekNum(latestWeek);
+      const weeks      = last10.map(extractWeekFields);
 
-      // 2. Read previous GRU result for trend calculation
+      // 2. Get previous GRU error — only from a DIFFERENT (earlier) week.
+      //    This prevents the "run GRU twice → STABLE" bug where comparing
+      //    the same week's error against itself always returns no change.
       const prevSnap  = await getDocs(
         query(collection(db, "student_gru_risk_history"), where("student_id", "==", studentId))
       );
-      const prevDocs  = prevSnap.docs.map(d => d.data()).sort((a, b) => parseWeekNum(a.week) - parseWeekNum(b.week));
-      const prevError = prevDocs.length > 0 ? prevDocs[prevDocs.length - 1].reconstruction_error : null;
+      const prevRecord = prevSnap.docs
+        .map(d => d.data())
+        .filter(d => parseWeekNum(d.week) < latestWeekNum)
+        .sort((a, b) => parseWeekNum(b.week) - parseWeekNum(a.week))[0] || null;
+      const prevError = prevRecord ? prevRecord.reconstruction_error : null;
 
-      // 3. Call backend for ML computation only (no Firestore in backend)
+      // 3. Call backend with previous_error for trend calculation
       const res = await fetch(`${BASE_URL}/gru/compute-only`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -329,7 +335,7 @@ export default function StudentBehaviourDemo() {
         week: latestWeek,
         reconstruction_error: data.reconstruction_error,
         risk_level: data.risk_level,
-        risk_trend: data.risk_trend,
+        risk_trend: data.risk_trend || "STABLE",
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(db, "student_gru_risk_history", gruRlDocId(studentId, latestWeek)), record);
