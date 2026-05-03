@@ -18,16 +18,12 @@ import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
 import XAIAdminDashboard from "./pages/XAIAdminDashboard";
 import StudentProfileManagement from "./pages/StudentProfileManagement";
 
-//savindi
+//recommendatiuon it22370228
 import WorkloadDashboard from "./pages/StudentDashboard";
 import Recommendation from "./componets/RecommendationDashboard";
-import CreateQuiz from "./pages/CreateQuiz";
-import TakeQuiz from "./pages/TakeQuiz";
-import Levels from "./pages/Levels";
-import CareerReadiness from "./pages/CareerReadiness";
 import AdminWorkloadTracker from "./pages/AdminWorkloadTracker";
 
-//
+
 
 import PdfUpload from "./pages/PdfUpload";
 import Chat from "./pages/Chat";
@@ -168,14 +164,7 @@ function MainShell() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/create-quiz"
-          element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
-              <CreateQuiz />
-            </ProtectedRoute>
-          }
-        />
+        
         <Route
           path="/admin/adminworkload"
           element={
@@ -297,10 +286,7 @@ function MainShell() {
         <Route path="/my-risk" element={<StudentRiskDashboard />} />
         <Route path="/xai-admin" element={<XAIAdminDashboard />} />
         <Route path="/lecturer-risk" element={<LecturerRiskDashboard />} />
-        <Route path="/levels" element={<Levels currentLevel={1} />} />
-        <Route path="/quiz/:level" element={<TakeQuiz />} />
-        <Route path="/careerReadiness" element={<CareerReadiness />} />
-
+       
         <Route
           path="/admin/student-profiles"
           element={
