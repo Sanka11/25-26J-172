@@ -137,9 +137,6 @@ def get_student_recommendations(request: RecommendationRequest):
     return predict_recommendations(request)
 
 
-# -----------------------------------------------------------
-# STRUGGLE
-# -----------------------------------------------------------
 
 
 
