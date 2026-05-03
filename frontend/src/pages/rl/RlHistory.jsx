@@ -72,22 +72,25 @@ export default function RlHistory() {
   const formatDate = (timestamp) => {
     if (!timestamp) return "-";
 
-    if (timestamp._seconds) {
-      return new Date(timestamp._seconds * 1000).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+    // Firestore Timestamp object (client SDK)
+    if (timestamp?.toDate) {
+      return timestamp.toDate().toLocaleString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    // Serialised Firestore timestamp { seconds, nanoseconds }
+    if (timestamp?.seconds) {
+      return new Date(timestamp.seconds * 1000).toLocaleString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       });
     }
 
     return new Date(timestamp).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   };
 
@@ -320,7 +323,7 @@ export default function RlHistory() {
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getRiskBadge(item.current_risk)}
+                        {getRiskBadge(item.risk_level)}
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -340,20 +343,20 @@ export default function RlHistory() {
 
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                          {item.recommended_action || '-'}
+                          {item.action || '-'}
                         </span>
                       </td>
 
                       <td className="px-6 py-4">
                         <p className="text-sm text-slate-600 line-clamp-2">
-                          {item.reason || '-'}
+                          {item.decision_reason || '-'}
                         </p>
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 text-sm text-slate-600">
                           <Calendar className="w-3 h-3 text-slate-400" />
-                          {formatDate(item.run_date)}
+                          {formatDate(item.createdAt)}
                         </div>
                       </td>
                     </tr>
