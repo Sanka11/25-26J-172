@@ -1,17 +1,15 @@
-import axios from "axios";
-
-const BASE_URL =
-  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/api/api";
+import { db } from "../config/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export const getRlHistory = async (studentId = null) => {
   try {
-    const url = studentId
-      ? `${BASE_URL}/ml/rl-intervention-history/${studentId}`
-      : `${BASE_URL}/ml/rl-intervention-history`;
+    const colRef = collection(db, "student_rl_intervention_history");
+    const q = studentId
+      ? query(colRef, where("student_id", "==", studentId))
+      : colRef;
 
-    const res = await axios.get(url);
-
-    return res.data.data;
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("RL history fetch error:", error);
     return [];

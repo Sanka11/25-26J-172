@@ -11,17 +11,17 @@ import {
 
 export default function DisengagementHub() {
   const gruItems = [
-    {
-      to: "/gru/batch",
-      title: "Run GRU Batch",
-      description: "Execute Gated Recurrent Unit model batch processing",
-      icon: Brain,
-      color: "from-blue-600 to-blue-700",
-      hoverColor: "from-blue-700 to-blue-800",
-      borderColor: "border-blue-200",
-      bgLight: "bg-blue-50",
-      iconColor: "text-blue-600"
-    },
+    // {
+    //   to: "/gru/batch",
+    //   title: "Run GRU Batch",
+    //   description: "Execute Gated Recurrent Unit model batch processing",
+    //   icon: Brain,
+    //   color: "from-blue-600 to-blue-700",
+    //   hoverColor: "from-blue-700 to-blue-800",
+    //   borderColor: "border-blue-200",
+    //   bgLight: "bg-blue-50",
+    //   iconColor: "text-blue-600"
+    // },
     {
       to: "/gru/risk-history",
       title: "GRU Risks History",
@@ -36,17 +36,17 @@ export default function DisengagementHub() {
   ];
 
   const rlItems = [
-    {
-      to: "/rl/batch",
-      title: "Run RL Batch",
-      description: "Execute Reinforcement Learning model batch processing",
-      icon: Network,
-      color: "from-green-600 to-green-700",
-      hoverColor: "from-green-700 to-green-800",
-      borderColor: "border-green-200",
-      bgLight: "bg-green-50",
-      iconColor: "text-green-600"
-    },
+    // {
+    //   to: "/rl/batch",
+    //   title: "Run RL Batch",
+    //   description: "Execute Reinforcement Learning model batch processing",
+    //   icon: Network,
+    //   color: "from-green-600 to-green-700",
+    //   hoverColor: "from-green-700 to-green-800",
+    //   borderColor: "border-green-200",
+    //   bgLight: "bg-green-50",
+    //   iconColor: "text-green-600"
+    // },
     {
       to: "/rl/intervention-history",
       title: "RL History",

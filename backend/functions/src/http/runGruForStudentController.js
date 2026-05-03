@@ -88,26 +88,29 @@ exports.runGruForStudent = async (req, res) => {
 
     // ----------------------------------------
     // Get previous GRU run to calculate trend
+    // Only compare against a record from a DIFFERENT (earlier) week
+    // to avoid comparing against the same run repeated
     // ----------------------------------------
     const prevSnapshot = await db
       .collection("student_gru_risk_history")
       .where("student_id", "==", studentId)
       .orderBy("createdAt", "desc")
-      .limit(1)
+      .limit(5)
       .get();
 
     let risk_trend = "STABLE";
+    const EPS = 0.002;
 
     if (!prevSnapshot.empty) {
+      const prevRecord = prevSnapshot.docs
+        .map(d => d.data())
+        .find(d => d.week !== lastWeek);
 
-      const prevError = prevSnapshot.docs[0].data().reconstruction_error;
-
-      if (reconstruction_error > prevError) {
-        risk_trend = "INCREASING";
-      } else if (reconstruction_error < prevError) {
-        risk_trend = "DECREASING";
-      } else {
-        risk_trend = "STABLE";
+      if (prevRecord) {
+        const prevError = prevRecord.reconstruction_error;
+        const delta = reconstruction_error - prevError;
+        if (delta > EPS) risk_trend = "INCREASING";
+        else if (delta < -EPS) risk_trend = "DECREASING";
       }
     }
 

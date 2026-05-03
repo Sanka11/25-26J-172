@@ -5,24 +5,22 @@ async function getRlHistory(req, res) {
   try {
     const { studentId } = req.params;
 
-    let query = db.collection("student_rl_intervention_history");
+    let q = db.collection("student_rl_intervention_history");
 
     if (studentId) {
-      query = query
-        .where("student_id", "==", studentId)
-        .orderBy("run_date", "desc");
+      q = q.where("student_id", "==", studentId).orderBy("createdAt", "desc");
     } else {
-      query = query.orderBy("run_date", "desc");
+      q = q.orderBy("createdAt", "desc");
     }
 
-    const snap = await query.limit(500).get();
+    const snap = await q.limit(500).get();
 
     const results = snap.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
 
-    return res.json(results);
+    return res.json({ data: results });
 
   } catch (error) {
     console.error("RL history fetch error:", error);
