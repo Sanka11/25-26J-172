@@ -1528,5 +1528,17 @@
     "datetime": "2026-05-04T19:17:57.771138",
     "question": "hi",
     "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1777911535.685983,
+    "datetime": "2026-05-04T21:48:55.685982",
+    "question": "hi",
+    "answer": "Hi!I'm AcademiGuard, How can I help you today?"
+  },
+  {
+    "timestamp": 1777911581.2136915,
+    "datetime": "2026-05-04T21:49:41.213691",
+    "question": "what is SDLC",
+    "answer": "SDLC stands for Software Development Life Cycle (SDLC). It describes the ph\u001b[2D\u001b[K\nphases and progression between software development phases.\n\nThere are typically 5 phases in an SDLC:\n\n1. Requirements\n2. Analysis\n3. Design\n4. Implementation\n5. Testing\n\nThis cycle helps organizations manage their software development process fr\u001b[2D\u001b[K\nfrom start to finish."
   }
 ]

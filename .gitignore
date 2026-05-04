@@ -51,6 +51,8 @@ ml-service/venv/
 *.pyc
 *.pyo
 *.pyd
+venv_xai/
+ml-service/venv_xai/
 
 # ML model files
 #*.joblib

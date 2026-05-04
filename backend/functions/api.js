@@ -57,6 +57,34 @@ app.get("/api/students/:studentId/performance", getStudentPerformance);
 app.get("/api/students/performance/classify", getStudentsByPerformance);
 
 // ----------------------------------------------------
+// Student Profile (student_acc) + Marks Update
+// ----------------------------------------------------
+const { getStudentProfile } = require("./src/http/studentAccController");
+const { updateStudentMarks } = require("./src/http/updateStudentMarksController");
+const { updateStudentLifestyle } = require("./src/http/updateStudentLifestyleController");
+const axios = require("axios");
+const { ML_XAI_BASE_URL } = require("./src/config");
+
+app.get("/api/students/:studentId/profile", getStudentProfile);
+app.post("/api/students/:studentId/update-marks", updateStudentMarks);
+app.patch("/api/students/:studentId/lifestyle", updateStudentLifestyle);
+
+// What-if next-semester prediction — proxies to XAI service, never stored
+app.post("/api/predict-risk/next-semester", async (req, res) => {
+  try {
+    const response = await axios.post(
+      `${ML_XAI_BASE_URL}/predict-risk/next-semester`,
+      req.body,
+      { timeout: 30000 },
+    );
+    return res.status(200).json(response.data);
+  } catch (err) {
+    console.error("Next-semester prediction error:", err.message);
+    return res.status(502).json({ error: "ML service unavailable", details: err.message });
+  }
+});
+
+// ----------------------------------------------------
 // Risk real-time
 // ----------------------------------------------------
 const {
