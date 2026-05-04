@@ -300,9 +300,10 @@ export default function StudentProfile() {
   const [lastResult,    setLastResult]    = useState(null);
   const [showLifestyle, setShowLifestyle] = useState(false);
   const [lifestyleForm, setLifestyleForm] = useState({ Study_Hours_per_Week: "", Stress_Level: "", Sleep_Hours_per_Night: "" });
-  const [lifestyleSaving, setLifestyleSaving] = useState(false);
-  const [lifestyleError,  setLifestyleError]  = useState("");
-  const [lifestyleDone,   setLifestyleDone]   = useState(false);
+  const [lifestyleSaving,  setLifestyleSaving]  = useState(false);
+  const [lifestyleError,   setLifestyleError]   = useState("");
+  const [lifestyleDone,    setLifestyleDone]    = useState(false);
+  const [lifestyleRisk,    setLifestyleRisk]    = useState(null);
 
   const loadProfile = async (id) => {
     if (!id) return;
@@ -354,8 +355,9 @@ export default function StudentProfile() {
       if (lifestyleForm.Study_Hours_per_Week  !== "") payload.Study_Hours_per_Week  = Number(lifestyleForm.Study_Hours_per_Week);
       if (lifestyleForm.Stress_Level          !== "") payload.Stress_Level          = Number(lifestyleForm.Stress_Level);
       if (lifestyleForm.Sleep_Hours_per_Night !== "") payload.Sleep_Hours_per_Night = Number(lifestyleForm.Sleep_Hours_per_Night);
-      await updateStudentLifestyle(loadedId, payload);
+      const result = await updateStudentLifestyle(loadedId, payload);
       setLifestyleDone(true);
+      setLifestyleRisk(result?.risk_recalculated ? result : null);
       setShowLifestyle(false);
       loadProfile(loadedId);
     } catch (err) {
@@ -502,9 +504,9 @@ export default function StudentProfile() {
                       </div>
                     )}
 
-                    {profile.risk_predicted_at && (
+                    {profile.risk_predicted_at?.seconds && (
                       <p className="text-xs text-slate-400 mt-3">
-                        Last calculated: {new Date(profile.risk_predicted_at?.seconds * 1000).toLocaleDateString()}
+                        Last calculated: {new Date(profile.risk_predicted_at.seconds * 1000).toLocaleDateString()}
                       </p>
                     )}
                   </>
@@ -566,11 +568,17 @@ export default function StudentProfile() {
                 </div>
                 <div className="border-t border-slate-100 mt-6 pt-5">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Lifestyle Metrics</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-4">
-                    {LIFESTYLE_FIELDS.map(({ key, label, max, suffix }) => (
-                      <MarkBar key={key} label={label} value={profile[key]} max={max} suffix={suffix} />
-                    ))}
-                  </div>
+                  {LIFESTYLE_FIELDS.every(({ key }) => profile[key] == null) ? (
+                    <p className="text-sm text-slate-400 italic">
+                      Not set yet — student can update these from their profile page.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-4">
+                      {LIFESTYLE_FIELDS.map(({ key, label, max, suffix }) => (
+                        <MarkBar key={key} label={label} value={profile[key]} max={max} suffix={suffix} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -590,7 +598,11 @@ export default function StudentProfile() {
                 </button>
 
                 {lifestyleDone && !showLifestyle && (
-                  <p className="text-sm text-green-600 mt-3">Lifestyle updated successfully.</p>
+                  <p className="text-sm text-green-600 mt-3">
+                    {lifestyleRisk
+                      ? `Lifestyle saved & risk updated — ${lifestyleRisk.risk_percentage}% (${lifestyleRisk.risk_level})`
+                      : "Lifestyle saved. Start the XAI service to recalculate risk."}
+                  </p>
                 )}
 
                 {showLifestyle && (
@@ -620,7 +632,7 @@ export default function StudentProfile() {
                       disabled={lifestyleSaving}
                       className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl text-sm transition-all"
                     >
-                      {lifestyleSaving ? "Saving…" : "Save Lifestyle Data"}
+                      {lifestyleSaving ? "Saving & recalculating risk…" : "Save & Recalculate Risk"}
                     </button>
                   </div>
                 )}
