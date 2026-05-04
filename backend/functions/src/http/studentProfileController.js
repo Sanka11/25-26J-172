@@ -48,15 +48,15 @@ function buildMlPayload(s) {
   return {
     Attendance_pct: Number(s.attendance_pct ?? s.Attendance_pct ?? 75),
     Midterm_Score: Number(s.midterm_score ?? s.Midterm_Score ?? 60),
-    Final_Score: Number(s.Final_Score ?? 0),
+    Final_Score: Number(s.final_score ?? s.Final_Score ?? 0),
     Assignments_Avg: Number(s.assignments_avg ?? s.Assignments_Avg ?? 60),
     Quizzes_Avg: Number(s.quizzes_avg ?? s.Quizzes_Avg ?? 60),
-    Participation_Score: Number(s.Participation_Score ?? 0),
+    Participation_Score: Number(s.participation_score ?? s.Participation_Score ?? 0),
     Projects_Score: Number(s.projects_score ?? s.Projects_Score ?? 60),
     Age: Number(s.age ?? s.Age ?? 21),
-    Study_Hours_per_Week: Number(s.Study_Hours_per_Week ?? 10),
-    Stress_Level: Number(s.Stress_Level ?? 5),
-    Sleep_Hours_per_Night: Number(s.Sleep_Hours_per_Night ?? 7),
+    Study_Hours_per_Week: Number(s.study_hours_per_week ?? s.Study_Hours_per_Week ?? 10),
+    Stress_Level: Number(s.stress_level ?? s.Stress_Level ?? 5),
+    Sleep_Hours_per_Night: Number(s.sleep_hours_per_night ?? s.Sleep_Hours_per_Night ?? 7),
     Gender: String(s.gender ?? "Male"),
     Department: String(s.department ?? "Computer Science"),
     Extracurricular_Activities: String(s.extracurricular_activities ?? "No"),
@@ -200,10 +200,10 @@ function buildStudentAccDoc(s) {
     Participation_Score: isNew ? 0 : Number(s.participation_score) || 0,
     Projects_Score:      isNew ? 0 : Number(s.projects_score)    || 0,
 
-    // Lifestyle
-    Study_Hours_per_Week:  Number(s.study_hours_per_week)  || 0,
-    Stress_Level:          Number(s.stress_level)          || 5,
-    Sleep_Hours_per_Night: Number(s.sleep_hours_per_night) || 7,
+    // Lifestyle — null until student explicitly saves these in their profile
+    Study_Hours_per_Week:  s.study_hours_per_week  != null ? Number(s.study_hours_per_week)  : null,
+    Stress_Level:          s.stress_level          != null ? Number(s.stress_level)          : null,
+    Sleep_Hours_per_Night: s.sleep_hours_per_night != null ? Number(s.sleep_hours_per_night) : null,
 
     // Risk fields — null until ML runs
     risk_score:       null,
@@ -275,9 +275,11 @@ const createStudentProfile = onRequest(async (req, res) => {
       risk_predicted: riskResult !== null,
       risk_level: riskResult?.risk_level ?? null,
       risk_percentage: riskResult?.risk_percentage ?? null,
-      note: hasScores(student)
-        ? "Risk prediction ran automatically"
-        : "New student — risk prediction skipped (no scores yet)",
+      note: !hasScores(student)
+        ? "New student — risk prediction skipped (no scores yet)"
+        : riskResult !== null
+          ? "Risk prediction ran automatically"
+          : "Risk prediction attempted but ML service was unreachable — start XAI service on port 8001 and re-save marks",
     });
   } catch (err) {
     console.error("createStudentProfile error:", err);

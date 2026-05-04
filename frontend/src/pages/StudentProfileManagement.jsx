@@ -39,7 +39,9 @@ const EMPTY_FORM = {
   // Academic scores — only used when NOT Year 1 Semester 1
   assignments_avg: "",
   attendance_pct: "",
+  final_score: "",
   midterm_score: "",
+  participation_score: "",
   projects_score: "",
   quizzes_avg: "",
 };
@@ -64,7 +66,9 @@ const CSV_HEADERS = [
   "family_income_level",
   "assignments_avg",
   "attendance_pct",
+  "final_score",
   "midterm_score",
+  "participation_score",
   "projects_score",
   "quizzes_avg",
 ];
@@ -90,10 +94,10 @@ function parseCSV(text) {
 function downloadTemplate() {
   const samples = [
     // Year 1 Sem 1 — new student, scores left blank
-    "S5000,Ashan,Perera,ashan.perera@university.edu,Male,21,Computer Science,1,Semester 1,Yes,Yes,Bachelor,Medium,,,,,",
+    "S5000,Ashan,Perera,ashan.perera@university.edu,Male,21,Computer Science,1,Semester 1,Yes,Yes,Bachelor,Medium,,,,,,,",
     // Year 2+ — existing student, scores required
-    "S5001,Nimasha,Silva,nimasha.silva@university.edu,Female,22,Engineering,3,Semester 2,No,Yes,Master's,High,75,80,70,65,72",
-    "S5002,Kasun,Fernando,kasun.fernando@university.edu,Male,20,Business,2,Semester 1,Yes,Yes,High School,Low,60,55,65,58,62",
+    "S5001,Nimasha,Silva,nimasha.silva@university.edu,Female,22,Engineering,3,Semester 2,No,Yes,Master's,High,75,80,72,70,15,65,72",
+    "S5002,Kasun,Fernando,kasun.fernando@university.edu,Male,20,Business,2,Semester 1,Yes,Yes,High School,Low,60,55,58,65,10,58,62",
   ];
   const content = [CSV_HEADERS.join(","), ...samples].join("\n");
   const blob = new Blob([content], { type: "text/csv" });
@@ -156,11 +160,13 @@ function SingleStudentForm({ onSuccess }) {
     // Score validation — only required for non-new students
     if (!isNewStudent(form.current_year, form.current_semester)) {
       const scoreFields = [
-        { key: "assignments_avg", label: "Assignments Avg" },
-        { key: "attendance_pct", label: "Attendance %" },
-        { key: "midterm_score", label: "Midterm Score" },
-        { key: "projects_score", label: "Projects Score" },
-        { key: "quizzes_avg", label: "Quizzes Avg" },
+        { key: "assignments_avg",    label: "Assignments Avg" },
+        { key: "attendance_pct",     label: "Attendance %" },
+        { key: "final_score",        label: "Final Score" },
+        { key: "midterm_score",      label: "Midterm Score" },
+        { key: "participation_score", label: "Participation Score" },
+        { key: "projects_score",     label: "Projects Score" },
+        { key: "quizzes_avg",        label: "Quizzes Avg" },
       ];
       scoreFields.forEach(({ key, label }) => {
         if (form[key] === "" || form[key] === null || form[key] === undefined)
@@ -199,21 +205,27 @@ function SingleStudentForm({ onSuccess }) {
 
       // Include scores only for non-new students
       if (!isNewStudent(form.current_year, form.current_semester)) {
-        payload.assignments_avg = Number(form.assignments_avg);
-        payload.attendance_pct = Number(form.attendance_pct);
-        payload.midterm_score = Number(form.midterm_score);
-        payload.projects_score = Number(form.projects_score);
-        payload.quizzes_avg = Number(form.quizzes_avg);
+        payload.assignments_avg     = Number(form.assignments_avg);
+        payload.attendance_pct      = Number(form.attendance_pct);
+        payload.final_score         = Number(form.final_score);
+        payload.midterm_score       = Number(form.midterm_score);
+        payload.participation_score = Number(form.participation_score);
+        payload.projects_score      = Number(form.projects_score);
+        payload.quizzes_avg         = Number(form.quizzes_avg);
       }
 
-      await createStudentProfile(payload);
+      const result = await createStudentProfile(payload);
       setDone(true);
-      onSuccess?.({ ...form, type: "single" });
+      onSuccess?.({ ...form, type: "single", risk_predicted: result?.risk_predicted });
+      if (result?.risk_predicted === false && !isNewStudent(form.current_year, form.current_semester)) {
+        setApiError("Profile created, but risk score could not be calculated — make sure the XAI service is running on port 8001.");
+      }
       setTimeout(() => {
         setDone(false);
         setForm(EMPTY_FORM);
         setErrors({});
-      }, 3000);
+        setApiError(null);
+      }, 5000);
     } catch (err) {
       setApiError(err.message);
     } finally {
@@ -391,11 +403,13 @@ function SingleStudentForm({ onSuccess }) {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { key: "assignments_avg", label: "Assignments Avg" },
-              { key: "attendance_pct", label: "Attendance %" },
-              { key: "midterm_score", label: "Midterm Score" },
-              { key: "projects_score", label: "Projects Score" },
-              { key: "quizzes_avg", label: "Quizzes Avg" },
+              { key: "assignments_avg",    label: "Assignments Avg" },
+              { key: "attendance_pct",     label: "Attendance %" },
+              { key: "final_score",        label: "Final Score" },
+              { key: "midterm_score",      label: "Midterm Score" },
+              { key: "participation_score", label: "Participation Score" },
+              { key: "projects_score",     label: "Projects Score" },
+              { key: "quizzes_avg",        label: "Quizzes Avg" },
             ].map(({ key, label }) => (
               <Field key={key} label={label} required error={errors[key]}>
                 <input
