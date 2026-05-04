@@ -1,4 +1,13 @@
 // backend/functions/src/http/studentProfileController.js
+// Creates profiles in ALL of:
+//   1. student_acc/{student_id}  → XAI risk prediction
+//   2. students/{auto-id}        → teammates' collection
+//   3. Firebase Auth             → enables login
+//   4. users/{uid}               → role-based routing in the frontend
+
+
+
+// backend/functions/src/http/studentProfileController.js
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
 const axios = require("axios");
