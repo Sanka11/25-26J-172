@@ -10,6 +10,7 @@
 // backend/functions/src/http/studentProfileController.js
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
+const { FieldValue } = require("firebase-admin/firestore");
 const axios = require("axios");
 const { ML_XAI_BASE_URL } = require("../config");
 
@@ -30,6 +31,9 @@ function validateStudent(s) {
     errors.push("valid email is required");
   if (!s.age || isNaN(s.age) || Number(s.age) < 16 || Number(s.age) > 60)
     errors.push("age must be 16-60");
+  const yr = Number(s.current_year);
+  if (!yr || yr < 1 || yr > 4)
+    errors.push("current_year must be 1, 2, 3, or 4 (academic year)");
   return errors;
 }
 
@@ -81,8 +85,8 @@ async function runRiskPrediction(studentId, s) {
       ...result,
       student_id: studentId,
       updated_by: "profile_creation",
-      cached_at: admin.firestore.FieldValue.serverTimestamp(),
-      predicted_at: admin.firestore.FieldValue.serverTimestamp(),
+      cached_at: FieldValue.serverTimestamp(),
+      predicted_at: FieldValue.serverTimestamp(),
     };
 
     // 1. Mirror to student_risk_predictions/{studentId} (same as updateStudentMarks)
@@ -99,8 +103,8 @@ async function runRiskPrediction(studentId, s) {
         risk_score: result.risk_score ?? result.risk_percentage ?? null,
         risk_label: result.risk_label ?? result.risk_level ?? null,
         shap_values: result.shap_values ?? null,
-        risk_predicted_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        risk_predicted_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
       });
 
     console.log(
@@ -147,7 +151,7 @@ async function createAuthAndUserDoc(s, batch) {
     email: s.email.trim().toLowerCase(),
     role: "student",
     student_id: studentId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   return userRecord.uid;
@@ -157,37 +161,60 @@ async function createAuthAndUserDoc(s, batch) {
 function buildStudentAccDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
+
+  // Clamp to valid academic year 1–4
+  const academicYear = Math.min(4, Math.max(1, Number(s.current_year) || 1));
+
+  // Demographic values — stored in the PascalCase that updateStudentMarks reads
+  const gender     = s.gender     || "Male";
+  const department = s.department || "Computer Science";
+  const age        = Number(s.age) || 21;
+  const extracurricular     = s.extracurricular_activities || "No";
+  const internetAccess      = s.internet_access_at_home   || "Yes";
+  const parentEducation     = s.parent_education_level    || "Bachelor";
+  const familyIncome        = s.family_income_level       || "Medium";
+
   return {
-    student_id: String(s.student_id).trim(),
-    first_name: String(s.first_name).trim(),
-    last_name: String(s.last_name).trim(),
-    email: String(s.email).trim().toLowerCase(),
-    gender: s.gender || "Male",
-    age: Number(s.age) || 21,
-    department: s.department || "Computer Science",
-    current_year: Number(s.current_year) || 1,
+    student_id:       String(s.student_id).trim(),
+    first_name:       String(s.first_name).trim(),
+    last_name:        String(s.last_name).trim(),
+    email:            String(s.email).trim().toLowerCase(),
+    current_year:     academicYear,
     current_semester: s.current_semester || "Semester 1",
-    extracurricular_activities: s.extracurricular_activities || "No",
-    internet_access_at_home: s.internet_access_at_home || "Yes",
-    parent_education_level: s.parent_education_level || "Bachelor",
-    family_income_level: s.family_income_level || "Medium",
-    Assignments_Avg: isNew ? 0 : Number(s.assignments_avg) || 0,
-    Attendance_pct: isNew ? 0 : Number(s.attendance_pct) || 0,
-    Midterm_Score: isNew ? 0 : Number(s.midterm_score) || 0,
-    Projects_Score: isNew ? 0 : Number(s.projects_score) || 0,
-    Quizzes_Avg: isNew ? 0 : Number(s.quizzes_avg) || 0,
-    Final_Score: 0,
-    Participation_Score: 0,
-    Study_Hours_per_Week: 0,
-    Stress_Level: 5,
-    Sleep_Hours_per_Night: 7,
+
+    // Demographic — lowercase for profile reads, PascalCase for ML reads
+    gender,       Gender:     gender,
+    age,          Age:        age,
+    department,   Department: department,
+    Extracurricular_Activities: extracurricular,
+    Internet_Access_at_Home:    internetAccess,
+    Parent_Education_Level:     parentEducation,
+    Family_Income_Level:        familyIncome,
+
+    // Academic marks
+    Attendance_pct:      isNew ? 0 : Number(s.attendance_pct)   || 0,
+    Midterm_Score:       isNew ? 0 : Number(s.midterm_score)     || 0,
+    Final_Score:         isNew ? 0 : Number(s.final_score)       || 0,
+    Assignments_Avg:     isNew ? 0 : Number(s.assignments_avg)   || 0,
+    Quizzes_Avg:         isNew ? 0 : Number(s.quizzes_avg)       || 0,
+    Participation_Score: isNew ? 0 : Number(s.participation_score) || 0,
+    Projects_Score:      isNew ? 0 : Number(s.projects_score)    || 0,
+
+    // Lifestyle
+    Study_Hours_per_Week:  Number(s.study_hours_per_week)  || 0,
+    Stress_Level:          Number(s.stress_level)          || 5,
+    Sleep_Hours_per_Night: Number(s.sleep_hours_per_night) || 7,
+
     // Risk fields — null until ML runs
-    risk_score: null,
-    risk_label: null,
-    shap_values: null,
+    risk_score:       null,
+    risk_label:       null,
+    risk_percentage:  null,
+    risk_color:       null,
+    shap_values:      null,
     risk_predicted_at: null,
-    created_at: admin.firestore.FieldValue.serverTimestamp(),
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+
+    created_at: FieldValue.serverTimestamp(),
+    updated_at: FieldValue.serverTimestamp(),
   };
 }
 

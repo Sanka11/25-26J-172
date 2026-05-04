@@ -1,6 +1,7 @@
 // backend/functions/src/http/studentRiskExplanation.js
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
+const { FieldValue } = require("firebase-admin/firestore");
 const axios = require("axios");
 const { ML_XAI_BASE_URL } = require("../config");
 
@@ -87,7 +88,7 @@ exports.updateStudentMarks = onRequest(async (req, res) => {
         year: Number(year),
         semester,
         semester_key: semesterKey,
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -101,7 +102,7 @@ exports.updateStudentMarks = onRequest(async (req, res) => {
           ...updatedFields,
           current_year: Number(year),
           current_semester: semester,
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
@@ -193,8 +194,8 @@ exports.updateStudentMarks = onRequest(async (req, res) => {
         semester,
         semester_key: semesterKey,
         updated_by: "lecturer",
-        cached_at: admin.firestore.FieldValue.serverTimestamp(),
-        predicted_at: admin.firestore.FieldValue.serverTimestamp(),
+        cached_at: FieldValue.serverTimestamp(),
+        predicted_at: FieldValue.serverTimestamp(),
       };
 
       // Save risk to semester doc
