@@ -177,3 +177,69 @@
 
 # print(f"✅ SUCCESS! Model retrained and saved to: {save_path}")
 # print("You can now start your FastAPI server!")
+# import pandas as pd
+# import numpy as np
+# import joblib
+# import os
+# from sklearn.preprocessing import StandardScaler
+# from sklearn.compose import ColumnTransformer
+# from sklearn.pipeline import Pipeline
+# from sklearn.ensemble import RandomForestRegressor
+# from sklearn.multioutput import MultiOutputRegressor
+
+# # 1️⃣ Loading dataset
+# csv_path = 'D:/Y4S2/Y4S2/Student_Performance_With_Index.csv' 
+
+# try:
+#     df = pd.read_csv(csv_path)
+#     print(f"✅ Dataset loaded: {df.shape}")
+# except FileNotFoundError:
+#     print(f"❌ ERROR: Could not find the file at: {csv_path}")
+#     exit()
+
+# # 2️⃣ Ethical Data Filtering (No Demographics)
+# # We drop demographics/socio-economics per your requirement for ethical outcomes
+# columns_to_drop = [
+#     'Student_ID', 'First_Name', 'Last_Name', 'Email', 
+#     'Final_Score', 'Total_Score', 'Grade', 'risk_score_cont', 'ml_risk_score',
+#     'Internet_Access_at_Home', 'Parent_Education_Level', 'Family_Income_Level', 'Gender', 'Age',
+#     'Department', 'risk_label' # Dropping risk_label because we are predicting indices now
+# ]
+
+# existing_drops = [col for col in columns_to_drop if col in df.columns]
+# df_ml = df.drop(columns=existing_drops)
+
+# # 3️⃣ Define Features and Targets
+# # To support your dual-index logic, we calculate targets if they aren't in your CSV
+# if 'wellbeing_index' not in df_ml.columns:
+#     # Example logic using your behavioral columns
+#     df_ml['wellbeing_index'] = (df['Sleep_Hours_per_Night'] / 9 * 0.6) + ((10 - df['Stress_Level_1-10']) / 10 * 0.4)
+#     df_ml['study_index'] = (df['Attendance_pct'] / 100 * 0.4) + (df['Study_Hours_per_Week'] / 40 * 0.6)
+
+# X = df_ml.drop(columns=['wellbeing_index', 'study_index'])
+# y = df_ml[['wellbeing_index', 'study_index']]
+
+# print(f"3️⃣ Training features: {list(X.columns)}")
+
+# # 4️⃣ Building the Multi-Output Pipeline
+# numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+# preprocessor = ColumnTransformer(transformers=[('num', StandardScaler(), numeric_features)])
+
+# # Using Regressor instead of Classifier to get the 0.0-1.0 indices
+# base_model = RandomForestRegressor(n_estimators=150, max_depth=10, random_state=42)
+# multi_model = MultiOutputRegressor(base_model)
+
+# clf = Pipeline(steps=[
+#     ('preprocessor', preprocessor),
+#     ('regressor', multi_model)
+# ])
+
+# print("4️⃣ Training Multi-Output Regressor...")
+# clf.fit(X, y)
+
+# # 5️⃣ Saving the model (matching your service filename)
+# os.makedirs('app/models', exist_ok=True)
+# save_path = 'app/models/student_model.pkl' # This matches your admin_recommendations.py
+# joblib.dump(clf, save_path)
+
+# print(f"✅ SUCCESS! Model saved to: {save_path}")

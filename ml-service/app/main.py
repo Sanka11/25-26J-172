@@ -25,9 +25,15 @@ from app.schemas.recommendation_schema import (
 from app.services.recommendation_service import predict_recommendations
 
 # ----------------------------
-# struggle SCHEMAS & service
+# admin recommendation 
 # ----------------------------
-from app.schemas.struggle import StruggleRequest, StruggleResponse
+# from app.schemas.admin_recommendations import (
+#     RecommendationRequest,
+#     RecommendationResponse
+# )
+
+# # This looks in app/services/admin_recommendations.py
+# from app.services.admin_recommendations import predict_recommendations
 
 
 # ----------------------------
@@ -136,8 +142,17 @@ def clear_cache():
 def get_student_recommendations(request: RecommendationRequest):
     return predict_recommendations(request)
 
+# -----------------------------------------------------------
+#admin  RECOMMENDATIONS
+# -----------------------------------------------------------
 
-
+# @app.post("/admin/recommendations", response_model=RecommendationResponse)
+# def get_student_recommendations(request: RecommendationRequest):
+#     """
+#     This endpoint now uses the Multi-Output model logic which 
+#     calculates dual-profiles (Wellbeing & Study).
+#     """
+#     return predict_recommendations(request)
 
 
 
