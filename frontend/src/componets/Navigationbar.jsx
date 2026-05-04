@@ -21,6 +21,7 @@ const NAV_BY_ROLE = {
   student: [
     { path: "/", label: "Home", exact: true },
     { path: "/my-risk", label: "My Risk" },
+    { path: "/profile", label: "My Profile" },
     { path: "/recommendation", label: "Recommendations" },
     { path: "/WorkloadDashboard", label: "Workload" },
     { path: "/announcements", label: "Announcements" },
@@ -28,6 +29,7 @@ const NAV_BY_ROLE = {
   lecturer: [
     { path: "/", label: "Home", exact: true },
     { path: "/lecturer-risk", label: "Student Risks" },
+    { path: "/profile", label: "Student Profile" },
     { path: "/announcements", label: "Announcements" },
     { path: "/admin/adminworkload", label: "Workload Tracker" },
   ],

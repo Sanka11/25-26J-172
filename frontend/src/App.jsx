@@ -17,6 +17,7 @@ import StudentRiskDashboard from "./pages/StudentRiskDashboard";
 import LecturerRiskDashboard from "./pages/LecturerRiskDashboard";
 import XAIAdminDashboard from "./pages/XAIAdminDashboard";
 import StudentProfileManagement from "./pages/StudentProfileManagement";
+import StudentProfile from "./pages/StudentProfile";
 
 //recommendatiuon it22370228
 import WorkloadDashboard from "./pages/StudentDashboard";
@@ -292,6 +293,24 @@ function MainShell() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
               <StudentProfileManagement />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Student views own profile; lecturer/admin can view any by ID */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.STUDENT, ROLES.LECTURER, ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <StudentProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/:studentId"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.LECTURER, ROLES.ADMIN, ROLES.SUPER_ADMIN]}>
+              <StudentProfile />
             </ProtectedRoute>
           }
         />

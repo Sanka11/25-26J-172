@@ -1,6 +1,11 @@
 import axios from "axios";
 import { appConfig } from "../../config/env";
 
+// Base URL for Express API routes (emulator-safe, same as studentProfileApi)
+const EXPRESS_BASE =
+  import.meta.env.VITE_API_BASE ||
+  "http://127.0.0.1:5001/demiguard-3b4e8/us-central1/api/api";
+
 // ── Keep old function — backward compat ──
 export async function predictRiskScore(input) {
   const response = await axios.post(appConfig.PREDICT_RISK_URL, input);
@@ -24,10 +29,11 @@ export async function getStudentRiskExplanation(studentId) {
   return response.data;
 }
 
-// ── NEW: What-if next semester prediction (never saved) ──
+// ── What-if next semester prediction (never saved) ──
+// Uses Express route so it works in local emulator (avoids production CF calling localhost)
 export async function predictNextSemester(formData) {
   const response = await axios.post(
-    appConfig.PREDICT_NEXT_SEMESTER_URL,
+    `${EXPRESS_BASE}/predict-risk/next-semester`,
     formData,
   );
   return response.data;

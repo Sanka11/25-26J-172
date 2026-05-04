@@ -1,6 +1,7 @@
 const ML_BASE_URL = process.env.ML_BASE_URL || "http://127.0.0.1:8000";
 
-const ML_XAI_BASE_URL = process.env.ML_XAI_BASE_URL || ML_BASE_URL; 
+// XAI / SHAP service runs on a separate port (8001)
+const ML_XAI_BASE_URL = process.env.ML_XAI_BASE_URL || "http://127.0.0.1:8001";
 
 const ML_SERVICE_URL = ML_BASE_URL;
 const ML_RISK_URL = `${ML_XAI_BASE_URL}/predict-risk`;

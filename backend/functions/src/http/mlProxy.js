@@ -49,6 +49,7 @@ const predictRiskShap = onRequest(async (req, res) => {
     if (studentId) {
       try {
         const admin = require("../firebase");
+        const { FieldValue } = require("firebase-admin/firestore");
         const db = admin.firestore();
         await db
           .collection("student_risk_predictions")
@@ -56,7 +57,7 @@ const predictRiskShap = onRequest(async (req, res) => {
           .set(
             {
               ...response.data,
-              cached_at: admin.firestore.FieldValue.serverTimestamp(),
+              cached_at: FieldValue.serverTimestamp(),
             },
             { merge: true },
           );
