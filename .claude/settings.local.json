@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Get-ChildItem \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\" -Name -Depth 0)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh pr create --title 'feat\\(it22354792\\): auto-run risk prediction on student profile creation' --body ' *)",
+      "PowerShell(Get-ChildItem \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Lib\\\\site-packages\" -Directory | Where-Object { $_.Name -match \"^numpy\" } | Select-Object Name)",
+      "PowerShell(Get-ChildItem \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Lib\\\\site-packages\" -Directory | Where-Object { $_.Name -match \"^shap\" } | Select-Object Name)",
+      "PowerShell(& \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Scripts\\\\python.exe\" -c \"import numpy; print\\('numpy:', numpy.__version__\\)\")",
+      "PowerShell(& \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Scripts\\\\python.exe\" -c \"import sklearn; print\\('sklearn:', sklearn.__version__\\)\")",
+      "PowerShell(& \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Scripts\\\\python.exe\" -c \"import shap; print\\('shap:', shap.__version__\\)\" 2>&1)",
+      "PowerShell(& \"d:\\\\SLIIT\\\\Research Module\\\\Integration\\\\25-26J-172\\\\ml-service\\\\venv\\\\Scripts\\\\python.exe\" -c \"import tensorflow; print\\('tf:', tensorflow.__version__\\)\" 2>&1)",
+      "Bash(git checkout *)",
+      "Bash(node -e \"require\\('./api'\\)\")",
+      "Bash(node -e \"require\\('./index'\\)\")",
+      "Bash(node -e \"require\\('./functions/index'\\)\")",
+      "Bash(node -e \"try { require\\('./src/http/updateStudentMarksController'\\); console.log\\('OK'\\); } catch\\(e\\) { console.error\\('FAIL:', e.message\\); }\")",
+      "Bash(node -e \"require\\('./index'\\); console.log\\('index loaded OK'\\)\")",
+      "PowerShell(firebase --version 2>&1)",
+      "PowerShell(Get-Command firebase)",
+      "PowerShell(npm root -g 2>&1)",
+      "Bash(Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object LocalPort, State, OwningProcess)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5001/demiguard-3b4e8/us-central1/api/api/students/S6000/profile\" -Method GET)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8080/v1/projects/demiguard-3b4e8/databases/\\(default\\)/documents/student_acc/S6000\" -Method GET)",
+      "PowerShell($env:GOOGLE_APPLICATION_CREDENTIALS)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\firebase\" -ErrorAction SilentlyContinue | Select-Object Name, FullName)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000,8001 -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/docs\" -Method GET -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/openapi.json\" -Method GET -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8001/openapi.json\" -Method GET -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5001/demiguard-3b4e8/us-central1/api/api/students/S6000/update-marks\" -Method POST -ContentType \"application/json\" -Body '{\"semester_label\":\"Year 2 - Semester 2\",\"Attendance_pct\":80,\"Midterm_Score\":70,\"Final_Score\":65,\"Assignments_Avg\":75,\"Quizzes_Avg\":68,\"Participation_Score\":72,\"Projects_Score\":70}')"
+    ]
+  }
+}

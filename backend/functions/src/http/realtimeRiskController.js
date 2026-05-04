@@ -1,4 +1,5 @@
 const admin = require("../firebase");
+const { FieldValue } = require("firebase-admin/firestore");
 const axios = require("axios");
 const { ML_XAI_BASE_URL } = require("../config");
 
@@ -68,7 +69,7 @@ exports.updateStudentMetrics = async (req, res) => {
       semester,
       risk_probability,
       risk_trend,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: FieldValue.serverTimestamp(),
       source: "realtime-update",
     });
 

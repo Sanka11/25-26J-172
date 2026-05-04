@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 const Papa = require("papaparse");
 
 const db = admin.firestore();
@@ -93,7 +94,7 @@ exports.uploadWeeklyCsvV2 = async (req, res) => {
         late_submissions: Number(late_submissions),
         alert_interactions: Number(alert_interactions),
         help_requests: Number(help_requests),
-        created_at: admin.firestore.FieldValue.serverTimestamp()
+        created_at: FieldValue.serverTimestamp()
       });
 
       inserted++;
