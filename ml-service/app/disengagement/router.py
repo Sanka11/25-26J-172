@@ -32,10 +32,12 @@ def predict_disengagement(request: DisengagementRequest):
     current_risk = gru_out["risk_level"]
     reconstruction_error = gru_out["reconstruction_error"]
 
-    # 2️⃣ RL (risk_trend PROVIDED, not computed)
+    risk_trend = request.risk_trend or "STABLE"
+
+    # 2️⃣ RL
     rl_out = rl_decide_action(
         current_risk=current_risk,
-        risk_trend=request.risk_trend,
+        risk_trend=risk_trend,
         last_action=request.last_action,
         no_response_streak=request.no_response_streak,
         fatigue_level=request.fatigue_level

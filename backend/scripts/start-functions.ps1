@@ -67,10 +67,16 @@ if ($listener) {
   throw "Port $Port is still occupied by PID $($listener.OwningProcess). Please close that process manually."
 }
 
+$dataDir = Join-Path $backendDir "emulator-data"
+if (-not (Test-Path $dataDir)) {
+  New-Item -ItemType Directory -Path $dataDir | Out-Null
+  Write-Host "Created emulator data directory: $dataDir" -ForegroundColor DarkGray
+}
+
 Write-Host "Starting emulator from: $backendDir" -ForegroundColor Green
 Push-Location $backendDir
 try {
-  firebase emulators:start --only functions
+  firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data
 } finally {
   Pop-Location
 }

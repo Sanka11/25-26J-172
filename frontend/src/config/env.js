@@ -1,30 +1,22 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const ENV = import.meta.env.VITE_ENV || "local";
-// savindi
-//ssavindi admin
+
+// it22370228 recommendation
+//it22370228 admin
 const GET_ALL_WORKLOADS_URL = `${BASE_URL}/getAllWorkloads`;
 const UPDATE_TASK_COMPLETION_URL = `${BASE_URL}/updateTaskCompletion`;
 const TRIGGER_WARNING_EMAIL_URL = `${BASE_URL}/triggerManualWarningEmail`;
-//savindi student
+//it22370228 student
 const GENERATE_WORKLOAD_URL = `${BASE_URL}/generateWorkload`;
-const CAREER_READINESS_URL = `${BASE_URL}/careerReadinessProxy`;
-const GET_RECOMMENDATIONS_URL = `${BASE_URL}/getRecommendations`;
-const PREDICT_STRUGGLE_URL = `${BASE_URL}/predictStruggle`;
-// Quiz APIs -savindi
-const CREATE_QUIZ_URL = `${BASE_URL}/createQuiz`;
-const SUBMIT_QUIZ_URL = `${BASE_URL}/submitQuiz`;
-const GET_QUIZZES_URL = `${BASE_URL}/getAllQuizzes`;
-const GET_QUIZ_BY_ID_URL = `${BASE_URL}/fetchQuizByUser`;
-const CHECK_LEVEL_URL = `${BASE_URL}/checkLevelUnlock`;
-const GET_QUIZ_BY_LEVEL_URL = `${BASE_URL}/getQuizByLevel`;
 const GET_WEEKLY_WORKLOAD_URL = `${BASE_URL}/getWeeklyWorkload`;
 const GENERATE_LECTURE_ALERTS_URL = `${BASE_URL}/generateLectureAlerts`;
 const GENERATE_BUSY_WEEK_REMINDERS_URL = `${BASE_URL}/generateBusyWeekReminders`;
 const GET_ACTIVE_REMINDERS_URL = `${BASE_URL}/getActiveReminders`;
 const DISMISS_REMINDER_URL = `${BASE_URL}/dismissReminder`;
 const GET_STUDENT_ENROLLMENT_URL = `${BASE_URL}/getEnrolledSubjects`;
-///
+const GET_RECOMMENDATIONS_URL = `${BASE_URL}/getRecommendations`;
+
 
 // Announcements
 const CREATE_ANNOUNCEMENT_URL = `${BASE_URL}/createAnnouncement`;
@@ -91,28 +83,20 @@ export const appConfig = {
   BULK_CREATE_STUDENT_PROFILES_URL,
   CHECK_STUDENT_ID_EXISTS_URL,
 
-  // Quiz savindi
-  CREATE_QUIZ_URL,
-  SUBMIT_QUIZ_URL,
-  GET_QUIZZES_URL,
-  GET_QUIZ_BY_ID_URL,
-  CHECK_LEVEL_URL,
-  GET_QUIZ_BY_LEVEL_URL,
+
+
+  //it22370228 recommendation
   GET_WEEKLY_WORKLOAD_URL,
   GENERATE_LECTURE_ALERTS_URL,
   GENERATE_BUSY_WEEK_REMINDERS_URL,
   GET_ACTIVE_REMINDERS_URL,
   DISMISS_REMINDER_URL,
-  // savindi
   GET_ALL_WORKLOADS_URL,
   UPDATE_TASK_COMPLETION_URL,
   TRIGGER_WARNING_EMAIL_URL,
-
   GENERATE_WORKLOAD_URL,
-  GET_RECOMMENDATIONS_URL,
-  CAREER_READINESS_URL,
-  PREDICT_STRUGGLE_URL,
   GET_STUDENT_ENROLLMENT_URL,
+  GET_RECOMMENDATIONS_URL,
 
   // Announcements
   CREATE_ANNOUNCEMENT_URL,

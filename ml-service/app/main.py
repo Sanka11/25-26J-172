@@ -28,7 +28,7 @@ from app.services.recommendation_service import predict_recommendations
 # struggle SCHEMAS & service
 # ----------------------------
 from app.schemas.struggle import StruggleRequest, StruggleResponse
-from app.services.struggle_service import predict_struggle
+
 
 # ----------------------------
 # RAG MODULES
@@ -137,16 +137,8 @@ def get_student_recommendations(request: RecommendationRequest):
     return predict_recommendations(request)
 
 
-# -----------------------------------------------------------
-# STRUGGLE
-# -----------------------------------------------------------
 
-@app.post("/struggle", response_model=StruggleResponse)
-def struggle(request: StruggleRequest):
-    return {
-        "user_id": request.user_id,
-        **predict_struggle(request)
-    }
+
 
 
 # -----------------------------------------------------------
@@ -245,11 +237,15 @@ async def upload_pdf(
 # -----------------------------------------------------------
 
 @app.post("/chat")
-def chat(question: str = Form(...), user_id: str = Form(default="anonymous")):
+def chat(
+    question: str = Form(...),
+    user_id: str = Form(default="anonymous"),
+    response_mode: str = Form(default="hybrid"),
+):
     if not question.strip():
         raise HTTPException(status_code=400, detail="Question is empty")
     from app.services.chat_history_service import get_history_manager
-    result = answer_question(question, user_id=user_id)
+    result = answer_question(question, user_id=user_id, response_mode=response_mode)
     answer = result.get("answer", "")
     try:
         history_manager = get_history_manager()
