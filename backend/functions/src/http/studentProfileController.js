@@ -45,16 +45,18 @@ function hasScores(s) {
 
 // ── Build the exact 17-field ML payload (matches updateStudentMarks) ──────
 function buildMlPayload(s) {
+  const midterm = Number(s.midterm_score ?? s.Midterm_Score ?? 60);
+  const finalRaw = Number(s.final_score ?? s.Final_Score ?? 0);
   return {
     Attendance_pct: Number(s.attendance_pct ?? s.Attendance_pct ?? 75),
-    Midterm_Score: Number(s.midterm_score ?? s.Midterm_Score ?? 60),
-    Final_Score: Number(s.final_score ?? s.Final_Score ?? 0),
+    Midterm_Score: midterm,
+    Final_Score: finalRaw > 0 ? finalRaw : midterm, // use midterm as proxy when final not yet taken
     Assignments_Avg: Number(s.assignments_avg ?? s.Assignments_Avg ?? 60),
     Quizzes_Avg: Number(s.quizzes_avg ?? s.Quizzes_Avg ?? 60),
     Participation_Score: Number(s.participation_score ?? s.Participation_Score ?? 0),
     Projects_Score: Number(s.projects_score ?? s.Projects_Score ?? 60),
     Age: Number(s.age ?? s.Age ?? 21),
-    Study_Hours_per_Week: Number(s.study_hours_per_week ?? s.Study_Hours_per_Week ?? 10),
+    Study_Hours_per_Week: Number(s.study_hours_per_week ?? s.Study_Hours_per_Week ?? 20),
     Stress_Level: Number(s.stress_level ?? s.Stress_Level ?? 5),
     Sleep_Hours_per_Night: Number(s.sleep_hours_per_night ?? s.Sleep_Hours_per_Night ?? 7),
     Gender: String(s.gender ?? "Male"),

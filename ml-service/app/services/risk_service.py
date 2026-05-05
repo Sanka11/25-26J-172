@@ -147,6 +147,10 @@ def predict_risk_with_shap(data: dict, student_id: Optional[str] = None) -> dict
 
     raw_data = data.copy()
 
+    # If Final_Score is 0 (exam not yet sat), use Midterm_Score as proxy
+    if data.get("Final_Score", 0) == 0 and data.get("Midterm_Score", 0) > 0:
+        data["Final_Score"] = data["Midterm_Score"]
+
     # Build encoded input
     df_input = _build_input_df(data)
 
