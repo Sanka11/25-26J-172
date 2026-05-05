@@ -1129,6 +1129,164 @@ I'm here to help you maintain your progress:
     return base_instructions
 
 
+def _is_university_email(text: str) -> bool:
+    """Detect if the input is a university email or correspondence"""
+    text_lower = text.lower()
+    
+    # Common university email signatures and markers
+    email_markers = [
+        "best regards",
+        "kind regards",
+        "yours sincerely",
+        "regards",
+        "department",
+        "office",
+        "university",
+        "academic affairs",
+        "student services",
+        "registrar",
+        "dean",
+        "faculty",
+        "dear student",
+        "dear all",
+    ]
+    
+    # Academic content markers
+    academic_markers = [
+        "academic performance",
+        "probation",
+        "academic standing",
+        "assessment",
+        "examination",
+        "coursework",
+        "attendance",
+        "deadline",
+        "enrollment",
+        "registration",
+        "grades",
+        "marks",
+        "gpa",
+        "semester",
+        "module",
+        "risk of",
+    ]
+    
+    # Check for multi-line structure (emails have multiple lines)
+    is_multiline = text.count('\n') >= 2 or len(text) > 200
+    
+    # Check for email markers
+    has_email_marker = any(marker in text_lower for marker in email_markers)
+    has_academic_marker = any(marker in text_lower for marker in academic_markers)
+    
+    return is_multiline and has_email_marker and has_academic_marker
+
+
+def _parse_university_email(email_text: str) -> dict:
+    """Parse a university email and extract key information"""
+    text_lower = email_text.lower()
+    
+    # Initialize parsing result
+    result = {
+        "email_type": "unknown",
+        "key_points": [],
+        "sentiment": "neutral",
+        "action_required": None,
+    }
+    
+    # Detect email type
+    if any(term in text_lower for term in ["probation", "risk", "poor performance", "at risk", "struggling"]):
+        result["email_type"] = "academic_warning"
+        result["sentiment"] = "warning"
+        result["action_required"] = True
+    elif any(term in text_lower for term in ["congratulations", "excellent", "distinction", "award", "honor"]):
+        result["email_type"] = "academic_achievement"
+        result["sentiment"] = "positive"
+    elif any(term in text_lower for term in ["deadline", "important", "urgent", "reminder"]):
+        result["email_type"] = "administrative"
+        result["sentiment"] = "neutral"
+    
+    # Extract key sentences
+    sentences = [s.strip() for s in re.split(r'[.!?]', email_text) if s.strip() and len(s.strip()) > 20]
+    result["key_points"] = sentences[:3]  # First 3 meaningful sentences
+    
+    return result
+
+
+def _explain_university_email(email_text: str) -> str:
+    """Generate a helpful explanation of what a university email means"""
+    parsed = _parse_university_email(email_text)
+    
+    base_explanation = ""
+    
+    if parsed["email_type"] == "academic_warning":
+        base_explanation = """
+**This is an Academic Warning Email**
+
+The university is informing you that your recent academic performance is below acceptable standards. 
+This is a serious notification that requires immediate action.
+
+**What this means:**
+- Your grades, attendance, or overall academic standing has fallen below requirements
+- You may be at risk of academic probation or suspension if performance doesn't improve
+- The university wants you to take steps to improve before it's too late
+
+**What you should do:**
+1. **Review your grades**: Check what specific areas are weak (GPA, exam marks, attendance)
+2. **Contact your Lecturer in Charge (LIC)**: Ask for guidance on how to improve
+3. **Attend lectures regularly**: Attendance is crucial for understanding material
+4. **Seek academic support**: Use tutoring services, study groups, or library resources
+5. **Plan your improvement**: Create a study schedule and stick to it
+6. **Set up a meeting**: Discuss your concerns with your LIC or Student Services
+
+**Important**: This is not permanent. You can improve your performance with focused effort and support.
+
+**Where to get help:**
+- Your Lecturer in Charge (LIC) - for course-specific guidance
+- Student Services - for academic support and counseling
+- Library - for study resources and tutorials
+- Peers - form study groups for better understanding
+"""
+    
+    elif parsed["email_type"] == "academic_achievement":
+        base_explanation = """
+**This is an Academic Achievement Email**
+
+The university is congratulating you on your excellent academic performance!
+
+**What this means:**
+- You've demonstrated strong performance in your studies
+- Your dedication and effort are recognized by the university
+- You're on track for a successful degree completion
+
+Continue maintaining your excellent standards and make full use of available opportunities for advanced learning.
+"""
+    
+    elif parsed["email_type"] == "administrative":
+        base_explanation = """
+**This is an Administrative Notification Email**
+
+The university is informing you of important deadlines, procedures, or updates relevant to your studies.
+
+**What you should do:**
+1. Read the email carefully and note any deadlines mentioned
+2. Mark the dates on your calendar
+3. Complete any required actions by the deadline
+4. Contact Student Services if you have questions or need extensions
+
+**Don't ignore administrative emails** - missing deadlines can affect your academic standing.
+"""
+    
+    else:
+        base_explanation = """
+**This is a University Communication**
+
+The university has sent you an important message about your studies or academic status.
+Please read it carefully and take any requested action.
+"""
+    
+    return base_explanation
+
+
 def answer_question(
     question: str,
     top_k: int = 3,
@@ -1163,6 +1321,19 @@ def answer_question(
             "suggested_pdfs": [],
             "source_pdfs": [],
             "is_pdf_request": False,
+        }
+
+    # 1.5) Handle university emails - detect and explain
+    if _is_university_email(question):
+        print(f"[RAG] Detected university email - providing explanation")
+        explanation = _explain_university_email(question)
+        return {
+            "answer": explanation,
+            "sources": None,
+            "suggested_pdfs": ["SLIIT Rule Book.pdf", "Academic Progression Criteria (2022 Regular Intake onwards).pdf"],
+            "source_pdfs": [],
+            "is_pdf_request": False,
+            "is_email_explanation": True,
         }
 
     # 2) Check if question is about deadlines, modules, or LIC
