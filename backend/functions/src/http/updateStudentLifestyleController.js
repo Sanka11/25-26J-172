@@ -57,16 +57,18 @@ exports.updateStudentLifestyle = async (req, res) => {
     // Re-run risk prediction with updated lifestyle
     let riskResult = null;
     try {
+      const _midterm   = Number(merged.Midterm_Score ?? 60);
+      const _finalRaw  = Number(merged.Final_Score  ?? 0);
       const mlPayload = {
         Attendance_pct:             Number(merged.Attendance_pct             ?? 75),
-        Midterm_Score:              Number(merged.Midterm_Score              ?? 60),
-        Final_Score:                Number(merged.Final_Score                ?? 0),
+        Midterm_Score:              _midterm,
+        Final_Score:                _finalRaw > 0 ? _finalRaw : _midterm,
         Assignments_Avg:            Number(merged.Assignments_Avg            ?? 60),
         Quizzes_Avg:                Number(merged.Quizzes_Avg                ?? 60),
         Participation_Score:        Number(merged.Participation_Score        ?? 0),
         Projects_Score:             Number(merged.Projects_Score             ?? 60),
         Age:                        Number(merged.Age        ?? merged.age   ?? 21),
-        Study_Hours_per_Week:       Number(merged.Study_Hours_per_Week       ?? 10),
+        Study_Hours_per_Week:       Number(merged.Study_Hours_per_Week       ?? 20),
         Stress_Level:               Number(merged.Stress_Level               ?? 5),
         Sleep_Hours_per_Night:      Number(merged.Sleep_Hours_per_Night      ?? 7),
         Gender:                     String(merged.Gender     ?? merged.gender ?? "Male"),

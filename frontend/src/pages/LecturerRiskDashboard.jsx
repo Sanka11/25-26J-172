@@ -121,8 +121,9 @@ function RiskChangeBadge({ before, after }) {
 
 // ── Update Marks Modal ──
 function UpdateMarksModal({ student, onClose, onSuccess }) {
+  const isNewSem1 = student?.current_year === 1 && student?.current_semester === "Semester 1";
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [semester, setSemester] = useState("Semester 1");
+  const [semester, setSemester] = useState(student?.current_semester ?? "Semester 1");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [riskBefore] = useState({
@@ -150,7 +151,7 @@ function UpdateMarksModal({ student, onClose, onSuccess }) {
         semester,
         ...form,
         Age: student?.age ?? student?.Age ?? 21,
-        Study_Hours_per_Week: student?.Study_Hours_per_Week ?? 10,
+        Study_Hours_per_Week: student?.Study_Hours_per_Week ?? 20,
         Stress_Level:
           student?.Stress_Level ?? student?.["Stress_Level_1-10"] ?? 5,
         Sleep_Hours_per_Night: student?.Sleep_Hours_per_Night ?? 7,
@@ -261,44 +262,47 @@ function UpdateMarksModal({ student, onClose, onSuccess }) {
           {!done && (
             <>
               {/* Year & Semester */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                    Academic Year
-                  </label>
-                  <select
-                    value={year}
-                    onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  >
-                    {YEARS.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
+              {isNewSem1 ? (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center text-xs text-blue-700 font-semibold">
+                  Adding marks for: Year 1, Semester 1 (current semester)
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                    Semester
-                  </label>
-                  <select
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  >
-                    {SEMESTERS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mb-4 p-2 bg-blue-50 rounded-lg text-center text-xs text-blue-700 font-semibold">
-                Updating: {year} — {semester}
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                        Academic Year
+                      </label>
+                      <select
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      >
+                        {YEARS.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                        Semester
+                      </label>
+                      <select
+                        value={semester}
+                        onChange={(e) => setSemester(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      >
+                        {SEMESTERS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mb-4 p-2 bg-blue-50 rounded-lg text-center text-xs text-blue-700 font-semibold">
+                    Updating: {year} — {semester}
+                  </div>
+                </>
+              )}
 
               {/* Current risk indicator */}
               <div className="mb-4 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
