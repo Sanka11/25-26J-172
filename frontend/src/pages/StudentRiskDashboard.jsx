@@ -1027,9 +1027,8 @@ export default function StudentRiskDashboard() {
               </div>
             </div>
 
-            {/* Engagement + Semester Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <EngagementScore riskData={riskData} />
+            {/* Semester Overview */}
+            <div className="grid grid-cols-1 gap-4 mb-6">
               {currentYearSemesters.length > 0 && (
                 <div className="bg-white rounded-2xl shadow p-5">
                   <h3 className="font-semibold text-gray-700 mb-3 text-sm">
