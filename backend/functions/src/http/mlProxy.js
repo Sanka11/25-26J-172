@@ -116,36 +116,54 @@ const getBulkRisk = onRequest(async (req, res) => {
     const admin = require("../firebase");
     const db = admin.firestore();
 
-    // Get all risk predictions
-    const snapshot = await db.collection("student_risk_predictions").get();
-
-    // Get all student_acc docs for enrichment (name, department, semester)
+    // student_acc is the source of truth — includes ALL students (even new ones with no risk yet)
     const accSnapshot = await db.collection("student_acc").get();
-    const accMap = {};
-    accSnapshot.docs.forEach((doc) => {
-      accMap[doc.id] = doc.data();
-    });
 
-    const students = snapshot.docs.map((doc) => {
-      const riskData = doc.data();
-      const accData = accMap[doc.id] || {};
+    // Risk predictions for enrichment (may not exist for Year 1 Sem 1 students)
+    const riskSnapshot = await db.collection("student_risk_predictions").get();
+    const riskMap = {};
+    riskSnapshot.docs.forEach((doc) => { riskMap[doc.id] = doc.data(); });
+
+    const students = accSnapshot.docs.map((doc) => {
+      const accData = doc.data();
+      const riskData = riskMap[doc.id] || {};
       return {
         student_id: doc.id,
-        // Risk data
-        ...riskData,
-        // Enrich with student_acc info
         first_name: accData.first_name || null,
         last_name: accData.last_name || null,
-        department: accData.department || riskData.department || null,
-        current_semester:
-          accData.current_semester || riskData.current_semester || null,
-        current_year: accData.current_year || riskData.current_year || null,
-        // Normalize timestamp
+        department: accData.department || accData.Department || null,
+        current_semester: accData.current_semester || null,
+        current_year: accData.current_year ?? null,
+        // Academic marks (for pre-filling modal)
+        Attendance_pct: accData.Attendance_pct ?? null,
+        Midterm_Score: accData.Midterm_Score ?? null,
+        Final_Score: accData.Final_Score ?? null,
+        Assignments_Avg: accData.Assignments_Avg ?? null,
+        Quizzes_Avg: accData.Quizzes_Avg ?? null,
+        Participation_Score: accData.Participation_Score ?? null,
+        Projects_Score: accData.Projects_Score ?? null,
+        // Lifestyle
+        Study_Hours_per_Week: accData.Study_Hours_per_Week ?? null,
+        Stress_Level: accData.Stress_Level ?? null,
+        Sleep_Hours_per_Night: accData.Sleep_Hours_per_Night ?? null,
+        Gender: accData.Gender || accData.gender || null,
+        Department: accData.Department || accData.department || null,
+        Age: accData.Age || accData.age || null,
+        Extracurricular_Activities: accData.Extracurricular_Activities || null,
+        Internet_Access_at_Home: accData.Internet_Access_at_Home || null,
+        Parent_Education_Level: accData.Parent_Education_Level || null,
+        Family_Income_Level: accData.Family_Income_Level || null,
+        // Risk (null if prediction not yet run)
+        risk_score: riskData.risk_score ?? null,
+        risk_percentage: riskData.risk_percentage ?? null,
+        risk_level: riskData.risk_level ?? null,
+        risk_color: riskData.risk_color ?? null,
+        explanation: riskData.explanation ?? null,
         cached_at: riskData.cached_at?.toDate?.()?.toISOString() || null,
       };
     });
 
-    // Sort: High first, Medium second, Low last
+    // Sort: High first, Medium, Low, then no-risk (new students) last
     const levelOrder = { High: 0, Medium: 1, Low: 2 };
     students.sort(
       (a, b) =>
