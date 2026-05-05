@@ -1,5 +1,3 @@
-# ml-service/app/services/risk_service.py
-
 import joblib
 import pandas as pd
 import numpy as np
@@ -9,13 +7,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ── Paths ──
 MODEL_DIR = Path(__file__).parent.parent / "models"
 
-# ── Load artifacts once at startup ──
+# models are loaded once at startup — joblib.load on every request would be too slow
 try:
-    _model          = joblib.load(MODEL_DIR / "risk_model_final.pkl")
-    _explainer      = joblib.load(MODEL_DIR / "shap_explainer_final.pkl")
+    _model           = joblib.load(MODEL_DIR / "risk_model_final.pkl")
+    _explainer       = joblib.load(MODEL_DIR / "shap_explainer_final.pkl")
     _feature_columns = joblib.load(MODEL_DIR / "feature_columns_final.pkl")
     logger.info(f"✅ Risk model loaded — {len(_feature_columns)} features")
     print(f"✅ Risk model loaded — {len(_feature_columns)} features")
@@ -26,13 +23,13 @@ except Exception as e:
     _explainer       = None
     _feature_columns = []
 
-# ── Categorical columns (must match training exactly) ──
+# these must match the column names used during model training exactly
 CATEGORICAL_COLS = [
     "Gender", "Department", "Extracurricular_Activities",
     "Internet_Access_at_Home", "Parent_Education_Level", "Family_Income_Level"
 ]
 
-# ── Human-readable feature display names ──
+# maps internal feature names to what the student/lecturer sees on screen
 FEATURE_DISPLAY_NAMES = {
     "Attendance_pct":        "Attendance Rate",
     "Midterm_Score":         "Midterm Score",
@@ -49,7 +46,7 @@ FEATURE_DISPLAY_NAMES = {
 
 
 def _get_display_name(feature: str) -> str:
-    """Convert encoded feature name to human-readable label."""
+    # one-hot encoded features come in as e.g. "Gender_Female" — strip the suffix for display
     for base, display in FEATURE_DISPLAY_NAMES.items():
         if feature == base:
             return display
@@ -60,47 +57,36 @@ def _get_display_name(feature: str) -> str:
 
 
 def _build_input_df(data: dict) -> pd.DataFrame:
-    """Convert request dict to encoded DataFrame matching training features."""
-    # Rename stress field to match training column name
+    # Stress_Level is stored as "Stress_Level_1-10" in training — rename before encoding
     if "Stress_Level" in data:
         data["Stress_Level_1-10"] = data.pop("Stress_Level")
 
     df = pd.DataFrame([data])
-
-    # One-hot encode categoricals
     df_encoded = pd.get_dummies(df, columns=CATEGORICAL_COLS, drop_first=True)
 
-    # Align to training columns — fill missing with 0
+    # reindex fills any categories the student's data doesn't have (e.g. unseen departments)
     df_encoded = df_encoded.reindex(columns=_feature_columns, fill_value=0)
-
     return df_encoded
 
 
 def _extract_shap_for_risk(shap_values, sample_index: int = 0) -> np.ndarray:
-    """
-    Extract SHAP values for class 1 (at-risk).
-    Handles all shap output formats:
-      - list [class0_arr, class1_arr]  → old format
-      - 3D array (n_samples, n_features, n_classes) → shap 0.46+
-      - 2D array (n_samples, n_features)             → single output
-    """
+    # SHAP output format changed across versions — handle all three shapes
+    # list [class0_arr, class1_arr] is old format; 3D array is shap 0.46+
     if isinstance(shap_values, list):
         return shap_values[1][sample_index]
 
     arr = np.array(shap_values)
-
     if arr.ndim == 3:
         return arr[sample_index, :, 1]
     elif arr.ndim == 2:
         return arr[sample_index]
-    else:
-        return arr
+    return arr
 
 
 def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
-    """Build structured SHAP explanation from raw SHAP values."""
     shap_series = pd.Series(shap_vals, index=_feature_columns)
 
+    # positive SHAP = pushes toward at-risk, negative = protective
     risk_factors_raw = shap_series[shap_series > 0].nlargest(5)
     protective_raw   = shap_series[shap_series < 0].nsmallest(3)
 
@@ -138,43 +124,34 @@ def _build_explanation(shap_vals: np.ndarray, raw_data: dict) -> dict:
 
 
 def predict_risk_with_shap(data: dict, student_id: Optional[str] = None) -> dict:
-    """
-    Main prediction function.
-    Returns risk score, level, color and full SHAP explanation.
-    """
     if _model is None:
         raise RuntimeError("Risk model not loaded. Check app/models/ folder.")
 
     raw_data = data.copy()
 
-    # If Final_Score is 0 (exam not yet sat), use Midterm_Score as proxy
+    # when Final_Score is 0 the student hasn't sat the exam yet — use Midterm as proxy
+    # to avoid inflating risk based on a missing value
     if data.get("Final_Score", 0) == 0 and data.get("Midterm_Score", 0) > 0:
         data["Final_Score"] = data["Midterm_Score"]
 
-    # Build encoded input
     df_input = _build_input_df(data)
 
-    # ── Predict probability ──
+    # index [0][1] gives probability of class 1 (at-risk)
     risk_prob = float(_model.predict_proba(df_input)[0][1])
 
-    # Enforce minimum 1% — 0% is never realistic
+    # floor at 1% — a student with perfect scores still has some theoretical risk
     risk_percentage = max(1, int(round(risk_prob * 100)))
 
     if risk_prob >= 0.7:
-        risk_level = "High"
-        risk_color = "red"
+        risk_level, risk_color = "High", "red"
     elif risk_prob >= 0.4:
-        risk_level = "Medium"
-        risk_color = "amber"
+        risk_level, risk_color = "Medium", "amber"
     else:
-        risk_level = "Low"
-        risk_color = "green"
+        risk_level, risk_color = "Low", "green"
 
-    # ── SHAP values ──
     shap_values   = _explainer.shap_values(df_input)
     shap_for_risk = _extract_shap_for_risk(shap_values, sample_index=0)
-
-    explanation = _build_explanation(shap_for_risk, raw_data)
+    explanation   = _build_explanation(shap_for_risk, raw_data)
 
     return {
         "student_id":      student_id,
@@ -183,13 +160,12 @@ def predict_risk_with_shap(data: dict, student_id: Optional[str] = None) -> dict
         "risk_level":      risk_level,
         "risk_color":      risk_color,
         "explanation":     explanation,
-        "model_version":   "v4_hybrid",   # ← fixed
+        "model_version":   "v4_hybrid",
     }
 
 
-# ── Keep old function so existing endpoints don't break ──
+# legacy fallback — not used by the main flow, kept so old endpoints still respond
 def predict_risk_score(payload) -> float:
-    """Legacy function — kept for backward compatibility."""
     gpa_penalty        = (4.0 - payload.gpa) / 4.0 * 40
     attendance_penalty = (100 - payload.attendance_rate) / 100 * 40
     assignment_penalty = max(0, 10 - payload.assignments_completed) * 2

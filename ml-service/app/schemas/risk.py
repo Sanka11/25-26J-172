@@ -1,10 +1,8 @@
-# ml-service/app/schemas/risk.py
-
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
-# ── Keep existing schemas (other members use these) ──
+# shared by other team members — do not remove
 class UploadPdfRequest(BaseModel):
     file_b64: str
     filename: str
@@ -18,7 +16,7 @@ class FeedbackRequest(BaseModel):
     last_answer:   Optional[str] = None
 
 
-# ── OLD schema (keep for backward compat) ──
+# original schema kept so older endpoints don't break
 class RiskRequest(BaseModel):
     student_id:             str
     gpa:                    float
@@ -30,7 +28,7 @@ class RiskResponse(BaseModel):
     risk_score: float
 
 
-# ── NEW schemas for SHAP-based risk ──
+# 17 fields the hybrid ensemble model was trained on — field names and ranges must match training data exactly
 class StudentRiskInput(BaseModel):
     Attendance_pct:           float = Field(..., ge=0, le=100)
     Midterm_Score:            float = Field(..., ge=0, le=100)
@@ -51,6 +49,7 @@ class StudentRiskInput(BaseModel):
     Family_Income_Level:         str
 
 
+# represents one factor from SHAP output (either a risk driver or a protective factor)
 class SHAPFactor(BaseModel):
     feature:      str
     display_name: str

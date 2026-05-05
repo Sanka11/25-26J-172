@@ -1,4 +1,6 @@
-// backend/functions/src/http/updateStudentMarksController.js
+// Called by the lecturer dashboard when marks are saved.
+// Reads existing student data, calls XAI for risk, then writes to
+// student_acc, student_risk_predictions, and student_risk_history.
 const admin = require("../firebase");
 const { FieldValue } = require("firebase-admin/firestore");
 const axios = require("axios");
@@ -18,7 +20,8 @@ exports.updateStudentMarks = async (req, res) => {
     if (!studentId)
       return res.status(400).json({ error: "studentId is required" });
 
-    // 1. Read existing student_acc for demographic fields
+    // need the existing doc to pull demographic fields (gender, department etc.)
+    // that aren't sent in the marks payload
     const accDoc = await db.collection("student_acc").doc(studentId).get();
     if (!accDoc.exists) {
       return res
@@ -27,7 +30,7 @@ exports.updateStudentMarks = async (req, res) => {
     }
     const existing = accDoc.data();
 
-    // 2. Build full 17-field ML payload (new values override existing)
+    // new marks override stored values; demographics come from existing doc
     const mlPayload = {
       Attendance_pct:             Number(body.Attendance_pct        ?? existing.Attendance_pct        ?? 75),
       Midterm_Score:              Number(body.Midterm_Score         ?? existing.Midterm_Score         ?? 60),
@@ -48,7 +51,7 @@ exports.updateStudentMarks = async (req, res) => {
       Family_Income_Level:        String(existing.Family_Income_Level        ?? "Medium"),
     };
 
-    // 3. Call XAI service for SHAP risk prediction
+    // marks are NOT saved if the XAI call fails — the error is returned to the frontend
     let riskResult;
     try {
       const resp = await axios.post(
@@ -82,7 +85,7 @@ exports.updateStudentMarks = async (req, res) => {
     const newYear = labelMatch ? parseInt(labelMatch[1]) : null;
     const newSem  = labelMatch ? `Semester ${labelMatch[2]}` : null;
 
-    // 4. Update student_acc: marks + risk + advance current position
+    // update marks and risk together in one write
     const accUpdate = {
       Attendance_pct:        mlPayload.Attendance_pct,
       Midterm_Score:         mlPayload.Midterm_Score,
@@ -110,7 +113,7 @@ exports.updateStudentMarks = async (req, res) => {
 
     await db.collection("student_acc").doc(studentId).update(accUpdate);
 
-    // 5. Mirror to student_risk_predictions/{studentId} (latest cached)
+    // student_risk_predictions holds the latest cached prediction for quick reads
     await db
       .collection("student_risk_predictions")
       .doc(studentId)
@@ -125,7 +128,7 @@ exports.updateStudentMarks = async (req, res) => {
         { merge: true },
       );
 
-    // 6. Append a history record for this semester
+    // each semester's marks and risk are appended so the trend chart has data over time
     await db.collection("student_risk_history").add({
       student_id:       studentId,
       semester_label:   semesterLabel,

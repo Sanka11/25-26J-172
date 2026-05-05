@@ -121,7 +121,7 @@ function RiskChangeBadge({ before, after }) {
 
 // ── Update Marks Modal ──
 function UpdateMarksModal({ student, onClose, onSuccess }) {
-  const isNewSem1 = student?.current_year === 1 && student?.current_semester === "Semester 1";
+  const isNewSem1 = Number(student?.current_year) === 1 && student?.current_semester === "Semester 1";
   const [year, setYear] = useState(CURRENT_YEAR);
   const [semester, setSemester] = useState(student?.current_semester ?? "Semester 1");
   const [saving, setSaving] = useState(false);
@@ -585,10 +585,11 @@ export default function LecturerRiskDashboard() {
                     s.explanation?.risk_factors?.[0]?.display_name || "—";
                   const pct =
                     s.risk_percentage ?? Math.round((s.risk_score || 0) * 100);
+                  const noRiskYet = !s.risk_level;
                   return (
                     <tr
                       key={s.student_id}
-                      className={rowColor[s.risk_level] || ""}
+                      className={rowColor[s.risk_level] || "border-l-4 border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors"}
                     >
                       <td className="px-4 py-3">
                         <div className="font-mono font-medium text-gray-800">
@@ -606,31 +607,37 @@ export default function LecturerRiskDashboard() {
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                s.risk_level === "High"
-                                  ? "bg-red-500"
-                                  : s.risk_level === "Medium"
-                                    ? "bg-amber-500"
-                                    : "bg-green-500"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
+                        {noRiskYet ? (
+                          <span className="text-xs text-gray-400 italic">No data yet</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${
+                                  s.risk_level === "High"
+                                    ? "bg-red-500"
+                                    : s.risk_level === "Medium"
+                                      ? "bg-amber-500"
+                                      : "bg-green-500"
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold">{pct}%</span>
                           </div>
-                          <span className="text-xs font-semibold">{pct}%</span>
-                        </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeColor[s.risk_level]}`}
-                        >
-                          {s.risk_level}
-                        </span>
+                        {noRiskYet ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">New</span>
+                        ) : (
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeColor[s.risk_level]}`}>
+                            {s.risk_level}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
-                        {topFactor}
+                        {noRiskYet ? "—" : topFactor}
                       </td>
                       <td className="px-4 py-3">
                         <button

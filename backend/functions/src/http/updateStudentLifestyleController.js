@@ -5,6 +5,8 @@ const { ML_XAI_BASE_URL } = require("../config");
 
 const db = admin.firestore();
 
+// Called when a student saves their lifestyle data from their profile page.
+// Saves the values then immediately re-runs risk prediction so the score reflects the change.
 exports.updateStudentLifestyle = async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -45,16 +47,16 @@ exports.updateStudentLifestyle = async (req, res) => {
     if (Object.keys(updates).length === 0)
       return res.status(400).json({ error: "No valid lifestyle fields provided" });
 
-    // Save lifestyle fields
+    // save first so the data isn't lost if the ML call fails
     await db.collection("student_acc").doc(studentId).update({
       ...updates,
       updated_at: FieldValue.serverTimestamp(),
     });
 
-    // Merge updated lifestyle with existing marks for ML payload
+    // merge new lifestyle values over existing doc so the full 17-field payload is complete
     const merged = { ...existing, ...updates };
 
-    // Re-run risk prediction with updated lifestyle
+    // risk recalculation is best-effort — lifestyle is already saved so a ML failure isn't fatal
     let riskResult = null;
     try {
       const _midterm   = Number(merged.Midterm_Score ?? 60);

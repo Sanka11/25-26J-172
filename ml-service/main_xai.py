@@ -1,7 +1,6 @@
-# app/main_xai.py
-# XAI Component — Student Risk Prediction & SHAP Explainability
-# Runs independently on port 8000
-# Author: it22354792
+# XAI Service entry point — run with: uvicorn main_xai:app --port 8001
+# Handles all risk prediction and SHAP explainability for AcademiGuard
+# Author: IT22354792
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,32 +36,32 @@ def health():
     }
 
 
+# kept for backward compatibility with older callers
 @app.post("/predict-risk", response_model=RiskResponse)
 def predict_risk(payload: RiskRequest):
-    """Legacy endpoint — kept for backward compatibility."""
     score = predict_risk_score(payload)
     return RiskResponse(risk_score=score)
 
 
+# returns risk score + full SHAP explanation without storing anything
 @app.post("/predict-risk/shap")
 def predict_risk_shap(payload: StudentRiskInput):
-    """SHAP-based risk prediction. Returns score + full explanation."""
     data = payload.dict()
     data["Stress_Level_1-10"] = data.pop("Stress_Level")
     return predict_risk_with_shap(data)
 
 
+# main endpoint used by the backend — result is written to Firestore by the caller
 @app.post("/predict-risk/shap/{student_id}")
 def predict_risk_shap_for_student(student_id: str, payload: StudentRiskInput):
-    """SHAP risk prediction for a specific student ID."""
     data = payload.dict()
     data["Stress_Level_1-10"] = data.pop("Stress_Level")
     return predict_risk_with_shap(data, student_id=student_id)
 
 
+# what-if simulation for "next semester" predictor — never saved to Firestore
 @app.post("/predict-risk/next-semester")
 def predict_next_semester(payload: StudentRiskInput):
-    """What-if prediction — result is NEVER stored."""
     data = payload.dict()
     data["Stress_Level_1-10"] = data.pop("Stress_Level")
     result = predict_risk_with_shap(data)
