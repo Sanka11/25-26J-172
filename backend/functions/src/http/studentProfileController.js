@@ -1,13 +1,8 @@
-// backend/functions/src/http/studentProfileController.js
-// Creates profiles in ALL of:
-//   1. student_acc/{student_id}  → XAI risk prediction
-//   2. students/{auto-id}        → teammates' collection
-//   3. Firebase Auth             → enables login
-//   4. users/{uid}               → role-based routing in the frontend
-
-
-
-// backend/functions/src/http/studentProfileController.js
+// Creates a student in four places at once:
+//   student_acc/{id}  — used by XAI for risk prediction
+//   students/{auto}   — used by teammates' modules
+//   Firebase Auth     — so the student can log in
+//   users/{uid}       — so the frontend can route by role
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("../firebase");
 const { FieldValue } = require("firebase-admin/firestore");
@@ -22,6 +17,7 @@ function setCors(res, method = "POST") {
   res.set("Access-Control-Allow-Methods", method);
 }
 
+// basic field checks before touching Firestore or Auth
 function validateStudent(s) {
   const errors = [];
   if (!s.student_id) errors.push("student_id is required");
@@ -37,13 +33,14 @@ function validateStudent(s) {
   return errors;
 }
 
+// Year 1 Semester 1 students have no marks yet — skip risk prediction for them
 function hasScores(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
   return !isNew;
 }
 
-// ── Build the exact 17-field ML payload (matches updateStudentMarks) ──────
+// builds the 17-field payload the XAI service expects — field names must match training data
 function buildMlPayload(s) {
   const midterm = Number(s.midterm_score ?? s.Midterm_Score ?? 60);
   const finalRaw = Number(s.final_score ?? s.Final_Score ?? 0);
@@ -68,7 +65,7 @@ function buildMlPayload(s) {
   };
 }
 
-// ── Call ML → write risk back to student_acc + student_risk_predictions ───
+// calls the XAI service then writes the result to both student_acc and student_risk_predictions
 async function runRiskPrediction(studentId, s) {
   try {
     const mlPayload = buildMlPayload(s);
@@ -125,7 +122,7 @@ async function runRiskPrediction(studentId, s) {
   }
 }
 
-// ── Firebase Auth + users/{uid} ───────────────────────────────────────────
+// creates the Firebase Auth user and the users/{uid} doc — skips if email already registered
 async function createAuthAndUserDoc(s, batch) {
   const studentId = String(s.student_id).trim();
 
@@ -159,7 +156,7 @@ async function createAuthAndUserDoc(s, batch) {
   return userRecord.uid;
 }
 
-// ── student_acc/{student_id} ──────────────────────────────────────────────
+// builds the full student_acc document — stores both snake_case and PascalCase for compatibility
 function buildStudentAccDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -220,7 +217,7 @@ function buildStudentAccDoc(s) {
   };
 }
 
-// ── students/{auto-id} (teammates' collection) ────────────────────────────
+// minimal doc for the shared students collection used by other team members
 function buildStudentsDoc(s) {
   const isNew =
     Number(s.current_year) === 1 && s.current_semester === "Semester 1";
@@ -234,7 +231,7 @@ function buildStudentsDoc(s) {
   };
 }
 
-// ── POST /createStudentProfile ────────────────────────────────────────────
+// single student creation — used from the super admin profile management page
 const createStudentProfile = onRequest(async (req, res) => {
   setCors(res, "POST");
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -291,7 +288,7 @@ const createStudentProfile = onRequest(async (req, res) => {
   }
 });
 
-// ── POST /bulkCreateStudentProfiles ──────────────────────────────────────
+// CSV bulk upload — processes in chunks of 200 to stay within Firestore batch limits
 const bulkCreateStudentProfiles = onRequest(async (req, res) => {
   setCors(res, "POST");
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -380,7 +377,7 @@ const bulkCreateStudentProfiles = onRequest(async (req, res) => {
   }
 });
 
-// ── GET /checkStudentIdExists ─────────────────────────────────────────────
+// quick existence check used by the frontend before submitting the create form
 const checkStudentIdExists = onRequest(async (req, res) => {
   setCors(res, "GET");
   if (req.method === "OPTIONS") return res.status(204).send("");
