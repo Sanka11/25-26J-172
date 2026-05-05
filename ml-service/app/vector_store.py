@@ -21,11 +21,14 @@ def add_documents(doc_id_prefix, chunks, metadatas, embeddings):
 
     ids = [f"{doc_id_prefix}_{i}" for i in range(len(chunks))]
 
+    # Convert embeddings to list if needed (handle both numpy arrays and lists)
+    embeddings_list = embeddings if isinstance(embeddings, list) else embeddings.tolist()
+
     col.add(
         documents=chunks,
         metadatas=metadatas,
         ids=ids,
-        embeddings=embeddings.tolist()
+        embeddings=embeddings_list
     )
 
 
